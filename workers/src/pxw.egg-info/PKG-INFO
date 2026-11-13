@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: pxw
+Version: 0.0.0
+Requires-Python: >=3.11
+Requires-Dist: pymupdf<3,>=1.26
+Requires-Dist: pydantic<3,>=2.11
+Requires-Dist: psycopg[binary]<4,>=3.2
+Requires-Dist: boto3<2,>=1.40
+Requires-Dist: rapidfuzz<4,>=3.13
+Requires-Dist: rapidocr<4,>=3.4
+Requires-Dist: onnxruntime>=1.22
+Requires-Dist: sympy==1.14.0
+Requires-Dist: numpy>=2
+Requires-Dist: pillow>=11
+Provides-Extra: paddle
+Requires-Dist: paddleocr>=3.2; extra == "paddle"
+Requires-Dist: paddlepaddle>=3.1; extra == "paddle"
+Provides-Extra: tesseract
+Requires-Dist: pytesseract>=0.3.13; extra == "tesseract"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.4; extra == "dev"
+Requires-Dist: ruff>=0.12; extra == "dev"
