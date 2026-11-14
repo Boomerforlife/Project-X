@@ -1,0 +1,585 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "document": {
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "filename": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha256",
+        "page_count",
+        "filename"
+      ]
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "number",
+            "const": 1
+          },
+          "question_number": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "external_question_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "section_hint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PHYSICS",
+                  "CHEMISTRY",
+                  "MATHEMATICS"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "question_type_guess": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "SINGLE_MCQ",
+                  "MULTI_MCQ",
+                  "NUMERICAL"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "content": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "paragraph"
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 20000
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "math"
+                    },
+                    "latex": {
+                      "type": "string",
+                      "maxLength": 5000
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "latex"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "image"
+                    },
+                    "asset_ref": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "alt": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "caption": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "asset_ref",
+                    "alt"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "table"
+                    },
+                    "header": {
+                      "anyOf": [
+                        {
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "rows": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "maxItems": 12,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "header",
+                    "rows"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "list"
+                    },
+                    "ordered": {
+                      "type": "boolean"
+                    },
+                    "items": {
+                      "minItems": 1,
+                      "maxItems": 30,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "ordered",
+                    "items"
+                  ]
+                }
+              ]
+            }
+          },
+          "options": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "enum": [
+                    "A",
+                    "B",
+                    "C",
+                    "D",
+                    "E"
+                  ]
+                },
+                "external_option_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "content": {
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "paragraph"
+                          },
+                          "text": {
+                            "type": "string",
+                            "maxLength": 20000
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "text"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "math"
+                          },
+                          "latex": {
+                            "type": "string",
+                            "maxLength": 5000
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "latex"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "image"
+                          },
+                          "asset_ref": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "alt": {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          "caption": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "asset_ref",
+                          "alt"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "table"
+                          },
+                          "header": {
+                            "anyOf": [
+                              {
+                                "maxItems": 12,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 500
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "rows": {
+                            "maxItems": 50,
+                            "type": "array",
+                            "items": {
+                              "maxItems": 12,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "maxLength": 500
+                              }
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "header",
+                          "rows"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "list"
+                          },
+                          "ordered": {
+                            "type": "boolean"
+                          },
+                          "items": {
+                            "minItems": 1,
+                            "maxItems": 30,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 2000
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "ordered",
+                          "items"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "label",
+                "external_option_id",
+                "content"
+              ]
+            }
+          },
+          "assets": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "asset_ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "asset_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "IMAGE",
+                    "DIAGRAM",
+                    "TABLE_IMAGE",
+                    "ORIGINAL_CROP"
+                  ]
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "bbox": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 4,
+                  "maxItems": 4
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "mime_type": {
+                  "type": "string",
+                  "enum": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                  ]
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "r2_key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "asset_ref",
+                "asset_id",
+                "kind",
+                "page",
+                "bbox",
+                "sha256",
+                "mime_type",
+                "width",
+                "height",
+                "r2_key"
+              ]
+            }
+          },
+          "page_start": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "page_end": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "question_text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "normalized_text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "extraction": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "TEXT",
+                  "OCR",
+                  "MIXED"
+                ]
+              },
+              "ocr_engine": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mean_confidence": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "method",
+              "ocr_engine",
+              "mean_confidence",
+              "warnings"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "question_number",
+          "external_question_id",
+          "section_hint",
+          "question_type_guess",
+          "content",
+          "options",
+          "assets",
+          "page_start",
+          "page_end",
+          "question_text",
+          "normalized_text",
+          "content_hash",
+          "extraction"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "questions"
+  ],
+  "$id": "https://projectx.local/schemas/ingestion-bundle.json",
+  "title": "ingestion-bundle"
+}

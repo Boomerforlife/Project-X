@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "OPTION_LABELS"
+        },
+        "labels": {
+          "minItems": 1,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E"
+            ]
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "labels"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "EXTERNAL_OPTION_IDS"
+        },
+        "ids": {
+          "minItems": 1,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "ids"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "NUMERIC"
+        },
+        "accepted_ranges": {
+          "minItems": 1,
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^-?\\d+(\\.\\d+)?$"
+              },
+              "max": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^-?\\d+(\\.\\d+)?$"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ]
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "accepted_ranges"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "DROPPED"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    }
+  ],
+  "$id": "https://projectx.local/schemas/official-answer.json",
+  "title": "official-answer"
+}
