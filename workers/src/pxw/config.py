@@ -1,0 +1,62 @@
+"""Environment -> Settings."""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Mapping
+from pathlib import Path
+
+from pydantic import BaseModel, Field
+
+PIPELINE_VERSION = "v1"
+
+
+class ConfigError(Exception):
+    """Missing/invalid configuration (CLI exit code 2)."""
+
+
+class Settings(BaseModel):
+    work_dir: Path = Path(".local/work")
+    job_store: str = "file"
+    storage_driver: str = "local"
+    local_storage_dir: Path = Path(".local/storage")
+    ocr_engines: list[str] = Field(default_factory=lambda: ["rapidocr", "paddle", "tesseract"])
+    ocr_min_confidence: float = 0.6
+    database_url: str | None = None
+    r2_account_id: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: str | None = None
+    r2_bucket_source_docs: str = "projectx-source-docs"
+    r2_bucket_public_assets: str = "projectx-public-assets"
+    r2_bucket_user_uploads: str = "projectx-user-uploads"
+    log_level: str = "info"
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
+        e = os.environ if env is None else env
+
+        def g(name: str, default: str | None = None) -> str | None:
+            v = e.get(name)
+            return v if v not in (None, "") else default
+
+        engines = g("OCR_ENGINES", "rapidocr,paddle,tesseract") or ""
+        try:
+            min_conf = float(g("OCR_MIN_CONFIDENCE", "0.6") or "0.6")
+        except ValueError as exc:
+            raise ConfigError("OCR_MIN_CONFIDENCE must be a number") from exc
+        return cls(
+            work_dir=Path(g("PXW_WORK_DIR", ".local/work") or ".local/work"),
+            job_store=(g("PXW_JOB_STORE", "file") or "file").lower(),
+            storage_driver=(g("STORAGE_DRIVER", "local") or "local").lower(),
+            local_storage_dir=Path(g("LOCAL_STORAGE_DIR", ".local/storage") or ".local/storage"),
+            ocr_engines=[x.strip() for x in engines.split(",") if x.strip()],
+            ocr_min_confidence=min_conf,
+            database_url=g("DATABASE_URL"),
+            r2_account_id=g("R2_ACCOUNT_ID"),
+            r2_access_key_id=g("R2_ACCESS_KEY_ID"),
+            r2_secret_access_key=g("R2_SECRET_ACCESS_KEY"),
+            r2_bucket_source_docs=g("R2_BUCKET_SOURCE_DOCS", "projectx-source-docs") or "projectx-source-docs",
+            r2_bucket_public_assets=g("R2_BUCKET_PUBLIC_ASSETS", "projectx-public-assets") or "projectx-public-assets",
+            r2_bucket_user_uploads=g("R2_BUCKET_USER_UPLOADS", "projectx-user-uploads") or "projectx-user-uploads",
+            log_level=(g("LOG_LEVEL", "info") or "info").lower(),
+        )
