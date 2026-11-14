@@ -1,0 +1,21 @@
+{
+  "name": "@projectx/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run --passWithNoTests",
+    "ai": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@google/genai": "2.32.0",
+    "zod": "4.6.7",
+    "@projectx/contracts": "*",
+    "@projectx/shared": "*",
+    "@projectx/db": "*"
+  }
+}

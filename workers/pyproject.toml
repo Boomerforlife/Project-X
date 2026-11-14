@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pxw"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+  "pymupdf>=1.26,<3", "pydantic>=2.11,<3", "psycopg[binary]>=3.2,<4", "boto3>=1.40,<2",
+  "rapidfuzz>=3.13,<4", "rapidocr>=3.4,<4", "onnxruntime>=1.22", "sympy==1.14.0", "numpy>=2", "pillow>=11",
+]
+
+[project.optional-dependencies]
+paddle = ["paddleocr>=3.2", "paddlepaddle>=3.1"]
+tesseract = ["pytesseract>=0.3.13"]
+dev = ["pytest>=8.4", "ruff>=0.12"]
+
+[project.scripts]
+pxw = "pxw.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pxw*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120

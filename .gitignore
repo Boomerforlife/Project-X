@@ -1,0 +1,13 @@
+node_modules/
+.local/
+dist/
+.wrangler/
+.dev.vars
+.env
+workers/.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.log
+coverage/
+*.egg-info/
