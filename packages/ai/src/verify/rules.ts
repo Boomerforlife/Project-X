@@ -38,11 +38,11 @@ export function nonPassReasons(checks: Record<CheckKind, CheckResult>): string[]
 /** Pure decision function, rules_version v1 (AI_PIPELINE section 7). AI alone never yields HUMAN_VERIFIED. */
 export function decideVerification(input: DecisionInput): Decision {
   const decision = decideRaw(input);
-  if (input.currentStatus === 'HUMAN_VERIFIED') {
-    // Rule 7: record the run only; never move a human-verified question.
+  if (input.currentStatus === 'HUMAN_VERIFIED' || input.currentStatus === 'DISPUTED') {
+    // Rule 7: record the run only; never move a human-verified or disputed question (resolving a dispute is ADMIN-only).
     const reasons = [...decision.reasons];
     if (decision.outcome === 'FAILED') reasons.push('REVERIFY_REGRESSION');
-    return { outcome: decision.outcome, status: 'HUMAN_VERIFIED', reasons, ingestionStatus: 'CHECKED' };
+    return { outcome: decision.outcome, status: input.currentStatus, reasons, ingestionStatus: 'CHECKED' };
   }
   return decision;
 }

@@ -14,6 +14,8 @@ const env: Record<string, unknown> = {
   APP_ENV: 'development',
   AUTH_MODE: 'test',
   TEST_JWT_SECRET: 'dev-test-secret-change-me-32-chars-min',
+  SIGNING_SECRET: 'dev-only-signing-secret-not-for-prod-0123456789',
+  IP_HASH_SECRET: 'dev-only-ip-hash-secret-not-for-prod-0123456789',
   ENABLE_API_DOCS: 'true',
   CORS_ALLOWED_ORIGINS: 'http://localhost:3000,http://localhost:5173',
   ...process.env,

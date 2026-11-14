@@ -364,12 +364,18 @@ export function createSqlAiRepository(db: Db): AiRepository {
 
     async recordVerification(run: NewVerificationRun) {
       return db.withService(async (tx) => {
+        // Lock the row and re-read the status: a human/admin decision made after the handler read the question must win.
+        const cur = (
+          await tx.query<{ verification_status: string }>(`select verification_status::text as verification_status from questions where id = $1::uuid for update`, [run.questionId])
+        ).rows[0];
+        const protectedStatus = cur && (cur.verification_status === 'HUMAN_VERIFIED' || cur.verification_status === 'DISPUTED') ? cur.verification_status : null;
+        const resultingStatus = protectedStatus ?? run.resultingStatus;
         const ins = await tx.query<{ id: string }>(
           `insert into verification_runs(question_id, solution_version_id, job_id, rules_version, outcome, resulting_status, reasons, started_at, finished_at)
            values ($1::uuid, $2::uuid, $3::uuid, $4, $5::verification_outcome, $6::verification_status,
                    array(select jsonb_array_elements_text($7::jsonb)), $8::timestamptz, now())
            returning id`,
-          [run.questionId, run.solutionVersionId, run.jobId, run.rulesVersion, run.outcome, run.resultingStatus, json(run.reasons), run.startedAt.toISOString()],
+          [run.questionId, run.solutionVersionId, run.jobId, run.rulesVersion, run.outcome, resultingStatus, json(run.reasons), run.startedAt.toISOString()],
         );
         const runId = ins.rows[0]?.id;
         if (!runId) throw new Error('verification_runs insert returned no row');
@@ -381,20 +387,26 @@ export function createSqlAiRepository(db: Db): AiRepository {
           );
         }
         // A PUBLISHED question that no longer qualifies is returned to DRAFT in the same statement (publication guard).
-        await tx.query(
-          `update questions set verification_status = $2::verification_status, ingestion_status = $3::ingestion_status,
-                  publication_status = case when publication_status = 'PUBLISHED' and $2::text not in ('OFFICIAL_KEY_MATCHED','HUMAN_VERIFIED')
-                                            then 'DRAFT'::publication_status else publication_status end
-            where id = $1::uuid and (verification_status <> $2::verification_status or ingestion_status <> $3::ingestion_status)`,
-          [run.questionId, run.resultingStatus, run.ingestionStatus],
-        );
+        let statusApplied = false;
+        if (!protectedStatus) {
+          const upd = await tx.query(
+            `update questions set verification_status = $2::verification_status, ingestion_status = $3::ingestion_status,
+                    publication_status = case when publication_status = 'PUBLISHED' and $2::text not in ('OFFICIAL_KEY_MATCHED','HUMAN_VERIFIED')
+                                              then 'DRAFT'::publication_status else publication_status end
+              where id = $1::uuid and verification_status not in ('HUMAN_VERIFIED','DISPUTED')
+                and (verification_status <> $2::verification_status or ingestion_status <> $3::ingestion_status)`,
+            [run.questionId, run.resultingStatus, run.ingestionStatus],
+          );
+          statusApplied = (upd.rowCount ?? 0) > 0;
+        }
         await audit(tx, 'ai.verification_recorded', 'question', run.questionId, {
           verification_run_id: runId,
           outcome: run.outcome,
-          resulting_status: run.resultingStatus,
+          resulting_status: resultingStatus,
           reasons: run.reasons,
+          ...(protectedStatus ? { skipped_protected_status: protectedStatus } : {}),
         });
-        return runId;
+        return { id: runId, statusApplied, skippedProtectedStatus: protectedStatus };
       });
     },
 
@@ -404,8 +416,8 @@ export function createSqlAiRepository(db: Db): AiRepository {
           await tx.query<{ verification_status: string }>(`select verification_status::text as verification_status from questions where id = $1::uuid for update`, [questionId])
         ).rows[0];
         if (!cur) return;
-        const human = cur.verification_status === 'HUMAN_VERIFIED';
-        const resulting = human ? 'HUMAN_VERIFIED' : 'HUMAN_REVIEW_REQUIRED';
+        const human = cur.verification_status === 'HUMAN_VERIFIED' || cur.verification_status === 'DISPUTED';
+        const resulting = human ? cur.verification_status : 'HUMAN_REVIEW_REQUIRED';
         await tx.query(
           `insert into verification_runs(question_id, job_id, rules_version, outcome, resulting_status, reasons, finished_at)
            values ($1::uuid, $2::uuid, 'v1', 'FAILED', $3::verification_status, array['PIPELINE_ERROR', $4::text], now())`,
@@ -415,7 +427,7 @@ export function createSqlAiRepository(db: Db): AiRepository {
           await tx.query(
             `update questions set verification_status = 'HUMAN_REVIEW_REQUIRED', ingestion_status = 'NEEDS_ATTENTION',
                     publication_status = case when publication_status = 'PUBLISHED' then 'DRAFT'::publication_status else publication_status end
-              where id = $1::uuid`,
+              where id = $1::uuid and verification_status not in ('HUMAN_VERIFIED','DISPUTED')`,
             [questionId],
           );
         }

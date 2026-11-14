@@ -22,6 +22,8 @@ import {
 } from '@projectx/contracts';
 import { applyCacheHeaders, verifyFileToken } from '@projectx/edge';
 import { swaggerUI } from '@hono/swagger-ui';
+import { requireSecret } from '../config';
+import { rateLimit } from '../middleware/guards';
 import { ApiError } from '../lib/errors';
 import { deps, parseCursor, send, store, valid, type AppEnv, type Ctx } from '../lib/http';
 import * as catalog from '../services/catalog';
@@ -234,7 +236,7 @@ export function registerPublic(app: App, g: Guards): void {
     summary: 'Stream a private object via signed token',
     tags: ['public'],
     request: { params: z.object({ token: z.string().min(10).max(1500) }) },
-    middleware: [],
+    middleware: [rateLimit('RL_PUBLIC')],
     responses: {
       200: { description: 'Object bytes', content: { 'application/octet-stream': { schema: z.string() } } },
       403: { description: 'Invalid or expired token', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
@@ -243,12 +245,12 @@ export function registerPublic(app: App, g: Guards): void {
   app.openapi(filesRoute, async (c: Ctx) => {
     const d = deps(c);
     const token = c.req.param('token') ?? '';
-    const secret = d.config.SIGNING_SECRET || 'dev-only-signing-secret';
+    const secret = requireSecret(d.config, 'SIGNING_SECRET');
     const t = await verifyFileToken({ secret, token, now: d.clock().getTime() });
-    if (!t) throw new ApiError('FORBIDDEN', 'Invalid or expired file token');
+    if (!t || t.bucket !== 'USER_UPLOADS') throw new ApiError('FORBIDDEN', 'Invalid or expired file token');
     const obj = await d.storage[t.bucket].get(t.key);
     if (!obj) throw new ApiError('FORBIDDEN', 'Invalid or expired file token');
-    const res = new Response(obj.body, { status: 200, headers: { 'Content-Type': obj.contentType, 'Content-Length': String(obj.size) } });
+    const res = new Response(obj.body, { status: 200, headers: { 'Content-Type': obj.contentType, 'Content-Length': String(obj.size), 'Content-Disposition': 'attachment', 'X-Content-Type-Options': 'nosniff' } });
     res.headers.set('Cache-Control', 'private, max-age=300');
     return res as never;
   });

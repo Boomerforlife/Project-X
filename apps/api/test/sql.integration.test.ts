@@ -239,3 +239,39 @@ describe('SQL repositories: admin workflow', () => {
     expect((await h.req('/admin/questions')).status).toBe(401);
   });
 });
+
+describe('SQL repositories: review-finding fixes', () => {
+  it('H2: AI_VERIFY job payload has solution_version_id; repeat without force reports existing job', async () => {
+    const id = await qid('demo-constant-acceleration-distance');
+    const run = () => h.req(`/admin/questions/${id}/verification/run`, { method: 'POST', token: at, json: { stages: ['VERIFY'] } });
+    const r1 = await run();
+    expect(r1.status).toBe(202);
+    const b1 = (await j(r1)).data;
+    expect(b1.existing_job_ids).toEqual([]);
+    const row = await db.withService(async (tx) => (await tx.query<{ payload: any; idempotency_key: string }>(`select payload, idempotency_key from public.pipeline_jobs where id=$1`, [b1.job_ids[0]])).rows[0]!);
+    expect(typeof row.payload.solution_version_id).toBe('string');
+    expect(row.payload.question_id).toBe(id);
+    expect(row.idempotency_key).toBe(`AI_VERIFY:${id}:${row.payload.solution_version_id}:v1`);
+    const b2 = (await j(await run())).data;
+    expect(b2.existing_job_ids).toEqual(b1.job_ids);
+    expect(b2.message).toMatch(/already exist/);
+  });
+
+  it('H2: REVIEWER cannot approve a DISPUTED question', async () => {
+    const reviewer = await createTestUser(db, { email: 'rev@test.local', roles: ['REVIEWER'] });
+    const rt = await token(reviewer.id);
+    const id = await qid('demo-constant-acceleration-distance');
+    const d = await h.req(`/admin/questions/${id}/dispute`, { method: 'POST', token: at, json: { reason: 'key looks wrong' } });
+    expect(d.status).toBe(200);
+    const q = (await j(await h.req(`/admin/questions/${id}`, { token: at }))).data;
+    expect(q.verification_status).toBe('DISPUTED');
+    const solId = q.solution_versions[0].id;
+    const r = await h.req(`/admin/questions/${id}/approve`, { method: 'POST', token: rt, json: { solution_version_id: solId, expected_row_version: q.row_version } });
+    expect(r.status).toBe(403);
+  });
+
+  it('POST /admin/sources reuse_permitted=true -> 422', async () => {
+    const r = await h.req('/admin/sources', { method: 'POST', token: at, json: { code: 'SQLBADSRC', name: 'Bad', kind: 'LICENSED_PUBLISHER', reuse_permitted: true } });
+    expect(r.status).toBe(422);
+  });
+});

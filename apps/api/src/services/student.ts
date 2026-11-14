@@ -11,6 +11,7 @@ import type {
   Streak,
 } from '@projectx/contracts';
 import { signFileUrl } from '@projectx/edge';
+import { requireSecret } from '../config';
 import type { AppDeps, AuthUser } from '../deps';
 import { ApiError, notFound, validation } from '../lib/errors';
 import { iso, isoOrNull, paginate } from '../lib/http';
@@ -275,7 +276,7 @@ export async function dismissMistake(store: Store, user: AuthUser, questionId: s
 
 export async function signedUploadUrl(deps: D, key: string, bucket: 'USER_UPLOADS'): Promise<string> {
   return signFileUrl({
-    secret: deps.config.SIGNING_SECRET || 'dev-only-signing-secret',
+    secret: requireSecret(deps.config, 'SIGNING_SECRET'),
     baseUrl: deps.config.FILES_BASE_URL,
     bucket,
     key,

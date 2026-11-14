@@ -7,7 +7,7 @@ import { parseConfig } from '../src/config';
 import { silentLogger } from '../src/deps';
 import { createMemoryStore, MemoryState } from '../src/repositories/memory/store';
 
-const config = parseConfig({ APP_ENV: 'test', AUTH_MODE: 'test', TEST_JWT_SECRET: 'x'.repeat(32), ENABLE_API_DOCS: 'true' });
+const config = parseConfig({ APP_ENV: 'test', AUTH_MODE: 'test', TEST_JWT_SECRET: 'x'.repeat(32), SIGNING_SECRET: 'x'.repeat(32), IP_HASH_SECRET: 'y'.repeat(32), ENABLE_API_DOCS: 'true' });
 const app = createApp({
   config,
   // reason: the OpenAPI document needs no database

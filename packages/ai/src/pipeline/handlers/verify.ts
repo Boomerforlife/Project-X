@@ -78,7 +78,7 @@ export async function handleVerify(deps: HandlerDeps, job: JobInput): Promise<Ha
     blindAnswerEqualsKey: officialKeyExists && blind && q.answerKey ? aiAnswerMatchesKey(q, blind.answer, q.answerKey) : null,
   });
 
-  const runId = await deps.repo.recordVerification({
+  const rec = await deps.repo.recordVerification({
     questionId: q.id,
     solutionVersionId: solution.id,
     jobId: job.id,
@@ -94,9 +94,11 @@ export async function handleVerify(deps: HandlerDeps, job: JobInput): Promise<Ha
   return {
     result: {
       stage: 'verify',
-      verification_run_id: runId,
+      verification_run_id: rec.id,
       outcome: decision.outcome,
-      status: decision.status,
+      status_applied: rec.statusApplied,
+      skipped_protected_status: rec.skippedProtectedStatus,
+      status: rec.skippedProtectedStatus ?? decision.status,
       previous_status: q.verificationStatus,
       reasons: decision.reasons,
       checks: results,

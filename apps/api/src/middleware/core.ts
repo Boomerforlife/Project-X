@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { cors } from 'hono/cors';
 import { applyCacheHeaders, hashIp } from '@projectx/edge';
 import type { ErrorEnvelope } from '@projectx/contracts';
+import { requireSecret } from '../config';
 import type { AppDeps } from '../deps';
 import { ApiError, mapDbError } from '../lib/errors';
 import type { AppEnv, Ctx } from '../lib/http';
@@ -12,7 +13,7 @@ const REQUEST_ID_RE = /^[A-Za-z0-9._-]{8,64}$/;
 
 /** Outermost: request id, deps/store injection, ip hash, security headers, default PRIVATE cache. */
 export function requestContext(deps: AppDeps, store: Store): MiddlewareHandler<AppEnv> {
-  const ipSecret = deps.config.IP_HASH_SECRET || 'dev-only-ip-hash-secret';
+  const ipSecret = requireSecret(deps.config, 'IP_HASH_SECRET');
   return async (c, next) => {
     const incoming = c.req.header('X-Request-Id');
     const requestId = incoming && REQUEST_ID_RE.test(incoming) ? incoming : crypto.randomUUID();

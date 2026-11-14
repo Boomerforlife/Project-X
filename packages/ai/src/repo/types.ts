@@ -126,6 +126,14 @@ export interface ClassificationPatch {
   difficulty: Difficulty | null;
 }
 
+export interface RecordVerificationResult {
+  id: string;
+  /** false when the questions row was left untouched (e.g. a HUMAN_VERIFIED / DISPUTED decision protected it, or nothing changed). */
+  statusApplied: boolean;
+  /** Set when the UPDATE was skipped because the question is HUMAN_VERIFIED or DISPUTED. */
+  skippedProtectedStatus: string | null;
+}
+
 export interface NewVerificationRun {
   questionId: string;
   solutionVersionId: string | null;
@@ -178,8 +186,8 @@ export interface AiRepository extends BudgetStore {
   /** Stores suggestions only where seo_title / seo_description are still null. */
   applySeo(questionId: string, title: string, description: string): Promise<void>;
   /** One transaction: verification_runs + checks, questions statuses, audit_log. */
-  recordVerification(run: NewVerificationRun): Promise<string>;
-  /** Pipeline error path (rule 6): never changes a HUMAN_VERIFIED question's verification_status. */
+  recordVerification(run: NewVerificationRun): Promise<RecordVerificationResult>;
+  /** Pipeline error path (rule 6): never changes a HUMAN_VERIFIED or DISPUTED question's verification_status. */
   markPipelineError(questionId: string, jobKind: JobKind, jobId: string | null, error: string): Promise<void>;
 
   enqueueJob(job: EnqueueJob): Promise<string>;

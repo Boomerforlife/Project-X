@@ -173,7 +173,7 @@ export function registerAdminRoutes(app: App, g: Guards): void {
   app.openapi(
     defineRoute({
       method: 'post', path: '/admin/questions/{id}/verification/run', summary: 'Enqueue verification/AI jobs', ...rev, status: 202,
-      request: { params: IdParam, body: body(VerificationRunBody) }, data: z.object({ job_ids: z.array(z.uuid()) }),
+      request: { params: IdParam, body: body(VerificationRunBody) }, data: z.object({ job_ids: z.array(z.uuid()), existing_job_ids: z.array(z.uuid()), message: z.string() }),
     })(g),
     async (c: Ctx) => send(c, 202, await admin.runVerification(actx(c), valid(c, 'param', IdParam).id, valid(c, 'json', VerificationRunBody))),
   );

@@ -470,6 +470,7 @@ function adminRepo(tx: Tx): AdminRepo {
       return keyed(r, 1) as never;
     },
     getJob,
+    findJobByKey: (k) => one<JobRow>(tx, `select ${JOB} from public.pipeline_jobs j where j.idempotency_key=$1`, [k]),
     jobEvents: (id, limit) => rows<JobEventRow>(tx, `select level, stage, message, data, created_at from public.pipeline_job_events where job_id=$1 order by id desc limit $2`, [id, limit]).then((r) => r.reverse()),
     retryJob: async (id) => {
       const r = await one<{ id: string }>(tx, `update public.pipeline_jobs set status='QUEUED', attempts=0, run_after=now(), locked_by=null, locked_at=null, lease_expires_at=null, finished_at=null, last_error=null where id=$1 and status in ('DEAD','CANCELLED') returning id`, [id]);

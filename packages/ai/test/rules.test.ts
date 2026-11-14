@@ -111,7 +111,7 @@ describe('decideVerification (rules v1)', () => {
     };
     walk(0, {});
     expect(count).toBe(5 ** 6 * 12);
-  });
+  }, 60000); // 187k expect() calls; exceeds the 5s default on slower machines
 
   describe('rule 7: HUMAN_VERIFIED is immutable', () => {
     it('keeps the status when the run would pass', () => {
@@ -135,8 +135,10 @@ describe('decideVerification (rules v1)', () => {
     });
   });
 
-  it('non-HUMAN_VERIFIED statuses are re-decided (DISPUTED can improve)', () => {
+  it('DISPUTED is never moved by AI (resolving a dispute is ADMIN-only)', () => {
     const d = decideVerification(input({ currentStatus: 'DISPUTED', checks: noKey }));
-    expect(d.status).toBe('AUTOMATED_CHECKS_PASSED');
+    expect(d.status).toBe('DISPUTED');
+    const err = decideVerification(input({ currentStatus: 'DISPUTED', pipelineError: true }));
+    expect(err.status).toBe('DISPUTED');
   });
 });

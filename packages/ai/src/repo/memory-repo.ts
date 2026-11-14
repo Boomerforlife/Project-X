@@ -9,6 +9,7 @@ import type {
   NewAiRun,
   NewSolution,
   NewVerificationRun,
+  RecordVerificationResult,
   QuestionRecord,
   SolutionRecord,
   TaxonomyCandidates,
@@ -118,10 +119,12 @@ export class MemoryAiRepository implements AiRepository {
     this.seo.set(questionId, { title, description });
     return Promise.resolve();
   }
-  recordVerification(run: NewVerificationRun): Promise<string> {
+  recordVerification(run: NewVerificationRun): Promise<RecordVerificationResult> {
     const id = randomUUID();
-    this.verificationRuns.push({ ...run, id });
     const q = this.questions.get(run.questionId);
+    const prot = q && (q.verificationStatus === 'HUMAN_VERIFIED' || q.verificationStatus === 'DISPUTED') ? q.verificationStatus : null;
+    this.verificationRuns.push({ ...run, id, resultingStatus: prot ?? run.resultingStatus });
+    if (prot) return Promise.resolve({ id, statusApplied: false, skippedProtectedStatus: prot });
     if (q) {
       q.verificationStatus = run.resultingStatus;
       q.ingestionStatus = run.ingestionStatus;
@@ -129,14 +132,16 @@ export class MemoryAiRepository implements AiRepository {
         q.publicationStatus = 'DRAFT';
       }
     }
-    return Promise.resolve(id);
+    return Promise.resolve({ id, statusApplied: true, skippedProtectedStatus: null });
   }
   markPipelineError(questionId: string, jobKind: string, jobId: string | null, error: string): Promise<void> {
     this.pipelineErrors.push({ questionId, jobKind, error });
     const q = this.questions.get(questionId);
     if (q) {
-      if (q.verificationStatus !== 'HUMAN_VERIFIED') q.verificationStatus = 'HUMAN_REVIEW_REQUIRED';
-      q.ingestionStatus = 'NEEDS_ATTENTION';
+      if (q.verificationStatus !== 'HUMAN_VERIFIED' && q.verificationStatus !== 'DISPUTED') {
+        q.verificationStatus = 'HUMAN_REVIEW_REQUIRED';
+        q.ingestionStatus = 'NEEDS_ATTENTION';
+      }
     }
     return Promise.resolve();
   }

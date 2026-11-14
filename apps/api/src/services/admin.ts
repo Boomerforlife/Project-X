@@ -42,6 +42,8 @@ export interface AdminCtx {
   requestId: string;
   ipHash: string;
 }
+/** Must match RULES_VERSION in @projectx/ai (AI_PIPELINE section 4). */
+const VERIFY_RULES_VERSION = 'v1';
 const isAdmin = (c: AdminCtx): boolean => c.roles.includes('ADMIN');
 
 // ------------------------------------------------------------------ helpers
@@ -422,7 +424,7 @@ export async function patchQuestion(c: AdminCtx, id: string, body: PatchQuestion
     if (body.slug !== undefined && body.slug !== q.slug) patch.slug = body.slug;
 
     if (contentChange) {
-      if (q.verification_status !== 'PENDING') patch.verification_status = 'HUMAN_REVIEW_REQUIRED';
+      if (q.verification_status !== 'PENDING' && q.verification_status !== 'DISPUTED') patch.verification_status = 'HUMAN_REVIEW_REQUIRED';
       if (q.ingestion_status === 'NEEDS_ATTENTION') {
         patch.ingestion_status = 'IMPORTED';
         const hash = await sha256Hex(canonicalJson({ t: patch.question_text ?? q.question_text }));
@@ -480,7 +482,11 @@ export async function approve(c: AdminCtx, id: string, body: ApproveBody): Promi
     checkVersion(q, body.expected_row_version);
     const from = q.verification_status;
     if (!['AUTOMATED_CHECKS_PASSED', 'OFFICIAL_KEY_MATCHED', 'HUMAN_REVIEW_REQUIRED', 'DISPUTED'].includes(from)) throw invalidState(from, 'approve');
-    if (from === 'DISPUTED' && !isAdmin(c)) throw new ApiError('FORBIDDEN', 'Resolving a dispute requires the ADMIN role');
+    // A dispute is unresolved if the status is DISPUTED OR the latest dispute event was never resolved (status may have been
+    // moved off DISPUTED by a pipeline run); either way only an ADMIN may clear it.
+    const lastDisputeEvent = from === 'DISPUTED' ? null : (await r.admin.reviewEvents(id)).find((e) => e.action === 'MARK_DISPUTED' || e.action === 'RESOLVE_DISPUTE');
+    const disputeOpen = from === 'DISPUTED' || lastDisputeEvent?.action === 'MARK_DISPUTED';
+    if (disputeOpen && !isAdmin(c)) throw new ApiError('FORBIDDEN', 'Resolving a dispute requires the ADMIN role');
     const sol = await r.admin.getSolution(body.solution_version_id);
     if (!sol || sol.question_id !== id) throw notFound('Solution version');
     if (sol.review_status === 'REJECTED' || sol.review_status === 'SUPERSEDED') throw invalidState(sol.review_status, 'approve', 'Solution version was rejected or superseded');
@@ -498,13 +504,13 @@ export async function approve(c: AdminCtx, id: string, body: ApproveBody): Promi
         });
       }
       if (!isAdmin(c)) throw new ApiError('FORBIDDEN', 'Overriding the official key requires the ADMIN role');
-      patch.answer_key = sol.final_answer;
       patch.answer_key_source = 'HUMAN';
       note = `OVERRIDE OFFICIAL KEY: ${body.override_official_key.reason}${note ? ` | ${note}` : ''}`;
     } else if (!q.answer_key || !answerKeysEqual(q.answer_key, sol.final_answer)) {
-      patch.answer_key = sol.final_answer;
       patch.answer_key_source = 'HUMAN';
     }
+    // Always store the canonical final answer of the approved solution so the DB publish guard cannot mismatch.
+    patch.answer_key = canonicalizeAnswerKey(sol.final_answer);
     await r.admin.setSolutionReview(sol.id, 'APPROVED', c.user.id);
     await r.admin.supersedeApproved(id, sol.id);
     const after = await save(r, q, body.expected_row_version, patch);
@@ -531,8 +537,11 @@ export async function reject(c: AdminCtx, id: string, body: RejectBody): Promise
       }
       solId = sol.id;
       await r.admin.setSolutionReview(sol.id, 'REJECTED', c.user.id);
-      patch.verification_status = 'HUMAN_REVIEW_REQUIRED';
-      if (q.current_solution_id === sol.id) patch.current_solution_id = null;
+      // Only rejecting the CURRENT solution downgrades verification (never clears a DISPUTED flag).
+      if (q.current_solution_id === sol.id) {
+        if (q.verification_status !== 'DISPUTED') patch.verification_status = 'HUMAN_REVIEW_REQUIRED';
+        patch.current_solution_id = null;
+      }
       if (body.regenerate) {
         const hash = q.content_hash ?? (await sha256Hex(canonicalJson({ t: q.question_text })));
         const suffix = Math.floor(c.deps.clock().getTime() / 1000);
@@ -656,30 +665,40 @@ export async function dispute(c: AdminCtx, id: string, body: DisputeBody): Promi
   return out.dto;
 }
 
-export async function runVerification(c: AdminCtx, id: string, body: VerificationRunBody): Promise<{ job_ids: string[] }> {
+export async function runVerification(c: AdminCtx, id: string, body: VerificationRunBody): Promise<{ job_ids: string[]; existing_job_ids: string[]; message: string }> {
   return c.store.service(async (r) => {
     const q = await mustGet(r, id);
     const stages = body.stages ?? ['VERIFY'];
     const suffix = body.force ? `:force-${Math.floor(c.deps.clock().getTime() / 1000)}` : '';
     const hash = q.content_hash ?? (await sha256Hex(canonicalJson({ t: q.question_text })));
     const ids: string[] = [];
+    const existing: string[] = [];
     for (const st of stages) {
       let kind: 'AI_CLASSIFY' | 'AI_SOLVE' | 'AI_VERIFY' | 'AI_SEO';
       let key: string;
+      const payload: Record<string, unknown> = { question_id: id };
       if (st === 'CLASSIFY') (kind = 'AI_CLASSIFY', (key = `AI_CLASSIFY:${id}:${hash}`));
       else if (st === 'SOLVE') (kind = 'AI_SOLVE', (key = `AI_SOLVE:${id}:${hash}:v1`));
       else if (st === 'VERIFY') {
         const solId = q.current_solution_id ?? (await r.admin.solutionVersions(id))[0]?.id;
         if (!solId) throw validation('No solution version to verify', [{ path: 'stages', message: 'run SOLVE first' }]);
-        (kind = 'AI_VERIFY', (key = `AI_VERIFY:${id}:${solId}:v1`));
+        payload.solution_version_id = solId;
+        // AI_PIPELINE section 4: AI_VERIFY:{qid}:{solution_version_id}:{rules_version}
+        (kind = 'AI_VERIFY', (key = `AI_VERIFY:${id}:${solId}:${VERIFY_RULES_VERSION}`));
       } else {
         if (!q.current_solution_id) throw validation('SEO needs a current solution', [{ path: 'stages', message: 'no current solution' }]);
         (kind = 'AI_SEO', (key = `AI_SEO:${id}:${q.current_solution_id}`));
       }
-      ids.push(await r.admin.enqueueJob({ kind, idempotency_key: key + suffix, payload: { question_id: id }, question_id: id, created_by: c.user.id }));
+      const fullKey = key + suffix;
+      const prior = await r.admin.findJobByKey(fullKey);
+      if (prior) existing.push(prior.id);
+      else ids.push(await r.admin.enqueueJob({ kind, idempotency_key: fullKey, payload, question_id: id, created_by: c.user.id }));
     }
-    await audit(r, c, 'question.verification.run', 'question', id, { stages, force: !!body.force });
-    return { job_ids: ids };
+    await audit(r, c, 'question.verification.run', 'question', id, { stages, force: !!body.force, enqueued: ids.length, existing: existing.length });
+    const message = existing.length
+      ? `${existing.length} identical job(s) already exist (${existing.join(', ')}); ${ids.length} new job(s) enqueued. Use force=true to re-run.`
+      : `${ids.length} job(s) enqueued.`;
+    return { job_ids: [...ids, ...existing], existing_job_ids: existing, message };
   });
 }
 
@@ -704,6 +723,12 @@ const toSource = (s: SourceRowT) => ({
 });
 
 export async function createSource(c: AdminCtx, b: import('@projectx/contracts').CreateSourceBody) {
+  if (b.reuse_permitted) {
+    throw new ApiError('VALIDATION_ERROR', 'Sources are registered with reuse_permitted=false; use POST /admin/sources/{id}/approve to grant reuse', {
+      status: 422,
+      details: [{ path: 'reuse_permitted', message: 'must be false on creation' }],
+    });
+  }
   return c.store.service(async (r) => {
     const s = await r.admin.insertSource({
       code: b.code,

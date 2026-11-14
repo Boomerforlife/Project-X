@@ -48,8 +48,13 @@ export function parseConfig(env: Record<string, unknown>): AppConfig {
     );
   }
   const c = parsed.data;
-  if (c.APP_ENV === 'production' && c.AUTH_MODE === 'test') throw new Error('AUTH_MODE=test is forbidden when APP_ENV=production');
-  if (c.APP_ENV === 'production' && (!c.SIGNING_SECRET || !c.IP_HASH_SECRET)) throw new Error('SIGNING_SECRET and IP_HASH_SECRET are required in production');
+  const devLike = c.APP_ENV === 'development' || c.APP_ENV === 'test';
+  if (c.AUTH_MODE === 'test' && !devLike) throw new Error('AUTH_MODE=test is only allowed when APP_ENV is development or test');
+  if (c.STORAGE_DRIVER === 'r2' || !devLike) {
+    for (const k of ['SIGNING_SECRET', 'IP_HASH_SECRET'] as const) {
+      if (c[k].length < 32) throw new Error(`${k} (>= 32 chars) is required when STORAGE_DRIVER=r2 or APP_ENV is staging/production`);
+    }
+  }
   if (c.AUTH_MODE === 'test' && !c.TEST_JWT_SECRET) throw new Error('AUTH_MODE=test requires TEST_JWT_SECRET');
   if (c.AUTH_MODE === 'hs256' && !c.SUPABASE_JWT_SECRET) throw new Error('AUTH_MODE=hs256 requires SUPABASE_JWT_SECRET');
   if (c.AUTH_MODE === 'jwks' && !c.SUPABASE_URL) throw new Error('AUTH_MODE=jwks requires SUPABASE_URL');
@@ -59,4 +64,11 @@ export function parseConfig(env: Record<string, unknown>): AppConfig {
     corsOrigins: c.CORS_ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     jwtIssuer: issuer,
   };
+}
+
+/** Secrets are never defaulted in the request path; dev/test entrypoints must supply them explicitly. */
+export function requireSecret(config: Pick<AppConfig, 'SIGNING_SECRET' | 'IP_HASH_SECRET'>, name: 'SIGNING_SECRET' | 'IP_HASH_SECRET'): string {
+  const v = config[name];
+  if (!v) throw new Error(`${name} is not configured`);
+  return v;
 }
