@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# JEE platform — frontend & SEO (Person 1)
 
-## Getting Started
+Next.js 16 (App Router, Cache Components) · TypeScript strict · Tailwind CSS v4 · KaTeX · Zod · Vitest · pnpm.
 
-First, run the development server:
+Read `CLAUDE.md` first. It's the product and integration handoff.
 
+## Commands
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev          # http://localhost:3000
+pnpm build && pnpm start
+pnpm typecheck    # next typegen + tsc
+pnpm lint
+pnpm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment
+| Variable | Default | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` | Canonical URLs, sitemap, OG |
+| `NEXT_PUBLIC_DATA_SOURCE` | `mock` | `api` once Person 2's API is wired |
+| `NEXT_PUBLIC_ALLOW_INDEXING` | unset | Must be `true` **and** data source `api` for any page to be indexable |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+In mock mode every page is `noindex`, the sitemap is empty, and a "Mock data" label is shown, so
+fixtures can never be crawled as real content.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Layout
+```
+src/
+  app/
+    (site)/        public, indexable pages (landing, /jee/…, PYQs, plans, resources)
+    (app)/         private shell: noindex (dashboard; more in Stage 3+)
+    sitemap.ts robots.ts icon.svg opengraph-image.tsx not-found.tsx
+  components/
+    brand/Kitty.tsx    mascot traced from assets/mascot-reference.jpg (+ face mark)
+    content/           RichText (server KaTeX), QuestionList
+    layout/            header, nav, footer, page header, empty state
+    seo/               JsonLd, Breadcrumbs
+    ui/                Button, chips, verification badge
+  contracts/       DRAFT Zod schemas: proposal to Person 2, not agreed
+  fixtures/        mock data validated against contracts
+  lib/data/        the only content access layer (swap mocks → API here)
+  lib/seo.ts, lib/indexing.ts   metadata + single indexing policy
+docs/
+  PERSON-1-PERSON-2-INTEGRATION.md   alignment checklist
+  api-contract-draft.md              what the frontend currently assumes + open questions
+assets/mascot-reference.jpg          canonical mascot reference
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The product name "Tabby" is a **working name** set in `src/lib/site.ts`.
