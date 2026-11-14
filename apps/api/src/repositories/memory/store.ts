@@ -77,6 +77,7 @@ export class MemoryState {
   reviewEvents: ReviewEventRow[] = [];
   audit: { actor_id: string; action: string; entity_type: string; entity_id: string | null; details: unknown; request_id: string | null }[] = [];
   jobs: JobRow[] = [];
+  jobPayloads = new Map<string, Record<string, unknown>>();
   jobEvents = new Map<string, JobEventRow[]>();
   runs: { run: VerificationRunRow; checks: VerificationCheckRow[] }[] = [];
   aiRuns: (AiRunRow & { question_id: string })[] = [];
@@ -538,6 +539,7 @@ function adminRepo(s: MemoryState): AdminRepo {
         run_after: s.clock(), locked_by: null, last_error: null, question_id: j.question_id ?? null, source_document_id: j.source_document_id ?? null, created_at: s.clock(), finished_at: null,
       };
       s.jobs.push(row);
+      s.jobPayloads.set(row.id, j.payload);
       return row.id;
     },
     verificationRuns: async (qid) => s.runs.filter((r) => r.run.question_id === qid),
@@ -569,6 +571,7 @@ function adminRepo(s: MemoryState): AdminRepo {
     listJobs: async (f, after, limit) =>
       keyset(s.jobs.filter((j) => (!f.status || f.status.includes(j.status)) && (!f.kind || f.kind.includes(j.kind))), (j) => [iso(j.created_at)], (j) => j.id, 'desc', after, limit),
     getJob: async (id) => s.jobs.find((j) => j.id === id) ?? null,
+    findJobByKey: async (k) => s.jobs.find((j) => j.idempotency_key === k) ?? null,
     jobEvents: async (id) => s.jobEvents.get(id) ?? [],
     retryJob: async (id) => {
       const j = s.jobs.find((x) => x.id === id && (x.status === 'DEAD' || x.status === 'CANCELLED'));

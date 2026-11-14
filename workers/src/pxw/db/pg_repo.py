@@ -184,11 +184,14 @@ class PgIngestionRepo:
 
     def insert_asset(self, a: AssetIn) -> str:
         def fn(cur: Any) -> str:
+            # LIMITATION: question_assets has a single source_question_id column and unique (bucket, r2_key), and keys are
+            # content-addressed. Two source questions sharing identical image bytes therefore share ONE row, owned by the
+            # first source question; the second is not linked (no reassignment, which would steal it). Fixing that needs a
+            # schema change (e.g. a join table), deliberately not done here.
             cur.execute(
                 "insert into question_assets (source_question_id, kind, bucket, r2_key, mime_type, width, height, bytes, "
                 "sha256, alt_text) values (%s::uuid, %s::asset_kind, %s::storage_bucket, %s, %s, %s, %s, %s, %s, %s) "
-                "on conflict (bucket, r2_key) do update set source_question_id = excluded.source_question_id, "
-                "sha256 = excluded.sha256, width = excluded.width, height = excluded.height, bytes = excluded.bytes "
+                "on conflict (bucket, r2_key) do nothing "
                 "returning id",
                 (
                     a.source_question_id,
@@ -203,7 +206,14 @@ class PgIngestionRepo:
                     a.alt_text,
                 ),
             )
-            return str(cur.fetchone()["id"])
+            row = cur.fetchone()
+            if row is None:  # conflict: existing row is kept untouched
+                cur.execute(
+                    "select id from question_assets where bucket = %s::storage_bucket and r2_key = %s",
+                    (a.bucket, a.r2_key),
+                )
+                row = cur.fetchone()
+            return str(row["id"])
 
         return run(self.url, fn)
 

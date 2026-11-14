@@ -259,6 +259,15 @@ describe('HUMAN_VERIFIED immutability through the pipeline', () => {
     await deps.repo.markPipelineError(Q_ID, 'AI_SOLVE', null, 'x');
     expect(deps.repo.questions.get(Q_ID)?.verificationStatus).toBe('HUMAN_VERIFIED');
   });
+
+  it('DISPUTED stays DISPUTED after AI re-verify and after a pipeline error', async () => {
+    const deps = makeDeps({ question: makeQuestion({ verificationStatus: 'DISPUTED' }) });
+    await drain(deps);
+    expect(deps.repo.questions.get(Q_ID)?.verificationStatus).toBe('DISPUTED');
+    expect(deps.repo.verificationRuns[0]?.resultingStatus).toBe('DISPUTED');
+    await deps.repo.markPipelineError(Q_ID, 'AI_SOLVE', null, 'x');
+    expect(deps.repo.questions.get(Q_ID)?.verificationStatus).toBe('DISPUTED');
+  });
 });
 
 describe('runner failure handling', () => {

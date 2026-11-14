@@ -137,6 +137,42 @@ describe('AI pipeline end-to-end on PGlite with dev fixtures (mock provider)', (
     expect(q).toEqual({ verification_status: 'HUMAN_REVIEW_REQUIRED', publication_status: 'DRAFT' });
   });
 
+  const staleRun = (qid: string) => ({
+    questionId: qid,
+    solutionVersionId: null,
+    jobId: null,
+    rulesVersion: 'v1',
+    outcome: 'PASSED' as const,
+    resultingStatus: 'AUTOMATED_CHECKS_PASSED' as const,
+    ingestionStatus: 'CHECKED' as const,
+    reasons: ['TEST'],
+    startedAt: new Date(),
+    checks: [],
+  });
+  const statusOf = (qid: string) => one<{ verification_status: string }>('select verification_status::text from questions where id = $1', [qid]);
+
+  it('a human approval landing between read and write is not overwritten', async () => {
+    const qid = await idOf('demo-draft-unreviewed-question');
+    await db.withService((tx) => tx.query(`update questions set verification_status = 'HUMAN_REVIEW_REQUIRED' where id = $1`, [qid])); // what the handler read
+    await db.withService((tx) => tx.query(`update questions set verification_status = 'HUMAN_VERIFIED' where id = $1`, [qid])); // human lands
+    const res = await repo.recordVerification(staleRun(qid));
+    expect(res.statusApplied).toBe(false);
+    expect(res.skippedProtectedStatus).toBe('HUMAN_VERIFIED');
+    expect((await statusOf(qid)).verification_status).toBe('HUMAN_VERIFIED');
+    const r = await one<{ resulting_status: string }>('select resulting_status::text from verification_runs where id = $1', [res.id]);
+    expect(r.resulting_status).toBe('HUMAN_VERIFIED');
+  });
+
+  it('DISPUTED stays DISPUTED after AI re-verify and after a pipeline error', async () => {
+    const qid = await idOf('demo-draft-unreviewed-question');
+    await db.withService((tx) => tx.query(`update questions set verification_status = 'DISPUTED' where id = $1`, [qid]));
+    const res = await repo.recordVerification(staleRun(qid));
+    expect(res.skippedProtectedStatus).toBe('DISPUTED');
+    expect((await statusOf(qid)).verification_status).toBe('DISPUTED');
+    await repo.markPipelineError(qid, 'AI_SOLVE', null, 'boom');
+    expect((await statusOf(qid)).verification_status).toBe('DISPUTED');
+  });
+
   it('budget deferral persists: job returns to QUEUED without consuming an attempt', async () => {
     const qid = await idOf('demo-roots-of-minus-one');
     const tight: HandlerDeps = { ...deps, client: withBudget(createMockGeminiClient(), repo, { dailyBudgetUsd: 1, maxCallsPerRun: 0 }) };

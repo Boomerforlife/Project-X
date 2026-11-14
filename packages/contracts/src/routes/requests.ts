@@ -247,7 +247,7 @@ export const CreateSourceBody = z
     homepage_url: z.url().optional(),
     license_name: z.string().max(200).optional(),
     license_url: z.url().optional(),
-    reuse_permitted: z.boolean(),
+    reuse_permitted: z.boolean().describe('Must be false on creation (422 otherwise); grant reuse via POST /admin/sources/{id}/approve'),
     attribution_text: z.string().max(1000).optional(),
     notes: z.string().max(2000).optional(),
   })

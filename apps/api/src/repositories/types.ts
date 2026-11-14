@@ -650,6 +650,7 @@ export interface AdminRepo {
   listDocuments(source: string | undefined, after: PageCursor | null, limit: number): Promise<Keyed<IngestionDocRow>[]>;
   listJobs(f: { status?: JobStatus[] | undefined; kind?: JobKind[] | undefined }, after: PageCursor | null, limit: number): Promise<Keyed<JobRow>[]>;
   getJob(id: string): Promise<JobRow | null>;
+  findJobByKey(idempotencyKey: string): Promise<JobRow | null>;
   jobEvents(id: string, limit: number): Promise<JobEventRow[]>;
   retryJob(id: string): Promise<JobRow | null>;
   cancelJob(id: string): Promise<JobRow | null>;

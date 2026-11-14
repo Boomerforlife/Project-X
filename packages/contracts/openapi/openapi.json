@@ -4066,7 +4066,8 @@
             "format": "uri"
           },
           "reuse_permitted": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Must be false on creation (422 otherwise); grant reuse via POST /admin/sources/{id}/approve"
           },
           "attribution_text": {
             "type": "string",
@@ -10286,10 +10287,22 @@
                             "type": "string",
                             "format": "uuid"
                           }
+                        },
+                        "existing_job_ids": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        },
+                        "message": {
+                          "type": "string"
                         }
                       },
                       "required": [
-                        "job_ids"
+                        "job_ids",
+                        "existing_job_ids",
+                        "message"
                       ]
                     },
                     "meta": {

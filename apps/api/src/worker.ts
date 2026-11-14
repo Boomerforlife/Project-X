@@ -39,6 +39,13 @@ function buildInvalidator(config: AppDeps['config']): CacheInvalidator {
 }
 
 let memoryLimiter: RateLimiter | undefined;
+// Auth verifier (and its JWKS cache) is memoised per isolate, keyed by SUPABASE_URL + mode + secrets/issuer.
+let authCache: { key: string; verifier: AppDeps['auth'] } | undefined;
+function getAuthVerifier(config: AppDeps['config']): AppDeps['auth'] {
+  const key = [config.AUTH_MODE, config.SUPABASE_URL ?? '', config.jwtIssuer ?? '', config.SUPABASE_JWT_SECRET ?? '', config.TEST_JWT_SECRET ?? ''].join('|');
+  if (!authCache || authCache.key !== key) authCache = { key, verifier: createAuthVerifier(config) };
+  return authCache.verifier;
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -68,7 +75,7 @@ export default {
       },
       cache: buildInvalidator(config),
       rateLimiter,
-      auth: createAuthVerifier(config),
+      auth: getAuthVerifier(config),
       clock: () => new Date(),
       logger: createConsoleLogger(config.LOG_LEVEL),
       waitUntil: (p) => ctx.waitUntil(p),
