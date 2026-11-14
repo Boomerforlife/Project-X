@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "minItems": 1,
+  "maxItems": 100,
+  "type": "array",
+  "items": {
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "paragraph"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "required": [
+          "type",
+          "text"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "math"
+          },
+          "latex": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "type",
+          "latex"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "image"
+          },
+          "asset_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "alt": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "caption": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "type",
+          "asset_id",
+          "alt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "table"
+          },
+          "header": {
+            "anyOf": [
+              {
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rows": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "maxItems": 12,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 500
+              }
+            }
+          }
+        },
+        "required": [
+          "type",
+          "header",
+          "rows"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "list"
+          },
+          "ordered": {
+            "type": "boolean"
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          }
+        },
+        "required": [
+          "type",
+          "ordered",
+          "items"
+        ]
+      }
+    ]
+  },
+  "$id": "https://projectx.local/schemas/content-blocks.json",
+  "title": "content-blocks"
+}
