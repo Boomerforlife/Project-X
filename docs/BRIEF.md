@@ -1,0 +1,31 @@
+# ProjectX — Backend Brief (Owner B) — condensed from the master prompt
+
+Product: "LeetCode for JEE/NEET", AI-verified. First release = JEE Main (Physics, Chemistry, Maths); schema must also fit JEE Advanced + NEET UG (Physics, Chemistry, Biology/Botany/Zoology). Two engines: (A) public SEO question/answer pages (high-volume anonymous reads, CDN-cached), (B) student practice/retention (attempts, bookmarks, mistakes, streaks, progress, weak areas). Monetization (premium, mocks, ads, AI doubt) is NOT implemented now; schema must leave room.
+
+Ownership: Owner A = frontend + SEO rendering (do NOT build UI). Owner B (us) = Supabase/Postgres, auth, taxonomy, question bank, REST API, AI (Gemini, server-side only), ingestion (PDF/OCR/dedupe), admin backend, Cloudflare (R2, CDN, Workers), security, cost. Deliver stable documented API contracts (OpenAPI + shared Zod/TS types).
+
+Locked stack: Supabase (Postgres, Auth, RLS, SQL migrations) as source of truth; Cloudflare (DNS, CDN, R2, WAF, Workers); TypeScript + Hono + Zod + OpenAPI; Gemini API (structured outputs, schema-validated); Python (PyMuPDF, PaddleOCR or alternative, SymPy) for processing, run locally/on-demand; Postgres FTS for search. NO Redis, Elasticsearch, vector DB, microservices, always-on workers, or paid resources. Keep business logic portable (not Cloudflare-coupled); adapters only where genuinely useful.
+
+Repo layout (suggested): apps/api, packages/{contracts,database-types,shared}, workers/{ingestion,extraction,ocr,verification}, supabase/{migrations,seed,tests}, docs/{ARCHITECTURE,DATABASE_SCHEMA,API_CONTRACTS,AI_PIPELINE,INGESTION_PIPELINE,COST_STRATEGY,DEVELOPMENT_ROADMAP}.md, .env.example, README.md.
+
+Database: exams → subjects → chapters → topics (UUIDs + unique slugs; JEE Main seed from a real syllabus). questions (id, slug, question_text, structured_content JSON blocks not scraped HTML, exam/subject/chapter ids, difficulty, question_type [single MCQ, multi MCQ, numerical], marks, negative_marks, year, shift, source_id, ingestion_status, verification_status, publication_status, indexability, timestamps, published_at) + options + assets (text, math, images, diagrams, tables). Versioned solutions (never overwrite): final answer, summary, steps, formulas, concepts, alternatives, shortcuts, common mistakes, AI provenance, human edits, verification status, version history. Provenance: sources, source_documents, source_questions, official_answer_keys, attribution (year, shift, paper id, licensing) — never fabricate. Verification: ai_runs, model info, prompt versions, verification_runs/checks, review_history, admin decisions. Student: profiles, exam prefs, attempts, practice sessions, bookmarks, mistakes, daily_activity, streaks, goals — all with RLS; streaks computed server-side in the user's timezone from daily aggregates.
+
+Statuses — verification: PENDING, AUTOMATED_CHECKS_PASSED, OFFICIAL_KEY_MATCHED, HUMAN_REVIEW_REQUIRED, HUMAN_VERIFIED, DISPUTED. Publication: DRAFT, PUBLISHED, ARCHIVED (kept separate). Never index unpublished/incomplete/disputed content; editorial noindex override; do not auto-add everything to sitemap.
+
+Verification pipeline: normalize → classify → answer → solution → verify (official key compare, deterministic/SymPy, independent critique) → passed / human review / failed → admin approval → publish. AI output alone is never "verified". Conflicts/ambiguity → human review. AI modules: classification, subject, chapter/topic, difficulty, answer, step solution, alternatives, critique, quality, SEO metadata suggestions.
+
+Ingestion: approved sources only (official PYQ + answer keys where reuse is permitted); no indiscriminate scraping; label PYQ vs AI-generated; R2 storage; PDF/HTML extraction, OCR, boundary/option detection, equations, images, dedupe, idempotent/retryable jobs, logs, preserve originals. Never long OCR inside API requests.
+
+Cloudflare: R2 private source docs / public approved assets / private student uploads (signed access for private); cache published question/subject/chapter/related data with invalidation on update, solution replace, unpublish, indexability change; never cache authenticated data; rate-limit expensive endpoints; safe CORS. No infra/DNS changes without confirmation.
+
+API (/api/v1, consistent envelope/errors/pagination/status codes): taxonomy GETs (exams, subjects, chapters, topics); public: questions/:slug (+ /related), subjects/:slug, chapters/:slug — public question DTO includes content, options, published solution, exam/subject/chapter/topic, difficulty, attribution, year/shift, SEO title/meta, canonical path, indexability, publication info, breadcrumbs, related metadata; practice: GET questions, POST practice/sessions, GET sessions/:id, POST attempts (server-side evaluation, no answer/solution before submit, idempotency/replay protection); student: users/me, progress, bookmarks (GET/POST/DELETE), mistakes, streak; POST doubts (guest+auth, never auto-public); admin: questions list/patch/approve/reject/publish, verification, ingestion — server-side admin authz.
+
+Security/cost: RLS on all private tables, service-role key server-only, Gemini key server-only, upload validation, rate limiting, safe public DTOs, audit logs, backups. Free-tier first; track DB/R2/bandwidth/AI usage; document upgrade thresholds. Never commit secrets; `.env.example` complete; use mock services when credentials are missing. Never invent credentials, PYQs or sources.
+
+Working rules: inspect before building; strict types; versioned migrations; test DB security; document every contract; run tests and report ACTUAL results; no destructive/production/paid/public-deploy actions without approval.
+
+## Environment facts (inspected 2026-11-14)
+- Project dir `C:\Users\Vighnesh\dekstop\THE BOOMER ORG\ProjectX` is empty except Mascot.jpg; not a git repo. Greenfield. Node 22.18, npm 10.9, Python 3.13.7, Windows 11.
+- Supabase MCP connected but READ-ONLY and project_id unknown → cannot apply migrations remotely; migrations are authored as local SQL files only.
+- Cloudflare MCP connected (one account) but token returned 403 on R2/Workers/zones/Pages → cannot inspect/create resources; infra authored as config + docs only.
+- GitHub MCP disabled for this project.
