@@ -47,3 +47,19 @@ workers\.venv\Scripts\pxw --help
 ## Deployment
 Nothing deploys automatically. Every Cloudflare/Supabase change is a manual, approved step: see `docs/DEPLOYMENT.md`
 and `infra/cloudflare/`. Never commit secrets; `.env` and `.dev.vars` are git-ignored.
+
+
+## Frontend & SEO (Person 1 / Owner A)
+
+Next.js 16 (App Router, Cache Components) · TypeScript strict · Tailwind CSS v4 · KaTeX · Zod · Vitest.
+
+See `CLAUDE.md`, `docs/PERSON-1-PERSON-2-INTEGRATION.md`, and `docs/api-contract-draft.md` for frontend handoff and integration details.
+
+### Frontend Commands
+```bash
+pnpm run dev:web        # http://localhost:3000
+pnpm run build:web
+pnpm run typecheck:web
+pnpm run lint:web
+pnpm run test:web
+```

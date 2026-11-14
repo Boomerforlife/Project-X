@@ -1,0 +1,325 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — CLAUDE.md §10. Dark is the default; light is a separately
+ * tuned palette (warm paper, darker accents), not an inversion.
+ * Contrast (WCAG 2.x), body text on --bg and --surface:
+ *   dark  --fg-muted #8F8F8F → 6.1:1 / 5.6:1     light --fg-muted #5A5A5A → 6.6:1 / 7.0:1
+ *   dark  accents ≥ 7:1 on --bg                   light accents ≥ 4.6:1 on --bg (AA)
+ *   --fg-subtle is for decorative / large text only in both themes.
+ */
+:root {
+  color-scheme: dark;
+  --bg: #080808;
+  --surface: #111111;
+  --surface-2: #191919;
+  --surface-3: #232323;
+  --line: #242424;
+  --line-strong: #383838;
+  --fg: #ffffff;
+  --fg-soft: #d4d4d4;
+  --fg-muted: #8f8f8f;
+  --fg-subtle: #6b6b6b;
+
+  --physics: #60a5fa;
+  --chemistry: #4ade80;
+  --mathematics: #facc15;
+  --biology: #c084fc;
+
+  --ok: #4ade80;
+  --bad: #f87171;
+  --review: #fb923c;
+  --info: #93c5fd;
+  --focus: #ffffff;
+
+  --kitty-eye: var(--bg);
+  --surface-hi: #161616;
+  --edge: rgb(255 255 255 / 0.045);
+  --glow: rgb(255 255 255 / 0.035);
+  --dot: rgb(255 255 255 / 0.07);
+  --shadow: 0 0 0 1px transparent;
+  --shadow-lg: 0 24px 60px -24px rgb(0 0 0 / 0.8);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --surface-2: #efede7;
+  --surface-3: #e5e2da;
+  --line: #e2dfd7;
+  --line-strong: #c8c4b9;
+  --fg: #0b0b0b;
+  --fg-soft: #2b2b2b;
+  --fg-muted: #5a5a5a;
+  --fg-subtle: #8b8a86;
+
+  --physics: #1d4ed8;
+  --chemistry: #15803d;
+  --mathematics: #b45309;
+  --biology: #7e22ce;
+
+  --ok: #15803d;
+  --bad: #b91c1c;
+  --review: #c2410c;
+  --info: #1d4ed8;
+  --focus: #0b0b0b;
+
+  --surface-hi: #ffffff;
+  --edge: rgb(255 255 255 / 0.9);
+  --glow: rgb(255 255 255 / 0.7);
+  --dot: rgb(0 0 0 / 0.08);
+  --shadow: 0 1px 2px rgb(20 18 10 / 0.04), 0 2px 10px -2px rgb(20 18 10 / 0.05);
+  --shadow-lg: 0 24px 50px -24px rgb(20 18 10 / 0.25);
+}
+
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.90625rem;
+  --text-sm--line-height: 1.45rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6rem;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-soft: var(--fg-soft);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-physics: var(--physics);
+  --color-chemistry: var(--chemistry);
+  --color-mathematics: var(--mathematics);
+  --color-biology: var(--biology);
+  --color-ok: var(--ok);
+  --color-bad: var(--bad);
+  --color-review: var(--review);
+  --color-info: var(--info);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-pixel: var(--font-silkscreen), ui-monospace, monospace;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-card: var(--shadow);
+  --shadow-pop: var(--shadow-lg);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  p { text-wrap: pretty; }
+}
+
+/* ---------- Restrained retro details ---------- */
+
+/* Stepped 8-bit corners. Use on small elements only (chips, badges, CTAs). */
+.pixel-corners {
+  clip-path: polygon(
+    0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px,
+    100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%,
+    4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)
+  );
+}
+
+/* Faint dot grid, like graph paper / an old CRT mask. */
+.dot-grid {
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.caret-block::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.85em;
+  margin-left: 0.12em;
+  background: currentColor;
+  vertical-align: -0.05em;
+  animation: caret 1.1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
+
+/* ---------- Kitty motion (subtle, optional) ---------- */
+.kitty-animated .kitty-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kitty-blink 6s infinite;
+}
+.kitty-animated .kitty-tail {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  animation: kitty-tail 4.5s ease-in-out infinite;
+}
+@keyframes kitty-blink {
+  0%, 46%, 50%, 100% { transform: scaleY(1); }
+  48% { transform: scaleY(0.1); }
+}
+@keyframes kitty-tail {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-4deg); }
+}
+
+/* ---------- Micro-interactions (all disabled under reduced motion) ---------- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes pop {
+  0% { transform: scale(0.96); }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.pop { animation: pop 0.25s ease-out; }
+@keyframes shimmer {
+  from { background-position: -200px 0; }
+  to { background-position: calc(200px + 100%) 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0, var(--surface-3) 40px, var(--surface-2) 80px) no-repeat;
+  background-size: 200px 100%;
+  background-color: var(--surface-2);
+  animation: shimmer 1.3s linear infinite;
+  border-radius: var(--radius-md);
+}
+.theme-fade, .theme-fade * { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important; }
+
+/* Hide the number spinner on numerical answer fields. */
+.no-spin::-webkit-outer-spin-button, .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.no-spin { -moz-appearance: textfield; appearance: textfield; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Math ---------- */
+.katex { font-size: 1.08em; }
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+  max-width: 100%;
+}
+
+/* The CBT and focus shells carry their own demo label and must stay uncluttered. */
+[data-shell] .mock-ribbon { display: none; }
+
+/* ---------- Product surfaces (one treatment everywhere) ---------- */
+/* A panel: quiet top-lit gradient, hairline border, inner highlight. Use for
+   grouped content only — sections and lists should breathe without boxes. */
+.surface {
+  background: linear-gradient(180deg, var(--surface-hi), var(--surface) 70%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow), inset 0 1px 0 var(--edge);
+}
+.surface-flat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.hairline { border-color: var(--line); }
+
+/* Section labels: legible sans, not the pixel face. */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+/* Big numerals for stats. */
+.numeral {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+/* ---------- Navigation progress ---------- */
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  z-index: 90;
+  pointer-events: none;
+  transform-origin: left;
+  background: var(--fg);
+  transition: transform 0.25s ease, opacity 0.3s ease 0.15s;
+}
+
+/* ---------- Initial app splash ---------- */
+/* Server-rendered so there is never a blank screen; removed the moment the app
+   hydrates (html[data-ready]). Shown once per tab session, never in the CBT,
+   and it hides itself after 4s even if scripts fail. */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+  animation: splash-failsafe 0.01s linear 4s forwards;
+}
+html[data-ready] #splash { opacity: 0; visibility: hidden; }
+html.no-splash #splash { display: none; }
+@keyframes splash-failsafe { to { opacity: 0; visibility: hidden; } }
+.splash-bar span { animation: splash-step 1.2s steps(1) infinite; }
+.splash-bar span:nth-child(2) { animation-delay: 0.15s; }
+.splash-bar span:nth-child(3) { animation-delay: 0.3s; }
+.splash-bar span:nth-child(4) { animation-delay: 0.45s; }
+.splash-bar span:nth-child(5) { animation-delay: 0.6s; }
+@keyframes splash-step { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.2; } }
+
+/* ---------- Toasts ---------- */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.toast-in { animation: toast-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* Hide scrollbars on horizontal chip rails while keeping them scrollable. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
