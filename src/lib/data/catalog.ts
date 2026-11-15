@@ -10,6 +10,13 @@ import { getBank } from "@/fixtures/bank";
 import { getDemoPapers } from "@/fixtures/papers";
 import { chapters as chapterFx, subjects as subjectFx } from "@/fixtures/syllabus";
 import { EXAMS, TRACK_INFO, type Track } from "@/lib/exams";
+import { flags } from "@/lib/api/env";
+import { registry } from "@/lib/session/registry";
+import { DATA_SOURCE } from "@/lib/site";
+
+/** API mode: content comes only from the client registry (taxonomy + server-delivered questions). */
+const API = DATA_SOURCE === "api";
+const PAPERS = !API || flags.papers === "demo";
 
 type Index = {
   qById: Map<string, Question>;
@@ -34,7 +41,10 @@ function idx(): Index {
   return index;
 }
 
-export const catalog = {
+const apiExams = (filter: { exam?: ExamId; track?: Track }): ExamId[] =>
+  filter.exam ? [filter.exam] : filter.track ? TRACK_INFO[filter.track].exams : registry.exams();
+
+const mockCatalog = {
   subjects(): Subject[] {
     return subjectFx;
   },
@@ -95,4 +105,58 @@ export const catalog = {
     }
     return m;
   },
+  /** Number of questions available for a selection (mock: counted from the bank). */
+  questionCount(filter: { subject?: SubjectId; chapter?: string; exam?: ExamId } = {}): number {
+    return mockCatalog.questions(filter).length;
+  },
 };
+
+/** API-mode catalog: reads the registry; fixtures only for the flagged paper demo. */
+const apiCatalog: typeof mockCatalog = {
+  subjects: () => registry.allSubjects(),
+  subject: (id) => registry.allSubjects().find((s) => s.id === id) ?? null,
+  subjectsForTrack: (track) => registry.allSubjects().filter((s) => TRACK_INFO[track].subjects.includes(s.id)),
+  subjectsForExam: (exam) => {
+    const t = registry.taxExam(exam);
+    return registry.allSubjects().filter((s) => t?.subjects.some((x) => x.id === s.id));
+  },
+  chapters: (filter = {}) =>
+    apiExams(filter).flatMap((e) =>
+      (registry.taxExam(e)?.chapters ?? []).map((c) => c.chapter).filter((c) => !filter.subject || c.subject === filter.subject),
+    ),
+  chapter: (subject, slug) => {
+    for (const e of registry.exams()) {
+      const c = registry.taxExam(e)?.chapters.find((x) => x.chapter.subject === subject && x.chapter.slug === slug);
+      if (c) return c.chapter;
+    }
+    return null;
+  },
+  questions: () => [],
+  question: (id) => registry.getQuestion(id) ?? (PAPERS ? mockCatalog.question(id) : null),
+  questionsByIds: (ids) => ids.map((id) => apiCatalog.question(id)).filter((q): q is Question => Boolean(q)),
+  /** Revealed only after the server returned an attempt result for the question. */
+  solution: (id) => registry.getSolution(id) ?? (PAPERS && !registry.getQuestion(id) ? mockCatalog.solution(id) : null),
+  hint: () => null,
+  papers: (f = {}) => (PAPERS ? mockCatalog.papers(f) : []),
+  paper: (id) => (PAPERS ? mockCatalog.paper(id) : null),
+  chapterCounts(exam) {
+    const m = new Map<string, number>();
+    for (const e of exam ? [exam] : registry.exams()) {
+      for (const c of registry.taxExam(e)?.chapters ?? []) {
+        const k = `${c.chapter.subject}/${c.chapter.slug}`;
+        m.set(k, (m.get(k) ?? 0) + c.count);
+      }
+    }
+    return m;
+  },
+  questionCount({ exam, subject, chapter } = {}) {
+    let n = 0;
+    for (const [k, v] of apiCatalog.chapterCounts(exam)) {
+      const [s, c] = k.split("/");
+      if ((!subject || s === subject) && (!chapter || c === chapter)) n += v;
+    }
+    return n;
+  },
+};
+
+export const catalog: typeof mockCatalog = API ? apiCatalog : mockCatalog;

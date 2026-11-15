@@ -1419,12 +1419,20 @@
           "canonical_path": {
             "type": "string"
           },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "exam_slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
           "updated_at": {
             "$ref": "#/components/schemas/Timestamp"
           }
         },
         "required": [
           "canonical_path",
+          "slug",
+          "exam_slug",
           "updated_at"
         ]
       },
@@ -1557,11 +1565,26 @@
               },
               "started_at": {
                 "$ref": "#/components/schemas/Timestamp"
+              },
+              "ui_mode": {
+                "type": "string",
+                "enum": [
+                  "learning",
+                  "test"
+                ]
+              },
+              "time_limit_sec": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
               }
             },
             "required": [
               "mode",
-              "started_at"
+              "started_at",
+              "ui_mode",
+              "time_limit_sec"
             ]
           }
         ]
@@ -1681,6 +1704,19 @@
             "minimum": 1,
             "maximum": 50,
             "default": 10
+          },
+          "ui_mode": {
+            "type": "string",
+            "enum": [
+              "learning",
+              "test"
+            ],
+            "default": "learning"
+          },
+          "time_limit_sec": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 21600
           }
         },
         "required": [
@@ -1775,6 +1811,15 @@
                 ]
               }
             ]
+          },
+          "response": {
+            "$ref": "#/components/schemas/AnswerResponse"
+          },
+          "time_spent_ms": {
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1785,37 +1830,9 @@
           "correct_answer",
           "solution",
           "submitted_at",
-          "session"
-        ]
-      },
-      "SubmitAttemptBody": {
-        "type": "object",
-        "properties": {
-          "client_attempt_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "question_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "session_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "response": {
-            "$ref": "#/components/schemas/AnswerResponse"
-          },
-          "time_spent_ms": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 10800000
-          }
-        },
-        "required": [
-          "client_attempt_id",
-          "question_id",
-          "response"
+          "session",
+          "response",
+          "time_spent_ms"
         ]
       },
       "AnswerResponse": {
@@ -1883,6 +1900,90 @@
           }
         ]
       },
+      "SessionListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SessionSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "completed_at": {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              "last_activity_at": {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              "exam": {
+                "$ref": "#/components/schemas/ExamRef"
+              },
+              "subject": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SubjectRef"
+                  },
+                  {
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                ]
+              },
+              "chapter": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ChapterRef"
+                  },
+                  {
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "completed_at",
+              "last_activity_at",
+              "exam",
+              "subject",
+              "chapter"
+            ]
+          }
+        ]
+      },
+      "SubmitAttemptBody": {
+        "type": "object",
+        "properties": {
+          "client_attempt_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "question_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "response": {
+            "$ref": "#/components/schemas/AnswerResponse"
+          },
+          "time_spent_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10800000
+          }
+        },
+        "required": [
+          "client_attempt_id",
+          "question_id",
+          "response"
+        ]
+      },
       "Me": {
         "type": "object",
         "properties": {
@@ -1927,6 +2028,12 @@
           "daily_goal_attempts": {
             "type": "integer"
           },
+          "class_level": {
+            "$ref": "#/components/schemas/ClassLevel"
+          },
+          "onboarding_completed": {
+            "type": "boolean"
+          },
           "roles": {
             "type": "array",
             "items": {
@@ -1970,9 +2077,23 @@
           "target_exam",
           "target_year",
           "daily_goal_attempts",
+          "class_level",
+          "onboarding_completed",
           "roles",
           "exam_preferences",
           "created_at"
+        ]
+      },
+      "ClassLevel": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "11",
+          "12",
+          "dropper",
+          null
         ]
       },
       "AppRole": {
@@ -2023,6 +2144,9 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 500
+          },
+          "class_level": {
+            "$ref": "#/components/schemas/ClassLevel"
           },
           "onboarding_completed": {
             "type": "boolean",
@@ -2264,6 +2388,29 @@
           "daily_goal_attempts",
           "goal_met_today",
           "last_7_days"
+        ]
+      },
+      "ActivityDay": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/DateString"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "correct": {
+            "type": "integer"
+          },
+          "total_time_ms": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "attempts",
+          "correct",
+          "total_time_ms"
         ]
       },
       "AttemptHistoryItem": {
@@ -6252,6 +6399,150 @@
             }
           }
         }
+      },
+      "get": {
+        "summary": "List my practice sessions (resume)",
+        "description": "Newest activity first. Filter with status=ACTIVE,COMPLETED,ABANDONED (comma separated).",
+        "tags": [
+          "practice"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "comma separated"
+            },
+            "required": false,
+            "description": "comma separated",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "Opaque cursor from meta.page.next_cursor"
+            },
+            "required": false,
+            "description": "Opaque cursor from meta.page.next_cursor",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "description": "1..50, default 20"
+            },
+            "required": false,
+            "description": "1..50, default 20",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SessionListItem"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/practice/sessions/{id}": {
@@ -6286,6 +6577,124 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SessionDetail"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/practice/sessions/{id}/complete": {
+      "post": {
+        "summary": "Complete an active session (idempotent)",
+        "description": "ACTIVE -> COMPLETED. Already COMPLETED returns the same progress; ABANDONED -> 409 INVALID_STATE_TRANSITION.",
+        "tags": [
+          "practice"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SessionProgress"
                     },
                     "meta": {
                       "$ref": "#/components/schemas/Meta"
@@ -7110,6 +7519,136 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/Streak"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/activity": {
+      "get": {
+        "summary": "Daily activity (heatmap / trends)",
+        "description": "Per-day attempts, correct and time spent, ascending. Default: last 120 days; max span 400 days.",
+        "tags": [
+          "student"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ActivityDay"
+                      }
                     },
                     "meta": {
                       "$ref": "#/components/schemas/Meta"

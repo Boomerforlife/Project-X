@@ -15,6 +15,7 @@ import {
   createNoopInvalidator,
   createNoopRateLimiter,
   createRecordingInvalidator,
+  createWebhookInvalidator,
   createWorkersCacheInvalidator,
   createZoneApiInvalidator,
   edgeCacheMiddleware,
@@ -181,6 +182,33 @@ describe('invalidators', () => {
     const boom = (async () => { throw new Error('net'); }) as unknown as typeof fetch;
     const r = await createZoneApiInvalidator({ zoneId: 'z', apiToken: 't', fetch: boom, sleep: async () => {} }).purgeTags(['a']);
     expect(r).toMatchObject({ ok: false, error: 'net' });
+  });
+  it('web webhook posts bearer + {tags}, chunks at 200, and never throws', async () => {
+    const seen: { url: string; auth: string; tags: string[] }[] = [];
+    const f = (async (url: string, init: RequestInit) => {
+      seen.push({ url, auth: (init.headers as Record<string, string>).Authorization!, tags: (JSON.parse(init.body as string) as { tags: string[] }).tags });
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+    const inv = createWebhookInvalidator({ url: 'http://web.test/api/revalidate/', secret: 's'.repeat(32), fetch: f });
+    const r = await inv.purgeTags([...mkTags(250), 't0']);
+    expect(seen.map((s) => s.tags.length)).toEqual([200, 50]);
+    expect(seen[0]).toMatchObject({ url: 'http://web.test/api/revalidate/', auth: `Bearer ${'s'.repeat(32)}` });
+    expect(r).toMatchObject({ ok: true });
+    expect(r.purged).toHaveLength(250);
+
+    const logs: string[] = [];
+    const bad = (async () => new Response('', { status: 401 })) as unknown as typeof fetch;
+    const r2 = await createWebhookInvalidator({ url: 'http://x', secret: 's', fetch: bad, log: (m) => logs.push(m) }).purgeTags(['a']);
+    expect(r2).toMatchObject({ ok: false, error: 'HTTP 401' });
+    expect(logs[0]).toContain('401');
+    const boom = (async () => { throw new Error('net'); }) as unknown as typeof fetch;
+    expect(await createWebhookInvalidator({ url: 'http://x', secret: 's', fetch: boom, log: () => {} }).purgeTags(['a'])).toMatchObject({ ok: false, error: 'net' });
+  });
+  it('web webhook times out slow endpoints', async () => {
+    const slow = ((_u: string, init: RequestInit) =>
+      new Promise((_res, rej) => init.signal!.addEventListener('abort', () => rej(new Error('aborted'))))) as unknown as typeof fetch;
+    const r = await createWebhookInvalidator({ url: 'http://x', secret: 's', fetch: slow, timeoutMs: 20, log: () => {} }).purgeTags(['a']);
+    expect(r).toMatchObject({ ok: false, error: 'aborted' });
   });
   it('workers, composite, noop, recording', async () => {
     const calls: string[][] = [];

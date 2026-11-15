@@ -1,9 +1,11 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { Blocks } from "@/components/content/Blocks";
 import { parseRichText, richTextToPlain } from "@/components/content/RichText";
 import { isActive } from "@/components/layout/nav";
 import type { Question } from "@/contracts";
 import { getChapters, getPublicQuestions, getQuestions, getSolution, getSubjects } from "@/lib/data";
-import { isChapterIndexable, isQuestionIndexable } from "@/lib/indexing";
+import { isCardIndexable, isChapterIndexable, isQuestionIndexable } from "@/lib/indexing";
 
 describe("RichText", () => {
   it("splits inline and display math", () => {
@@ -31,7 +33,7 @@ describe("fixtures conform to the draft contract", () => {
   });
 
   it("hasSolution matches solution availability, and answers reference real options", async () => {
-    for (const q of await getQuestions()) {
+    for (const q of (await getQuestions()) as Question[]) {
       const sol = await getSolution(q.id);
       expect(Boolean(sol), q.id).toBe(q.hasSolution);
       if (!sol) continue;
@@ -43,7 +45,7 @@ describe("fixtures conform to the draft contract", () => {
   });
 
   it("never labels sample content as official", async () => {
-    for (const q of await getQuestions()) {
+    for (const q of (await getQuestions()) as Question[]) {
       expect(q.source.kind).not.toBe("pyq");
       expect((await getSolution(q.id))?.answerProvenance).not.toBe("official_key");
     }
@@ -66,6 +68,14 @@ describe("indexing policy", () => {
     expect(isQuestionIndexable(q({ publicPage: false }))).toBe(false);
   });
 
+  it("honours the server's indexable flag (undefined means indexable)", () => {
+    expect(isQuestionIndexable(q({ indexable: false }))).toBe(false);
+    expect(isQuestionIndexable(q({ indexable: true }))).toBe(true);
+    expect(isCardIndexable({ publicPage: true })).toBe(true);
+    expect(isCardIndexable({ publicPage: true, indexable: false })).toBe(false);
+    expect(isCardIndexable({ publicPage: false, indexable: true })).toBe(false);
+  });
+
   it("keeps thin chapters out of the index", () => {
     expect(isChapterIndexable(0)).toBe(false);
     expect(isChapterIndexable(5)).toBe(true);
@@ -78,5 +88,31 @@ describe("nav active state", () => {
     expect(isActive("/jee/pyq/2025/", ["/jee"])).toBe(false);
     expect(isActive("/jee/physics/", ["/jee"])).toBe(true);
     expect(isActive("/neet/pyq/", ["/neet"])).toBe(false);
+  });
+});
+
+describe("Blocks renderer", () => {
+  const html = (blocks: Parameters<typeof Blocks>[0]["blocks"], fallback = "fb") => renderToStaticMarkup(Blocks({ blocks, fallback }));
+
+  it("renders paragraph markdown-lite, inline TeX, display math, images, tables and lists", () => {
+    const out = html([
+      { type: "paragraph", text: "A **bold** and *italic* word with $x^2$" },
+      { type: "math", latex: "E=mc^2" },
+      { type: "image", asset_id: "00000000-0000-4000-8000-000000000001", alt: "A diagram", url: "https://x.test/a.png", width: 10, height: 20 },
+      { type: "table", header: ["h"], rows: [["c"]] },
+      { type: "list", ordered: true, items: ["one", "two"] },
+    ]);
+    expect(out).toContain("<strong>bold</strong>");
+    expect(out).toContain("<em>italic</em>");
+    expect(out).toContain("katex");
+    expect(out).toContain('alt="A diagram"');
+    expect(out).toContain('loading="lazy"');
+    expect(out).toContain("overflow-x-auto");
+    expect(out).toContain("<ol");
+  });
+
+  it("falls back to the RichText string when there are no blocks", () => {
+    expect(html(undefined, "plain $x$")).toContain("plain");
+    expect(html([], "fallback text")).toContain("fallback text");
   });
 });

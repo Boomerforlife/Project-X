@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ResponseValue } from "@/contracts";
 import { RichText } from "@/components/content/RichText";
 import { DifficultyChip, SubjectTag, TypeChip, VerificationBadge } from "@/components/ui/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { DemoBadge, Dialog, Kbd, PageSkeleton } from "@/components/ui/Primitives";
+import { Dialog, Kbd, PageSkeleton } from "@/components/ui/Primitives";
+import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
-import { isAnswered, judge } from "@/lib/demo/scoring";
-import { checkAnswer, setCurrent, setResponse, submitAttempt, toggleBookmark, toggleReview, useDemo } from "@/lib/demo/store";
+import { isAnswered, outcomeFor } from "@/lib/demo/scoring";
+import { checkAnswer, ensureAttempt, setCurrent, setResponse, submitAttempt, toggleBookmark, toggleReview, usePending, useSubmitState, useDemo } from "@/lib/demo/store";
+import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt, DemoState } from "@/lib/demo/types";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 import { QuestionBody } from "./QuestionBody";
@@ -22,11 +24,24 @@ import { Calculator, Scratchpad } from "./Tools";
 import { formatClock, isTypingTarget, useAttemptClock } from "./useAttemptClock";
 import { DemoRequired } from "@/components/app/DemoGate";
 
+const API = DATA_SOURCE === "api";
+
 export function PracticeSession() {
   const id = useSearchParams().get("id");
   const s = useDemo();
   const router = useRouter();
   const a = s && id ? s.attempts[id] : null;
+  // API mode: a reload, deep link or second device loads the session from the server.
+  const [loaded, setLoaded] = useState<string | null>(null);
+  const hasUser = Boolean(s?.user);
+  useEffect(() => {
+    if (!API || !id || !hasUser || a) return;
+    let live = true;
+    void ensureAttempt(id).finally(() => live && setLoaded(id));
+    return () => {
+      live = false;
+    };
+  }, [id, hasUser, a]);
 
   useEffect(() => {
     if (a?.status === "submitted") router.replace(`/results/?id=${a.id}`);
@@ -35,6 +50,7 @@ export function PracticeSession() {
 
   if (s === null) return <PageSkeleton />;
   if (!s.user) return <DemoRequired />;
+  if (!a && API && id && loaded !== id) return <PageSkeleton />;
   if (!a) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
@@ -83,28 +99,34 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
   }, [attemptId, index, visited]);
 
   const go = useCallback((i: number) => setCurrent(a.id, i), [a.id]);
-  const finish = useCallback(() => {
-    submitAttempt(a.id);
-    router.push(`/results/?id=${a.id}`);
+  const submitState = useSubmitState(a.id);
+  const finishing = useRef(false);
+  const finish = useCallback(async () => {
+    if (finishing.current) return;
+    finishing.current = true;
+    const ok = await submitAttempt(a.id);
+    finishing.current = false;
+    if (ok) router.push(`/results/?id=${a.id}`);
   }, [a.id, router]);
 
   // Timed test: auto-submit when time runs out. Answers are already saved.
   useEffect(() => {
-    if (remaining !== null && remaining <= 0) finish();
+    if (remaining !== null && remaining <= 0) void finish();
   }, [remaining, finish]);
 
-  const outcome = q && learning && resp?.checked ? judge(q, catalog.solution(q.id), resp.answer).outcome : null;
+  const checking = usePending(a.id, qid);
+  const outcome = q && learning && resp?.checked ? outcomeFor(a, q, resp).outcome : null;
 
   const onAnswer = (answer: ResponseValue | null) => {
     setResponse(a.id, qid, { answer });
     if (!learning) setAnnounce("Answer saved");
   };
 
-  const check = () => {
-    if (!q || !isAnswered(resp?.answer)) return;
-    checkAnswer(a.id, qid);
-    const o = judge(q, catalog.solution(q.id), resp.answer).outcome;
-    setAnnounce(o === "correct" ? "Correct." : o === "partial" ? "Partially correct." : "Incorrect. The solution is shown below.");
+  const check = async () => {
+    if (!q || !isAnswered(resp?.answer) || checking) return;
+    await checkAnswer(a.id, qid);
+    // The outcome comes from the store (the server in API mode) once the check settles.
+    setAnnounce("Answer checked. The result and solution are shown below.");
   };
 
   // Keyboard shortcuts (ignored while typing in a field).
@@ -149,7 +171,7 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
     ? a.questionIds.filter((id) => {
         const r = a.responses[id];
         const qq = catalog.question(id);
-        return r?.checked && qq && judge(qq, catalog.solution(id), r.answer).outcome === "correct";
+        return r?.checked && qq && outcomeFor(a, qq, r).outcome === "correct";
       }).length
     : 0;
   const last = a.current === a.questionIds.length - 1;
@@ -180,7 +202,7 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
             <Icon name="clock" className="size-3.5" />
             {formatClock(remaining ?? elapsed)}
           </div>
-          <Button size="sm" variant={done || (!learning && last) ? "primary" : "secondary"} onClick={() => (learning ? finish() : setConfirm(true))}>
+          <Button size="sm" variant={done || (!learning && last) ? "primary" : "secondary"} onClick={() => (learning ? void finish() : setConfirm(true))}>
             {learning ? "Finish" : "Submit"}
           </Button>
         </div>
@@ -199,12 +221,12 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
             {subject && <SubjectTag subject={subject.id} label={subject.name} />}
             <TypeChip type={q.type} />
             {q.difficulty && <DifficultyChip difficulty={q.difficulty} />}
-            <VerificationBadge status={q.verification.status} note={q.verification.note} />
+            {!API && <VerificationBadge status={q.verification.status} note={q.verification.note} />}
           </div>
           {chapter && <p className={cn("mt-2 text-sm", SUBJECT_STYLE[q.subject].text)}>{chapter.name}</p>}
 
           <div className="rise mt-5" key={qid}>
-            <QuestionBody question={q} answer={resp?.answer ?? null} onChange={onAnswer} disabled={learning && resp?.checked} solution={sol} numberLabel={`Question ${a.current + 1}`} />
+            <QuestionBody question={q} answer={resp?.answer ?? null} onChange={onAnswer} disabled={Boolean(resp?.checked)} solution={sol} numberLabel={`Question ${a.current + 1}`} />
           </div>
 
           {learning && resp?.checked && outcome && (
@@ -283,7 +305,17 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
               </div>
             )}
             <p className="flex items-center gap-2 text-xs text-fg-muted">
-              <DemoBadge /> Progress saved on this device
+              {API ? (
+                learning ? (
+                  "Checked answers are saved to your account"
+                ) : (
+                  "Unsent answers are saved on this device until you submit"
+                )
+              ) : (
+                <>
+                  <DemoBadge /> Progress saved on this device
+                </>
+              )}
             </p>
           </div>
         </aside>
@@ -310,11 +342,11 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
           )}
           <div className="ml-auto flex items-center gap-2">
             {learning && !resp?.checked ? (
-              <Button pixel onClick={check} disabled={!isAnswered(resp?.answer)} className="min-w-36">
-                Check answer
+              <Button pixel onClick={check} disabled={!isAnswered(resp?.answer) || checking} className="min-w-36">
+                {checking ? "Checking…" : "Check answer"}
               </Button>
             ) : last ? (
-              <Button pixel onClick={() => (learning ? finish() : setConfirm(true))} className="min-w-36">
+              <Button pixel onClick={() => (learning ? void finish() : setConfirm(true))} className="min-w-36">
                 {learning ? "Finish session" : "Submit test"}
               </Button>
             ) : (
@@ -339,13 +371,35 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
           <Button variant="secondary" onClick={() => setConfirm(false)}>
             Keep working
           </Button>
-          <Button onClick={finish}>Submit</Button>
+          <Button
+            onClick={() => {
+              setConfirm(false);
+              void finish();
+            }}
+          >
+            Submit
+          </Button>
         </div>
+      </Dialog>
+      <Dialog open={Boolean(submitState && submitState.phase !== "done")} onClose={() => undefined} title={submitState?.phase === "paused" ? "Submission paused" : "Submitting your answers"}>
+        {submitState && (
+          <div className="text-sm" role="status" aria-live="polite">
+            <p className="font-medium tabular-nums">
+              Submitting {submitState.done}/{submitState.total}
+            </p>
+            <p className="mt-2 text-fg-muted">{submitState.message ?? "Please keep this tab open."}</p>
+            {submitState.phase === "paused" && (
+              <div className="mt-5 flex justify-end">
+                <Button onClick={() => void finish()}>Retry</Button>
+              </div>
+            )}
+          </div>
+        )}
       </Dialog>
       <Dialog open={shortcuts} onClose={() => setShortcuts(false)} title="Keyboard shortcuts">
         <ShortcutList learning={learning} />
       </Dialog>
-      <ReportDialog open={report} onClose={() => setReport(false)} />
+      <ReportDialog open={report} onClose={() => setReport(false)} questionId={q.id} />
     </div>
   );
 }
@@ -370,7 +424,7 @@ function statusOf(a: Attempt, id: string) {
   if (a.mode === "learning") {
     if (r?.checked) {
       const q = catalog.question(id)!;
-      const o = judge(q, catalog.solution(id), r.answer).outcome;
+      const o = outcomeFor(a, q, r).outcome;
       return o === "correct" ? "correct" : o === "partial" ? "partial" : "wrong";
     }
     return isAnswered(r?.answer) ? "answered" : r?.visited ? "seen" : "unseen";

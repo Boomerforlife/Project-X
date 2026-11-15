@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DemoRequired } from "@/components/app/DemoGate";
 import { Kitty } from "@/components/brand/Kitty";
 import { QuestionBody } from "@/components/practice/QuestionBody";
@@ -11,12 +11,15 @@ import { formatClock } from "@/components/practice/useAttemptClock";
 import { RichText } from "@/components/content/RichText";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { Bar, Card, DemoBadge, Eyebrow, PageSkeleton, Ring, Segmented } from "@/components/ui/Primitives";
+import { Bar, Card, Eyebrow, PageSkeleton, Ring, Segmented } from "@/components/ui/Primitives";
+import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { formatDuration, relativeDay } from "@/lib/demo/dates";
 import { answerLabel, keyLabel, scoreAttempt, type Outcome } from "@/lib/demo/scoring";
-import { startPaper, startPractice, toggleBookmark, useDemo } from "@/lib/demo/store";
+import { ensureAttempt, startPaper, startPractice, toggleBookmark, useDemo } from "@/lib/demo/store";
+import { toast } from "@/components/ui/Toast";
+import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt } from "@/lib/demo/types";
 import { EXAMS } from "@/lib/exams";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -30,12 +33,26 @@ const OUTCOME_META: Record<Outcome, { label: string; cls: string; icon: "check" 
   unattempted: { label: "Not attempted", cls: "text-fg-muted", icon: "dots" },
 };
 
+const API = DATA_SOURCE === "api";
+
 export function ResultsPage() {
   const id = useSearchParams().get("id");
   const s = useDemo();
+  const a = s && id ? s.attempts[id] : null;
+  // API mode: results of a finished session load from the server on reload / another device.
+  const [loaded, setLoaded] = useState<string | null>(null);
+  const hasUser = Boolean(s?.user);
+  useEffect(() => {
+    if (!API || !id || !hasUser || a) return;
+    let live = true;
+    void ensureAttempt(id).finally(() => live && setLoaded(id));
+    return () => {
+      live = false;
+    };
+  }, [id, hasUser, a]);
   if (s === null) return <PageSkeleton />;
   if (!s.user) return <DemoRequired />;
-  const a = id ? s.attempts[id] : null;
+  if (!a && API && id && loaded !== id) return <PageSkeleton />;
   if (!a) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
@@ -78,20 +95,27 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
     .map((qid, i) => ({ qid, i, res: r.perQuestion.get(qid)! }))
     .filter((x) => x.res && (filter === "all" || (filter === "incorrect" ? x.res.outcome === "incorrect" || x.res.outcome === "partial" : x.res.outcome === filter)));
 
-  const retry = (mode: "cbt" | "test") => {
-    if (a.paperId) {
-      const id = startPaper(a.paperId, mode, a.id);
-      router.push(mode === "cbt" ? `/cbt/?id=${id}` : `/practice/session/?id=${id}`);
-    } else {
-      const id = startPractice({ exam: a.exam, mode: "test", title: `${a.title} · retry`, questionIds: a.questionIds, scope: a.scope, durationSec: a.durationSec });
-      router.push(`/practice/session/?id=${id}`);
+  const [busy, setBusy] = useState(false);
+  const launch = async (p: Promise<string>, base: "practice" | "cbt" = "practice") => {
+    setBusy(true);
+    try {
+      const id = await p;
+      router.push(base === "cbt" ? `/cbt/?id=${id}` : `/practice/session/?id=${id}`);
+    } catch {
+      setBusy(false);
+      toast("Couldn't start that session. Please try again.", { icon: "alert", tone: "warn" });
     }
+  };
+  // A retry is always a NEW attempt. In API mode it is a fresh server session with the same scope
+  // (the server picks the questions, including ones already solved).
+  const retry = (mode: "cbt" | "test") => {
+    if (a.paperId) return launch(startPaper(a.paperId, mode, a.id), mode === "cbt" ? "cbt" : "practice");
+    return launch(startPractice({ exam: a.exam, mode: "test", title: `${a.title} · retry`, questionIds: a.questionIds, count: a.questionIds.length, includeSolved: true, scope: a.scope, durationSec: a.durationSec }));
   };
   const practiseMistakes = () => {
     const ids = a.questionIds.filter((q) => ["incorrect", "partial"].includes(r.perQuestion.get(q)?.outcome ?? ""));
     if (!ids.length) return;
-    const id = startPractice({ exam: a.exam, mode: "learning", title: `Mistakes from ${a.title}`, questionIds: ids, scope: { source: "mistakes" } });
-    router.push(`/practice/session/?id=${id}`);
+    return launch(startPractice({ exam: a.exam, mode: "learning", title: `Mistakes from ${a.title}`, questionIds: ids, count: ids.length, scope: { source: "mistakes" } }));
   };
 
   return (
@@ -174,29 +198,32 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
       {/* Next actions */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {a.kind === "paper" && a.mode !== "cbt" && (
-          <Button pixel onClick={() => retry("cbt")}>
+          <Button pixel disabled={busy} onClick={() => retry("cbt")}>
             <Icon name="monitor" className="size-4" /> Retry in exam-style CBT
           </Button>
         )}
         {a.kind === "paper" && a.mode === "cbt" && (
-          <Button pixel onClick={() => retry("cbt")}>
+          <Button pixel disabled={busy} onClick={() => retry("cbt")}>
             <Icon name="rotate" className="size-4" /> Retry this paper
           </Button>
         )}
         {a.kind === "practice" && (
-          <Button variant="secondary" onClick={() => retry("test")}>
+          <Button variant="secondary" disabled={busy} onClick={() => retry("test")}>
             <Icon name="rotate" className="size-4" /> Retry as a test
           </Button>
         )}
         {r.incorrect + r.partial > 0 && (
-          <Button variant="secondary" onClick={practiseMistakes}>
+          <Button variant="secondary" disabled={busy} onClick={practiseMistakes}>
             <Icon name="target" className="size-4" /> Practise the {r.incorrect + r.partial} you missed
           </Button>
         )}
         <ButtonLink href="/dashboard/" variant="ghost">
           Back to dashboard
         </ButtonLink>
-        <p className="w-full text-xs text-fg-muted">Retrying always creates a new attempt. This result stays in your history.</p>
+        <p className="w-full text-xs text-fg-muted">
+          Retrying always creates a new attempt. This result stays in your history.
+          {API && " Retries pick fresh questions from the same scope."}
+        </p>
       </div>
 
       {/* Question review */}
@@ -263,16 +290,14 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
                       <QuestionBody question={q} answer={a.responses[qid]?.answer ?? null} disabled solution={sol} />
                       <SolutionPanel question={q} solution={sol} />
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="secondary" aria-pressed={Boolean(bookmarks[qid])} onClick={() => toggleBookmark(qid)}>
+                        <Button size="sm" variant="secondary" aria-pressed={Boolean(bookmarks[qid])} onClick={() => void toggleBookmark(qid)}>
                           <Icon name="bookmark" className={cn("size-4", bookmarks[qid] && "fill-current")} /> {bookmarks[qid] ? "Bookmarked" : "Bookmark"}
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => {
-                            const id = startPractice({ exam: a.exam, mode: "learning", title: "Single question", questionIds: [qid], scope: { source: "single" } });
-                            router.push(`/practice/session/?id=${id}`);
-                          }}
+                          disabled={busy}
+                          onClick={() => launch(startPractice({ exam: a.exam, mode: "learning", title: "Single question", questionIds: [qid], scope: { source: "single" } }))}
                         >
                           <Icon name="rotate" className="size-4" /> Try again
                         </Button>

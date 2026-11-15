@@ -8,7 +8,8 @@ import { Heatmap, TrendBars } from "@/components/charts/Charts";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { PixelIcon } from "@/components/ui/PixelIcon";
-import { Bar, DashboardSkeleton, DemoBadge, PixelBar, Ring } from "@/components/ui/Primitives";
+import { Bar, DashboardSkeleton, PixelBar, Ring } from "@/components/ui/Primitives";
+import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { dayKey, daysAgo, formatDuration, relativeDay } from "@/lib/demo/dates";
@@ -28,6 +29,8 @@ import {
   today,
   totals,
   weeklyTrend,
+  PAPERS_ENABLED,
+  LEADERBOARD_ENABLED,
 } from "@/lib/demo/progress";
 import { isAnswered } from "@/lib/demo/scoring";
 import { inProgress } from "@/lib/demo/store";
@@ -35,6 +38,8 @@ import type { Attempt, DemoState, DemoUser } from "@/lib/demo/types";
 import { EXAMS } from "@/lib/exams";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 import { DemoGate } from "./DemoGate";
+import { toast } from "@/components/ui/Toast";
+import { DATA_SOURCE } from "@/lib/site";
 
 export function DashboardPage() {
   return <DemoGate fallback={<DashboardSkeleton />}>{(s) => <Dashboard s={s} user={s.user} />}</DemoGate>;
@@ -61,10 +66,19 @@ function Dashboard({ s, user }: { s: DemoState; user: DemoUser }) {
   const goal = user.dailyGoal;
   const left = Math.max(0, goal - td.answered);
 
-  const start = (id: string | null) => {
-    if (!id) return;
+  const start = async (pending: Promise<string | null> | string | null) => {
     setStarting(true);
-    router.push(`/practice/session/?id=${id}`);
+    try {
+      const id = await pending;
+      if (id) router.push(`/practice/session/?id=${id}`);
+      else {
+        setStarting(false);
+        toast("You've solved everything there. Open a chapter to include solved questions.", { icon: "info", tone: "warn" });
+      }
+    } catch {
+      setStarting(false);
+      toast("Couldn't start the session. Please try again.", { icon: "alert", tone: "warn" });
+    }
   };
 
   const summary =
@@ -73,7 +87,9 @@ function Dashboard({ s, user }: { s: DemoState; user: DemoUser }) {
       : st.todayDone
         ? `Your streak is safe for today. ${left} more question${left === 1 ? "" : "s"} to reach your goal.`
         : st.current > 0
-          ? `${STREAK_MIN_QUESTIONS - td.answered} question${STREAK_MIN_QUESTIONS - td.answered === 1 ? "" : "s"} keep${STREAK_MIN_QUESTIONS - td.answered === 1 ? "s" : ""} your ${st.current}-day streak going.`
+          ? STREAK_MIN_QUESTIONS === 1
+            ? `Answer a question today to keep your ${st.current}-day streak going.`
+            : `${STREAK_MIN_QUESTIONS - td.answered} question${STREAK_MIN_QUESTIONS - td.answered === 1 ? "" : "s"} keep${STREAK_MIN_QUESTIONS - td.answered === 1 ? "s" : ""} your ${st.current}-day streak going.`
           : "Ten focused questions is a good way to start the day.";
 
   const dateLabel = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
@@ -136,9 +152,11 @@ function Dashboard({ s, user }: { s: DemoState; user: DemoUser }) {
                   <Icon name="zap" className="size-4" /> New quick practice
                 </button>
               )}
-              <Link href={`/tests/?exam=${user.exam}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-fg-soft hover:bg-surface-2 hover:text-fg">
-                <Icon name="monitor" className="size-4" /> Full paper in CBT
-              </Link>
+              {PAPERS_ENABLED && (
+                <Link href={`/tests/?exam=${user.exam}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-fg-soft hover:bg-surface-2 hover:text-fg">
+                  <Icon name="monitor" className="size-4" /> Full paper in CBT
+                </Link>
+              )}
               <Link href="/practice/#chapters" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-fg-soft hover:bg-surface-2 hover:text-fg">
                 <Icon name="layers" className="size-4" /> Choose a chapter
               </Link>
@@ -233,7 +251,7 @@ function TodayPanel({ s, user }: { s: DemoState; user: DemoUser }) {
               );
             })}
           </ol>
-          <p className="mt-4 text-xs text-fg-muted">A day counts once you answer {STREAK_MIN_QUESTIONS} questions.</p>
+          <p className="mt-4 text-xs text-fg-muted">{STREAK_MIN_QUESTIONS === 1 ? "A day counts once you answer a question." : `A day counts once you answer ${STREAK_MIN_QUESTIONS} questions.`}</p>
         </div>
       </div>
     </aside>
@@ -260,7 +278,7 @@ function SectionHead({ id, title, sub, href, cta }: { id: string; title: string;
   );
 }
 
-function Performance({ s, user, onStart }: { s: DemoState; user: DemoUser; onStart: (id: string | null) => void }) {
+function Performance({ s, user, onStart }: { s: DemoState; user: DemoUser; onStart: (p: Promise<string | null> | string | null) => void }) {
   const t = totals(s);
   const w = thisWeek(s);
   const trend = weeklyTrend(s, 8);
@@ -286,7 +304,9 @@ function Performance({ s, user, onStart }: { s: DemoState; user: DemoUser; onSta
         ),
     },
     { label: "Study time this week", value: formatDuration(w.seconds), sub: `≈ ${formatDuration(w.seconds / Math.max(1, ((new Date().getDay() + 6) % 7) + 1))} a day` },
-    { label: "Papers & tests", value: String(papers.length), sub: bestPaper === null ? "None yet" : `Best ${Math.round(bestPaper * 100)}%` },
+    PAPERS_ENABLED
+      ? { label: "Papers & tests", value: String(papers.length), sub: bestPaper === null ? "None yet" : `Best ${Math.round(bestPaper * 100)}%` }
+      : { label: "Sessions finished", value: String(recent.length), sub: recent.length ? "Completed practice sessions" : "None yet" },
   ];
 
   return (
@@ -346,9 +366,11 @@ function Performance({ s, user, onStart }: { s: DemoState; user: DemoUser; onSta
       <div className="surface mt-4 p-2 sm:p-3">
         <div className="flex items-baseline justify-between px-3 pt-3 sm:px-4">
           <h3 className="font-semibold">Recent attempts</h3>
-          <Link href="/tests/" className="text-sm text-fg-muted hover:text-fg">
-            All papers
-          </Link>
+          {PAPERS_ENABLED && (
+            <Link href="/tests/" className="text-sm text-fg-muted hover:text-fg">
+              All papers
+            </Link>
+          )}
         </div>
         {recent.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-10 text-center">
@@ -393,8 +415,8 @@ function Momentum({ s, user }: { s: DemoState; user: DemoUser }) {
   const t = totals(s);
   const lv = level(t.xp);
   const ch = challenges(s);
-  const board = leaderboard(s);
-  const me = board.find((r) => r.you)!;
+  const board = LEADERBOARD_ENABLED ? leaderboard(s) : [];
+  const me = board.find((r) => r.you);
   const ach = achievements(s);
   const done = ach.filter((a) => a.done);
   const nextAch = ach.filter((a) => !a.done).sort((a, b) => b.progress[0] / b.progress[1] - a.progress[0] / a.progress[1])[0];
@@ -402,8 +424,8 @@ function Momentum({ s, user }: { s: DemoState; user: DemoUser }) {
 
   return (
     <section aria-labelledby="mom-h" className="border-t border-line py-14">
-      <SectionHead id="mom-h" title="Momentum" sub="XP comes from real practice: correct answers, finished papers and cleared mistakes." href="/progress/" cta="Achievements & wardrobe" />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <SectionHead id="mom-h" title="Momentum" sub={DATA_SOURCE === "api" ? "XP is a display score worked out from your answers: 10 per correct answer, 2 per attempt." : "XP comes from real practice: correct answers, finished papers and cleared mistakes."} href="/progress/" cta="Achievements & wardrobe" />
+      <div className={cn("grid gap-4", LEADERBOARD_ENABLED ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
         {/* Level */}
         <div className="surface flex flex-col p-6">
           <div className="flex items-start justify-between gap-3">
@@ -452,7 +474,8 @@ function Momentum({ s, user }: { s: DemoState; user: DemoUser }) {
           </ul>
         </div>
 
-        {/* Leaderboard */}
+        {/* Leaderboard (demo peers: hidden in API mode unless FEATURE_LEADERBOARD=demo) */}
+        {LEADERBOARD_ENABLED && me && (
         <div className="surface flex flex-col p-6">
           <div className="flex items-baseline justify-between">
             <p className="font-semibold">This week&rsquo;s board</p>
@@ -476,6 +499,7 @@ function Momentum({ s, user }: { s: DemoState; user: DemoUser }) {
             </p>
           )}
         </div>
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.55fr_1fr]">

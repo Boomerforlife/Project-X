@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createTestDb, createTestUser, type TestDb, type TestUser } from '@projectx/db/testing';
 import { PRACTICE_FORBIDDEN_KEYS } from '@projectx/contracts';
 import { createSqlStore } from '../src/repositories/sql/store';
@@ -273,5 +275,106 @@ describe('SQL repositories: review-finding fixes', () => {
   it('POST /admin/sources reuse_permitted=true -> 422', async () => {
     const r = await h.req('/admin/sources', { method: 'POST', token: at, json: { code: 'SQLBADSRC', name: 'Bad', kind: 'LICENSED_PUBLISHER', reuse_permitted: true } });
     expect(r.status).toBe(422);
+  });
+});
+
+describe('web integration additions (B0-B6, B8) on SQL', () => {
+  it('B8: dev fixture users exist with profiles, streaks and the admin role; fixture is idempotent', async () => {
+    const rows = await db.withService(async (tx) => ({
+      users: (await tx.query<{ id: string; display_name: string }>(
+        `select p.id, p.display_name from public.profiles p where p.id in ('e0000000-0000-4000-8000-000000000001','e0000000-0000-4000-8000-000000000002','e0000000-0000-4000-8000-0000000000a1') order by p.id`,
+      )).rows,
+      streaks: (await tx.query<{ n: number }>(`select count(*)::int n from public.streaks where user_id::text like 'e0000000-%'`)).rows[0]!.n,
+      roles: (await tx.query<{ user_id: string; role: string }>(`select user_id, role from public.user_roles where user_id::text like 'e0000000-%'`)).rows,
+    }));
+    expect(rows.users.map((u) => u.display_name)).toEqual(['Dev One', 'Dev Two', 'Dev Admin']);
+    expect(rows.streaks).toBe(3);
+    expect(rows.roles).toEqual([{ user_id: 'e0000000-0000-4000-8000-0000000000a1', role: 'ADMIN' }]);
+    const dev = await token('e0000000-0000-4000-8000-000000000001');
+    expect((await j(await h.req('/users/me', { token: dev }))).data.display_name).toBe('Dev One');
+    const adm = await token('e0000000-0000-4000-8000-0000000000a1');
+    expect((await j(await h.req('/users/me', { token: adm }))).data.roles).toEqual(['ADMIN']);
+    // re-running 0002 is a no-op (the demo-content fixture is exercised by createTestDb; re-run only the users fixture)
+    const sql = readFileSync(resolve(__dirname, '../../../supabase/fixtures/0002_dev_users.sql'), 'utf8');
+    const stmts = sql.split(';').map((x) => x.split(String.fromCharCode(10)).filter((l) => !l.trim().startsWith('--')).join(String.fromCharCode(10)).trim()).filter(Boolean);
+    for (const stmt of stmts) await db.withService((tx) => tx.query(stmt));
+    expect((await db.withService((tx) => tx.query<{ n: number }>(`select count(*)::int n from auth.users where id::text like 'e0000000-%'`))).rows[0]!.n).toBe(3);
+  });
+
+  it('B0 sitemap, B1 profile (RLS column grant + check), B4/B2/B3/B5 sessions, B6 activity', async () => {
+    const u = await createTestUser(db, { email: 'web-int@test.local', timezone: 'Asia/Kolkata' });
+    const t = await token(u.id);
+
+    // B0
+    const sm = await j(await h.req('/public/sitemap/questions'));
+    for (const e of sm.data) expect(e).toEqual(expect.objectContaining({ slug: expect.any(String), exam_slug: expect.any(String) }));
+
+    // B1
+    const me0 = await j(await h.req('/users/me', { token: t }));
+    expect(me0.data).toMatchObject({ class_level: null, onboarding_completed: false });
+    const me1 = await j(await h.req('/users/me', { method: 'PATCH', token: t, json: { class_level: '12', onboarding_completed: true, daily_goal_attempts: 10 } }));
+    expect(me1.data).toMatchObject({ class_level: '12', onboarding_completed: true, daily_goal_attempts: 10 });
+    expect((await j(await h.req('/users/me', { token: t }))).data.class_level).toBe('12');
+    expect((await j(await h.req('/users/me', { method: 'PATCH', token: t, json: { class_level: null } }))).data.class_level).toBeNull();
+    expect((await h.req('/users/me', { method: 'PATCH', token: t, json: { class_level: '13' } })).status).toBe(400);
+    await expect(db.withService((tx) => tx.query(`update public.profiles set class_level='13' where id=$1`, [u.id]))).rejects.toThrow();
+
+    // B4 + B2 + B3 + B5
+    const body = { client_request_id: uuid(), mode: 'MIXED', exam: 'jee-main', size: 6, ui_mode: 'test', time_limit_sec: 900 };
+    const created = await j(await h.req('/practice/sessions', { method: 'POST', token: t, json: body }));
+    expect(created.data.session).toMatchObject({ ui_mode: 'test', time_limit_sec: 900 });
+    const replay = await j(await h.req('/practice/sessions', { method: 'POST', token: t, json: body }));
+    expect(replay.meta.replayed).toBe(true);
+    expect(replay.data.session).toMatchObject({ ui_mode: 'test', time_limit_sec: 900 });
+    const sid = created.data.session.id;
+    const learning = await j(await h.req('/practice/sessions', { method: 'POST', token: t, json: { ...body, client_request_id: uuid(), mode: 'CHAPTER', chapter: 'jee-main-physics-kinematics', ui_mode: undefined, time_limit_sec: undefined, size: 1, filters: { exclude_correct: false } } }));
+    expect(learning.data.session).toMatchObject({ ui_mode: 'learning', time_limit_sec: null });
+
+    const q = created.data.questions[0];
+    const resp = q.question_type === 'NUMERICAL' ? { type: 'NUMERICAL', value: '999' } : q.question_type === 'MULTI_MCQ' ? { type: 'MULTI_MCQ', option_ids: [q.options[0].id] } : { type: 'SINGLE_MCQ', option_id: q.options[0].id };
+    const att = await j(await h.req('/practice/attempts', { method: 'POST', token: t, json: { client_attempt_id: uuid(), question_id: q.id, session_id: sid, response: resp, time_spent_ms: 2500 } }));
+    expect(att.data).toMatchObject({ response: resp, time_spent_ms: 2500 });
+    const detail = await j(await h.req(`/practice/sessions/${sid}`, { token: t }));
+    expect(detail.data.session).toMatchObject({ ui_mode: 'test', time_limit_sec: 900 });
+    expect(detail.data.items.find((i: any) => i.question.id === q.id).attempt).toMatchObject({ response: resp, time_spent_ms: 2500 });
+
+    const list = await j(await h.req('/practice/sessions', { token: t }));
+    expect(list.data.map((s: any) => s.id).sort()).toEqual([sid, learning.data.session.id].sort());
+    expect(list.data[0].last_activity_at >= list.data[1].last_activity_at).toBe(true);
+    expect(list.data[0].id).toBe(sid); // the attempt made it the most recently active
+    expect(list.data.find((s: any) => s.id === sid)).toMatchObject({ ui_mode: 'test', time_limit_sec: 900, status: 'ACTIVE', completed_at: null });
+    const ls = list.data.find((s: any) => s.id === learning.data.session.id);
+    expect(ls.exam.slug).toBe('jee-main');
+    expect(ls.chapter.slug).toBe('jee-main-physics-kinematics');
+    expect(ls.subject).toBeNull(); // only the requested scope is stored
+    expect(list.data.find((s: any) => s.id === sid).chapter).toBeNull();
+    const page1 = await j(await h.req('/practice/sessions?limit=1', { token: t }));
+    expect(page1.data).toHaveLength(1);
+    const page2 = await j(await h.req(`/practice/sessions?limit=1&cursor=${page1.meta.page.next_cursor}`, { token: t }));
+    expect(page2.data).toHaveLength(1);
+    expect(page2.data[0].id).not.toBe(page1.data[0].id);
+    expect((await j(await h.req('/practice/sessions?status=COMPLETED', { token: t }))).data).toEqual([]);
+    expect((await j(await h.req('/practice/sessions', { token: ut2 }))).data.every((s: any) => s.id !== sid)).toBe(true);
+
+    const done = await h.req(`/practice/sessions/${sid}/complete`, { method: 'POST', token: t });
+    expect(done.status).toBe(200);
+    expect((await j(done)).data).toMatchObject({ id: sid, status: 'COMPLETED', attempted_count: 1, total: created.data.questions.length });
+    expect((await j(await h.req(`/practice/sessions/${sid}/complete`, { method: 'POST', token: t }))).data.status).toBe('COMPLETED');
+    expect((await j(await h.req(`/practice/sessions/${sid}`, { token: t }))).data.session.completed_at).toBeTruthy();
+    expect((await j(await h.req('/practice/sessions?status=COMPLETED', { token: t }))).data.map((s: any) => s.id)).toEqual([sid]);
+    await h.req(`/practice/sessions/${learning.data.session.id}/abandon`, { method: 'POST', token: t });
+    const bad = await h.req(`/practice/sessions/${learning.data.session.id}/complete`, { method: 'POST', token: t });
+    expect(bad.status).toBe(409);
+    expect((await j(bad)).error.code).toBe('INVALID_STATE_TRANSITION');
+    expect((await h.req(`/practice/sessions/${sid}/complete`, { method: 'POST', token: ut2 })).status).toBe(404);
+
+    // B6 (RLS owner-select through withUser)
+    const act = await j(await h.req('/users/me/activity', { token: t }));
+    const today = (await j(await h.req('/users/me/streak', { token: t }))).data.today;
+    expect(act.data).toEqual([{ date: today, attempts: 1, correct: 0, total_time_ms: 2500 }]);
+    expect((await j(await h.req(`/users/me/activity?from=${today}&to=${today}`, { token: t }))).data).toHaveLength(1);
+    expect((await j(await h.req('/users/me/activity?from=2000-01-01&to=2000-01-31', { token: t }))).data).toEqual([]);
+    expect((await h.req('/users/me/activity?from=2020-01-01&to=2026-01-01', { token: t })).status).toBe(400);
+    expect((await j(await h.req('/users/me/activity', { token: ut2 }))).data).toEqual([]);
   });
 });

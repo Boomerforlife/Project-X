@@ -1,51 +1,65 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { RichText, richTextToPlain } from "@/components/content/RichText";
+import { notFound, permanentRedirect } from "next/navigation";
+import { Blocks } from "@/components/content/Blocks";
+import { richTextToPlain } from "@/components/content/RichText";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DifficultyChip, SubjectTag, TypeChip, VERIFICATION_COPY, VerificationBadge } from "@/components/ui/Badges";
 import { ButtonLink } from "@/components/ui/Button";
 import type { AnswerKey, Question, Solution } from "@/contracts";
 import { cn } from "@/lib/cn";
-import { getChapter, getPublicQuestions, getQuestionBySlug, getQuestions, getSolution, getSubject } from "@/lib/data";
-import { TRACK_INFO, isTrack, trackOf } from "@/lib/exams";
+import { getChapter, getPublicQuestions, getQuestionPage, getRelatedQuestions, getSubjects } from "@/lib/data";
+import { EXAMS, TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata } from "@/lib/seo";
 
 export async function generateStaticParams() {
-  return (await getPublicQuestions()).map((q) => ({ track: trackOf(q.exams[0]), slug: q.slug }));
+  const params = (await getPublicQuestions()).map((q) => ({ track: trackOf(q.exams[0]), slug: q.slug }));
+  // cacheComponents requires at least one param; the sentinel resolves to notFound().
+  return params.length ? params : [{ track: "jee", slug: "none" }];
 }
 
-async function load(track: string, slug: string) {
-  const q = await getQuestionBySlug(slug);
+type Loaded = { kind: "ok"; q: Question; s: { id: Question["subject"]; name: string }; c: { slug: string; name: string; summary: string }; sol: Solution | null; track: Track };
+type LoadResult = Loaded | { kind: "moved"; slug: string } | { kind: "missing" };
+
+async function load(track: string, slug: string): Promise<LoadResult> {
+  if (!isTrack(track)) return { kind: "missing" };
+  const page = await getQuestionPage(slug);
+  if (page.status !== "ok") return page.status === "moved" ? { kind: "moved", slug: page.slug } : { kind: "missing" };
+  const { question: q, solution: sol } = page;
   // Only questions the backend marks as public-page-eligible get a URL, under their own track.
-  if (!q || !q.publicPage || !isTrack(track) || trackOf(q.exams[0]) !== track) return null;
-  const [s, c, sol] = await Promise.all([getSubject(q.subject), getChapter(q.subject, q.chapter), getSolution(q.id)]);
-  if (!s || !c) return null;
-  return { q, s, c, sol, track };
+  if (!q.publicPage || trackOf(q.exams[0]) !== track) return { kind: "missing" };
+  const [subjects, c] = await Promise.all([getSubjects(track), getChapter(q.subject, q.chapter)]);
+  const s = subjects.find((x) => x.id === q.subject);
+  if (!s || !c) return { kind: "missing" };
+  return { kind: "ok", q, s, c, sol, track };
 }
 
 export async function generateMetadata({ params }: PageProps<"/[track]/questions/[slug]">) {
-  const p = await params;
-  const data = await load(p.track, p.slug);
-  if (!data) return {};
-  const { q, s, c, track } = data;
-  const plain = richTextToPlain(q.stem);
-  return pageMetadata({
-    title: `${c.name} question: ${plain.length > 60 ? plain.slice(0, 57).trimEnd() + "…" : plain}`,
-    description: `${TRACK_INFO[track].name} ${s.name} · ${c.name}. ${plain.slice(0, 120)}${plain.length > 120 ? "…" : ""} Worked solution included.`,
-    path: `/${track}/questions/${q.slug}/`,
-    // Disputed or solution-less questions stay out of the index until resolved.
-    noindex: !isQuestionIndexable(q),
-    ogType: "article",
+  return safeMetadata(async () => {
+    const p = await params;
+    const data = await load(p.track, p.slug);
+    if (data.kind !== "ok") return {};
+    const { q, s, c, track } = data;
+    const plain = richTextToPlain(q.stem);
+    return pageMetadata({
+      title: `${c.name} question: ${plain.length > 60 ? plain.slice(0, 57).trimEnd() + "…" : plain}`,
+      description: `${TRACK_INFO[track].name} ${s.name} · ${c.name}. ${plain.slice(0, 120)}${plain.length > 120 ? "…" : ""} Worked solution included.`,
+      path: `/${track}/questions/${q.slug}/`,
+      // Disputed or solution-less questions stay out of the index until resolved.
+      noindex: !isQuestionIndexable(q),
+      ogType: "article",
+    });
   });
 }
 
 export default async function QuestionPage({ params }: PageProps<"/[track]/questions/[slug]">) {
   const p = await params;
   const data = await load(p.track, p.slug);
-  if (!data) notFound();
+  // Renamed slug: permanent redirect to the new URL under the same track.
+  if (data.kind === "moved") permanentRedirect(`/${p.track}/questions/${data.slug}/`);
+  if (data.kind !== "ok") notFound();
   const { q, s, c, sol, track } = data;
-  const related = (await getQuestions({ subject: s.id, chapter: c.slug, track })).filter((x) => x.id !== q.id && x.publicPage).slice(0, 4);
+  const related = (await getRelatedQuestions(q.slug, 4)).filter((x) => x.id !== q.id && x.publicPage);
 
   return (
     <>
@@ -80,7 +94,7 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
           )}
 
           <div className="text-lg leading-relaxed">
-            <RichText value={q.stem} />
+            <Blocks blocks={q.blocks} fallback={q.stem} />
           </div>
 
           {q.options.length > 0 && (
@@ -89,7 +103,7 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
                 <li key={o.id} className="flex items-start gap-4 rounded-md border border-line px-4 py-3">
                   <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-sm bg-surface-3 text-sm font-semibold">{o.id}</span>
                   <div className="min-w-0 pt-0.5">
-                    <RichText value={o.body} />
+                    <Blocks blocks={o.blocks} fallback={o.body} />
                   </div>
                 </li>
               ))}
@@ -100,7 +114,7 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
           )}
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <ButtonLink href={`/practice/new/?q=${q.id}`} pixel>
+            <ButtonLink href={`/practice/new/?slug=${q.slug}`} pixel>
               Try it in practice
             </ButtonLink>
           </div>
@@ -116,7 +130,7 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
             <Link href={`/${track}/${s.id}/${c.slug}/`} className="mt-2 block text-base font-semibold hover:underline underline-offset-4">
               {c.name}
             </Link>
-            <p className="mt-1 text-fg-muted">{c.summary}</p>
+            {c.summary && <p className="mt-1 text-fg-muted">{c.summary}</p>}
           </section>
           {related.length > 0 && (
             <section aria-labelledby="rel-h">
@@ -144,7 +158,7 @@ function SourceLabel({ q }: { q: Question }) {
   const src = q.source;
   const text =
     src.kind === "pyq"
-      ? `JEE Main ${src.year} · ${src.session} · Shift ${src.shift}`
+      ? [EXAMS[src.exam].name, src.year, src.session, src.shift != null ? `Shift ${src.shift}` : null].filter((x) => x != null && x !== "").join(" · ")
       : src.kind === "original"
         ? "Practice question"
         : "Sample (development)";
@@ -152,7 +166,7 @@ function SourceLabel({ q }: { q: Question }) {
 }
 
 function answerText(q: Question, a: AnswerKey) {
-  if (a.type === "numerical") return String(a.value);
+  if (a.type === "numerical") return a.display ?? String(a.value);
   if (a.type === "single_correct") return `Option ${a.optionId}`;
   return `Options ${a.optionIds.join(", ")}`;
 }
@@ -167,6 +181,7 @@ const AUTHOR: Record<Solution["generatedBy"], string> = {
   human: "Written by a subject expert",
   ai: "AI-generated explanation",
   ai_human_edited: "AI-assisted, edited by a person",
+  official: "From the official source",
 };
 
 /**
@@ -197,6 +212,7 @@ function SolutionBlock({ q, sol }: { q: Question; sol: Solution | null }) {
         </div>
         <div>
           <p className="font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">Solution</p>
+          {sol.extras?.summary && <p className="mt-3 leading-relaxed text-fg-soft">{sol.extras.summary}</p>}
           <ol className="mt-3 space-y-4">
             {sol.steps.map((st, i) => (
               <li key={i} className="grid grid-cols-[1.75rem_1fr] gap-2">
@@ -204,7 +220,7 @@ function SolutionBlock({ q, sol }: { q: Question; sol: Solution | null }) {
                 <div className="min-w-0 leading-relaxed">
                   {st.title && <p className="mb-1 font-medium">{st.title}</p>}
                   <div className="text-fg-soft">
-                    <RichText value={st.body} />
+                    <Blocks blocks={st.blocks} fallback={st.body} />
                   </div>
                 </div>
               </li>

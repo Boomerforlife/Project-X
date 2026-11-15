@@ -1,7 +1,8 @@
 import type { Question, Solution } from "@/contracts";
-import { RichText } from "@/components/content/RichText";
+import { Blocks } from "@/components/content/Blocks";
 import { VerificationBadge } from "@/components/ui/Badges";
 import { keyLabel } from "@/lib/demo/scoring";
+import { DATA_SOURCE } from "@/lib/site";
 
 export const PROVENANCE: Record<Solution["answerProvenance"], string> = {
   official_key: "Answer from the official key",
@@ -13,6 +14,7 @@ export const AUTHOR: Record<Solution["generatedBy"], string> = {
   human: "Written by a subject expert",
   ai: "AI-generated explanation",
   ai_human_edited: "AI-assisted, edited by a person",
+  official: "From the official source",
 };
 
 /** Final answer kept separate from the reasoning (CLAUDE.md §7). */
@@ -51,7 +53,7 @@ export function SolutionPanel({ question, solution }: { question: Question; solu
               <div className="min-w-0 leading-relaxed">
                 {st.title && <p className="mb-1 font-medium">{st.title}</p>}
                 <div className="text-fg-soft">
-                  <RichText value={st.body} />
+                  <Blocks blocks={st.blocks} fallback={st.body} />
                 </div>
               </div>
             </li>
@@ -60,8 +62,13 @@ export function SolutionPanel({ question, solution }: { question: Question; solu
       </div>
       <p className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-3 text-xs text-fg-muted">
         <span>{AUTHOR[solution.generatedBy]}</span>
-        <span aria-hidden>·</span>
-        <VerificationBadge status={solution.verification.status} note={solution.verification.note} />
+        {/* API practice responses carry no verification status, so no badge is claimed. */}
+        {DATA_SOURCE !== "api" && (
+          <>
+            <span aria-hidden>·</span>
+            <VerificationBadge status={solution.verification.status} note={solution.verification.note} />
+          </>
+        )}
       </p>
     </section>
   );

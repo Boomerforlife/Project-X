@@ -8,14 +8,18 @@ import { ThemeChooser } from "@/components/theme/Theme";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { PixelIcon } from "@/components/ui/PixelIcon";
-import { Bar, Card, DemoBadge, Dialog, Eyebrow, PixelBar, Segmented } from "@/components/ui/Primitives";
+import { Bar, Card, Dialog, Eyebrow, PixelBar, Segmented } from "@/components/ui/Primitives";
+import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { formatDuration } from "@/lib/demo/dates";
-import { COSMETICS, STREAK_MIN_QUESTIONS, achievements, chapterStats, challenges, leaderboard, level, streaks, subjectStats, thisWeek, totals, weeklyTrend } from "@/lib/demo/progress";
+import { COSMETICS, LEADERBOARD_ENABLED, STREAK_MIN_QUESTIONS, achievements, chapterStats, challenges, leaderboard, level, streaks, subjectStats, thisWeek, totals, weeklyTrend } from "@/lib/demo/progress";
+import { DATA_SOURCE } from "@/lib/site";
+import { availableExams } from "@/lib/session/exams";
+import { Kitty as KittyMark } from "@/components/brand/Kitty";
 import { completeOnboarding, signOut, updateUser } from "@/lib/demo/store";
 import type { ClassLevel, DemoState } from "@/lib/demo/types";
-import { EXAM_LIST, EXAMS } from "@/lib/exams";
+import { EXAMS } from "@/lib/exams";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 import { DemoGate } from "./DemoGate";
 
@@ -62,7 +66,11 @@ function Progress({ s }: { s: S }) {
             </p>
             <details className="mt-3 text-xs text-fg-muted">
               <summary className="cursor-pointer select-none hover:text-fg">How XP works</summary>
-              <p className="mt-2 leading-relaxed">+10 for a correct answer, +5 for a partially correct multi-answer, +2 for a genuine wrong attempt, +15 for clearing a mistake, +50 for finishing a paper. Opening the app or clicking around earns nothing.</p>
+              {DATA_SOURCE === "api" ? (
+                <p className="mt-2 leading-relaxed">XP is a display score worked out from your recorded answers: +10 for each correct answer and +2 for each wrong attempt. It is not stored separately and not a rating. Opening the app or clicking around earns nothing.</p>
+              ) : (
+                <p className="mt-2 leading-relaxed">+10 for a correct answer, +5 for a partially correct multi-answer, +2 for a genuine wrong attempt, +15 for clearing a mistake, +50 for finishing a paper. Opening the app or clicking around earns nothing.</p>
+              )}
             </details>
           </div>
         </Card>
@@ -83,7 +91,7 @@ function Progress({ s }: { s: S }) {
               <p className="mt-1 font-display text-xl font-semibold tabular-nums">{v}</p>
             </div>
           ))}
-          <p className="col-span-2 text-xs text-fg-muted">A streak day needs at least {STREAK_MIN_QUESTIONS} answered questions.</p>
+          <p className="col-span-2 text-xs text-fg-muted">{STREAK_MIN_QUESTIONS === 1 ? "A streak day needs at least one answered question." : `A streak day needs at least ${STREAK_MIN_QUESTIONS} answered questions.`}</p>
         </Card>
       </div>
 
@@ -251,6 +259,15 @@ function WardrobeItem({ label, sub, active, disabled, onClick, children }: { lab
 /* ---------------- /leaderboard/ ---------------- */
 
 export function LeaderboardPage() {
+  if (!LEADERBOARD_ENABLED) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-24 text-center">
+        <KittyMark pose="sleep" className="h-20 w-auto text-fg-subtle" />
+        <h1 className="mt-8 text-3xl font-semibold">No leaderboard yet</h1>
+        <p className="mt-3 text-fg-muted">A weekly board will come once there are enough real students to make it meaningful. Your own progress is on the Progress page.</p>
+      </div>
+    );
+  }
   return <DemoGate>{(s) => <Leaderboard s={s} />}</DemoGate>;
 }
 
@@ -333,7 +350,7 @@ function Account({ s }: { s: S }) {
             className="mt-4 flex flex-wrap items-end gap-3"
             onSubmit={(e) => {
               e.preventDefault();
-              updateUser({ name: name.trim() || u.name });
+              void updateUser({ name: name.trim() || u.name });
             }}
           >
             <label className="flex-1 text-sm">
@@ -350,12 +367,12 @@ function Account({ s }: { s: S }) {
           <h2 className="font-medium">Target exam</h2>
           <p className="mt-1 text-sm text-fg-muted">Changes your dashboard, practice and papers. Your history is kept.</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {EXAM_LIST.map((e) => (
+            {availableExams().map((e) => (
               <button
                 key={e.id}
                 type="button"
                 aria-pressed={u.exam === e.id}
-                onClick={() => updateUser({ exam: e.id })}
+                onClick={() => void updateUser({ exam: e.id })}
                 className={cn("rounded-lg border p-3 text-left transition-colors", u.exam === e.id ? "border-fg bg-surface-2" : "border-line hover:border-line-strong")}
               >
                 <span className="block font-medium">{e.name}</span>
@@ -370,7 +387,7 @@ function Account({ s }: { s: S }) {
                 className="mt-2"
                 label="Class"
                 value={u.classLevel}
-                onChange={(v: ClassLevel) => updateUser({ classLevel: v })}
+                onChange={(v: ClassLevel) => void updateUser({ classLevel: v })}
                 options={[
                   { id: "11", label: "Class 11" },
                   { id: "12", label: "Class 12" },
@@ -384,7 +401,7 @@ function Account({ s }: { s: S }) {
                 className="mt-2"
                 label="Daily goal"
                 value={String(u.dailyGoal)}
-                onChange={(v) => updateUser({ dailyGoal: Number(v) })}
+                onChange={(v) => void updateUser({ dailyGoal: Number(v) })}
                 options={["10", "20", "35", "50"].map((n) => ({ id: n, label: n }))}
               />
             </div>
@@ -399,6 +416,7 @@ function Account({ s }: { s: S }) {
           </div>
         </Card>
 
+        {LEADERBOARD_ENABLED && (
         <Card className="p-6">
           <h2 className="font-medium">Privacy</h2>
           <label className="mt-3 flex cursor-pointer items-center gap-3 text-sm">
@@ -406,7 +424,25 @@ function Account({ s }: { s: S }) {
             Show my first name on the weekly leaderboard
           </label>
         </Card>
+        )}
 
+        {DATA_SOURCE === "api" ? (
+          <Card className="p-6">
+            <h2 className="font-medium">Session</h2>
+            <p className="mt-1 text-sm text-fg-muted">Your practice and progress are saved to your account. Review list and mistake tags are kept on this device for now.</p>
+            <div className="mt-4">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  signOut();
+                  router.push("/");
+                }}
+              >
+                <Icon name="logout" className="size-4" /> Sign out
+              </Button>
+            </div>
+          </Card>
+        ) : (
         <Card className="p-6">
           <h2 className="font-medium">Demo data</h2>
           <p className="mt-1 text-sm text-fg-muted">Everything in this demo is stored only in this browser. Reset to start the sample history again, or sign out to clear it.</p>
@@ -425,6 +461,7 @@ function Account({ s }: { s: S }) {
             </Button>
           </div>
         </Card>
+        )}
       </div>
 
       <Dialog open={reset} onClose={() => setReset(false)} title="Reset sample history?">
@@ -435,7 +472,7 @@ function Account({ s }: { s: S }) {
           </Button>
           <Button
             onClick={() => {
-              completeOnboarding({ exam: u.exam, classLevel: u.classLevel, dailyGoal: u.dailyGoal, name: u.name });
+              void completeOnboarding({ exam: u.exam, classLevel: u.classLevel, dailyGoal: u.dailyGoal, name: u.name });
               setReset(false);
               router.push("/dashboard/");
             }}

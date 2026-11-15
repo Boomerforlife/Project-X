@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // Public URLs use trailing slashes (CLAUDE.md §5); the other form 308-redirects.
   trailingSlash: true,
   poweredByHeader: false,
+  transpilePackages: ["@projectx/contracts"],
   turbopack: {
     rules: {
       "*.css": {

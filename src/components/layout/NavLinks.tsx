@@ -9,11 +9,17 @@ import { ThemeToggle } from "@/components/theme/Theme";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { signOut, updateUser, useDemo } from "@/lib/demo/store";
-import { EXAM_LIST, EXAMS } from "@/lib/exams";
+import { EXAMS } from "@/lib/exams";
+import { LEADERBOARD_ENABLED, PAPERS_ENABLED } from "@/lib/demo/progress";
+import { availableExams } from "@/lib/session/exams";
+import { DATA_SOURCE } from "@/lib/site";
 import { APP_NAV, PRIMARY_NAV, isActive, type NavItem } from "./nav";
 
 export type NavVariant = "site" | "app";
-const navFor = (v: NavVariant): readonly NavItem[] => (v === "app" ? APP_NAV : PRIMARY_NAV);
+// API mode without the papers demo flag: no Papers entry point (the backend has no papers yet).
+const APP_NAV_VISIBLE: readonly NavItem[] = PAPERS_ENABLED ? APP_NAV : APP_NAV.filter((n) => n.href !== "/tests/");
+const navFor = (v: NavVariant): readonly NavItem[] => (v === "app" ? APP_NAV_VISIBLE : PRIMARY_NAV);
+const SIGNUP_LABEL = DATA_SOURCE === "api" ? "Sign up" : "Try the demo";
 
 export function DesktopNav({ variant = "site" }: { variant?: NavVariant }) {
   const pathname = usePathname();
@@ -72,7 +78,7 @@ export function ExamSwitcher({ compact = false }: { compact?: boolean }) {
   if (!s?.user) return null;
   const exam = EXAMS[s.user.exam];
   const choose = (e: ExamId) => {
-    updateUser({ exam: e });
+    void updateUser({ exam: e });
     setOpen(false);
   };
   return (
@@ -96,7 +102,7 @@ export function ExamSwitcher({ compact = false }: { compact?: boolean }) {
       {open && (
         <div id={id} role="menu" className="rise absolute right-0 top-11 z-50 w-72 rounded-xl border border-line-strong bg-surface p-1.5 shadow-[var(--shadow-pop)]">
           <p className="px-2.5 pb-1.5 pt-1 text-xs text-fg-muted">Preparing for</p>
-          {EXAM_LIST.map((e) => (
+          {availableExams().map((e) => (
             <button
               key={e.id}
               role="menuitemradio"
@@ -137,7 +143,7 @@ function AccountMenu() {
   const links = [
     { href: "/account/", label: "Profile & settings", icon: "settings" as const },
     { href: "/progress/", label: "Progress & achievements", icon: "chart" as const },
-    { href: "/leaderboard/", label: "Leaderboard", icon: "trophy" as const },
+    ...(LEADERBOARD_ENABLED ? [{ href: "/leaderboard/", label: "Leaderboard", icon: "trophy" as const }] : []),
     { href: "/bookmarks/", label: "Bookmarks", icon: "bookmark" as const },
   ];
   return (
@@ -202,7 +208,7 @@ export function HeaderActions({ variant = "site" }: { variant?: NavVariant }) {
             Log in
           </Link>
           <Link href="/signup/" className="pixel-corners inline-flex h-9 items-center bg-fg px-3 text-sm font-medium text-bg hover:bg-fg-soft">
-            Try the demo
+            {SIGNUP_LABEL}
           </Link>
         </>
       )}
@@ -282,7 +288,7 @@ export function MobileNav({ variant = "site" }: { variant?: NavVariant }) {
                 </div>
               )}
               <ul className="flex flex-col">
-                {(s?.user && variant === "site" ? [...APP_NAV.slice(0, 2), ...nav] : nav).map((item) => {
+                {(s?.user && variant === "site" ? [...APP_NAV_VISIBLE.slice(0, 2), ...nav] : nav).map((item) => {
                   const active = isActive(pathname, item.match, nav);
                   return (
                     <li key={item.href + item.label}>
@@ -320,7 +326,7 @@ export function MobileNav({ variant = "site" }: { variant?: NavVariant }) {
                     Log in
                   </Link>
                   <Link href="/signup/" className="flex h-12 items-center justify-center rounded-md bg-fg font-medium text-bg">
-                    Try the demo
+                    {SIGNUP_LABEL}
                   </Link>
                 </div>
               )}

@@ -7,6 +7,12 @@
  * generated types and update fixtures + consuming UI together.
  */
 import { z } from "zod";
+import type { PublicContentBlock } from "@projectx/contracts";
+
+export type { PublicContentBlock };
+
+/** Structured content blocks from the API (API mode only). Optional alongside the RichText fallback. */
+const Blocks = z.custom<PublicContentBlock[]>((v) => Array.isArray(v));
 
 export const ExamId = z.enum(["jee-main", "jee-advanced", "neet"]);
 export type ExamId = z.infer<typeof ExamId>;
@@ -20,6 +26,7 @@ export type SubjectId = z.infer<typeof SubjectId>;
  * API return a structured AST / MathML?
  */
 export const RichText = z.string();
+export type RichText = z.infer<typeof RichText>;
 
 export const Asset = z.object({
   id: z.string(),
@@ -49,9 +56,9 @@ export const Source = z.discriminatedUnion("kind", [
     kind: z.literal("pyq"),
     exam: ExamId,
     year: z.number().int(),
-    session: z.string(), // e.g. "January", "April"
-    date: z.string(), // ISO date of the sitting
-    shift: z.number().int().positive(),
+    session: z.string().nullable(), // e.g. "January", "April"; null when unknown
+    date: z.string().nullable(), // ISO date of the sitting; null when unknown
+    shift: z.number().int().positive().nullable(),
   }),
   /** Original content written for practice; never presented as a PYQ. */
   z.object({ kind: z.literal("original") }),
@@ -64,7 +71,13 @@ export const Option = z.object({
   id: z.string(), // stable per question: "A" | "B" | ...
   body: RichText,
   asset: Asset.optional(),
+  /** API mode: the backend option uuid (submissions map label -> ref). */
+  ref: z.string().optional(),
+  /** API mode: structured content; `body` is the lossy RichText fallback. */
+  blocks: Blocks.optional(),
 });
+
+export type Option = z.infer<typeof Option>;
 
 export const QuestionType = z.enum(["single_correct", "multiple_correct", "numerical"]);
 export type QuestionType = z.infer<typeof QuestionType>;
@@ -82,6 +95,8 @@ export const Question = z.object({
   topic: z.string().optional(),
   type: QuestionType,
   stem: RichText,
+  /** API mode: structured stem; `stem` stays as the lossy RichText fallback. */
+  blocks: Blocks.optional(),
   assets: z.array(Asset).default([]),
   options: z.array(Option).default([]), // empty for numerical
   difficulty: Difficulty.optional(),
@@ -93,8 +108,23 @@ export const Question = z.object({
   hasSolution: z.boolean(),
   /** Public question page allowed? Decided server-side (quality/dup checks). */
   publicPage: z.boolean(),
+  /** Server robots decision (API mode). Undefined means "no opinion" (treated as indexable). */
+  indexable: z.boolean().optional(),
 });
 export type Question = z.infer<typeof Question>;
+
+/**
+ * Lightweight question for lists and related items. A fixture `Question` is
+ * structurally assignable. In API mode `stem` is the backend excerpt (<= 200 chars).
+ */
+export type QuestionCard = Pick<
+  Question,
+  "id" | "slug" | "exams" | "subject" | "chapter" | "topic" | "type" | "difficulty" | "publicPage"
+> & {
+  stem: RichText;
+  year?: number | null;
+  indexable?: boolean;
+};
 
 export const AnswerKey = z.discriminatedUnion("type", [
   z.object({ type: z.literal("single_correct"), optionId: z.string() }),
@@ -104,6 +134,8 @@ export const AnswerKey = z.discriminatedUnion("type", [
     value: z.number(),
     /** Accepted absolute tolerance; OPEN QUESTION: per-question or per-paper? */
     tolerance: z.number().nonnegative().default(0),
+    /** API mode: exact display string from the server (preferred by answerText). */
+    display: z.string().optional(),
   }),
 ]);
 export type AnswerKey = z.infer<typeof AnswerKey>;
@@ -113,9 +145,28 @@ export const Solution = z.object({
   answer: AnswerKey,
   /** Where the final answer comes from. "official" only for real official keys. */
   answerProvenance: z.enum(["official_key", "derived", "unknown"]),
-  steps: z.array(z.object({ title: z.string().optional(), body: RichText })),
-  generatedBy: z.enum(["human", "ai", "ai_human_edited"]),
+  steps: z.array(z.object({ title: z.string().optional(), body: RichText, blocks: Blocks.optional() })),
+  generatedBy: z.enum(["human", "ai", "ai_human_edited", "official"]),
   verification: z.object({ status: VerificationStatus, note: z.string().optional() }),
+  /** API mode: extra solution material the backend provides. */
+  extras: z
+    .object({
+      summary: z.string().nullable().optional(),
+      formulas: z.array(z.object({ name: z.string(), latex: z.string() })).optional(),
+      concepts: z.array(z.string()).optional(),
+      alternatives: z
+        .array(
+          z.object({
+            title: z.string(),
+            steps: z.array(z.object({ title: z.string().optional(), body: RichText, blocks: Blocks.optional() })),
+          }),
+        )
+        .optional(),
+      shortcuts: z.array(z.string()).optional(),
+      commonMistakes: z.array(z.string()).optional(),
+      approvedAt: z.string().nullable().optional(),
+    })
+    .optional(),
 });
 export type Solution = z.infer<typeof Solution>;
 
@@ -138,7 +189,7 @@ export const Chapter = z.object({
   /** Optional grouping inside a subject, e.g. NEET Biology → "Botany" / "Zoology". */
   group: z.string().optional(),
   /** Class 11 / 12 — public syllabus context. */
-  grade: z.union([z.literal(11), z.literal(12)]),
+  grade: z.union([z.literal(11), z.literal(12)]).optional(),
   summary: z.string(),
   topics: z.array(Topic),
 });

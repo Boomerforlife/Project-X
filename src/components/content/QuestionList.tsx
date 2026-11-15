@@ -1,10 +1,10 @@
 import Link from "next/link";
-import type { Question } from "@/contracts";
+import type { Question, QuestionCard } from "@/contracts";
 import { DifficultyChip, TypeChip, VerificationBadge } from "@/components/ui/Badges";
 import { RichText } from "./RichText";
 
 /** Server-rendered question previews — crawlable links into public question pages. */
-export function QuestionList({ questions, chapterNames, track = "jee" }: { questions: Question[]; chapterNames?: Map<string, string>; track?: string }) {
+export function QuestionList({ questions, chapterNames, track = "jee" }: { questions: (QuestionCard & { verification?: Question["verification"] })[]; chapterNames?: Map<string, string>; track?: string }) {
   return (
     <ol className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface/40">
       {questions.map((q, i) => {
@@ -19,7 +19,7 @@ export function QuestionList({ questions, chapterNames, track = "jee" }: { quest
                 {chapterNames && <span className="text-xs text-fg-muted">{chapterNames.get(q.chapter)}</span>}
                 <TypeChip type={q.type} />
                 {q.difficulty && <DifficultyChip difficulty={q.difficulty} />}
-                <VerificationBadge status={q.verification.status} />
+                {q.verification && <VerificationBadge status={q.verification.status} />}
               </div>
             </div>
           </>

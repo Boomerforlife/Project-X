@@ -6,12 +6,18 @@ import { useState } from "react";
 import type { ExamId, Paper } from "@/contracts";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { Card, DemoBadge, Dialog, Eyebrow, PageSkeleton, Segmented } from "@/components/ui/Primitives";
+import { Card, Dialog, Eyebrow, PageSkeleton, Segmented } from "@/components/ui/Primitives";
+import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { relativeDay } from "@/lib/demo/dates";
 import { scoreAttempt } from "@/lib/demo/scoring";
 import { demoLogin, startPaper, useDemo } from "@/lib/demo/store";
+import { PAPERS_ENABLED } from "@/lib/demo/progress";
+import { toast } from "@/components/ui/Toast";
+import { Kitty } from "@/components/brand/Kitty";
+import { ButtonLink } from "@/components/ui/Button";
+import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt, DemoState } from "@/lib/demo/types";
 import { EXAM_LIST, EXAMS } from "@/lib/exams";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -26,20 +32,46 @@ function attemptsFor(s: DemoState | null, paperId: string) {
 function useStart() {
   const router = useRouter();
   const s = useDemo();
-  return (paperId: string, mode: "cbt" | "test" | "learning", retryOf?: string) => {
+  return async (paperId: string, mode: "cbt" | "test" | "learning", retryOf?: string) => {
     if (!s?.user) {
-      demoLogin();
-      router.push("/onboarding/");
+      if (DATA_SOURCE === "api") router.push("/login/?next=%2Ftests%2F");
+      else {
+        demoLogin();
+        router.push("/onboarding/");
+      }
       return;
     }
-    const id = startPaper(paperId, mode, retryOf);
-    router.push(mode === "cbt" ? `/cbt/?id=${id}` : `/practice/session/?id=${id}`);
+    try {
+      const id = await startPaper(paperId, mode, retryOf);
+      router.push(mode === "cbt" ? `/cbt/?id=${id}` : `/practice/session/?id=${id}`);
+    } catch {
+      toast("Couldn't start that paper. Please try again.", { icon: "alert", tone: "warn" });
+    }
   };
+}
+
+/** API mode without FEATURE_PAPERS=demo: the backend has no paper endpoints yet. */
+function PapersComingSoon() {
+  return (
+    <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-24 text-center">
+      <Kitty pose="sleep" className="h-20 w-auto text-fg-subtle" />
+      <h1 className="mt-8 text-3xl font-semibold">Full papers are coming soon</h1>
+      <p className="mt-3 text-fg-muted">Timed full papers and the exam-style CBT will arrive once licensed previous-year papers are ready. Chapter practice is available now.</p>
+      <ButtonLink href="/practice/" className="mt-8">
+        Go to practice
+      </ButtonLink>
+    </div>
+  );
 }
 
 /* ---------------- /tests/ ---------------- */
 
 export function PapersHub() {
+  if (!PAPERS_ENABLED) return <PapersComingSoon />;
+  return <PapersHubInner />;
+}
+
+function PapersHubInner() {
   const s = useDemo();
   const params = useSearchParams();
   const fromParam = params.get("exam") as ExamId | null;
@@ -53,7 +85,7 @@ export function PapersHub() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <Eyebrow className="flex items-center gap-2">
-        Full papers <DemoBadge />
+        Full papers <DemoBadge force />
       </Eyebrow>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -200,6 +232,11 @@ function PaperTile({ paper: p, s }: { paper: Paper; s: DemoState }) {
 /* ---------------- /tests/[paperId]/ ---------------- */
 
 export function PaperDetail({ paperId }: { paperId: string }) {
+  if (!PAPERS_ENABLED) return <PapersComingSoon />;
+  return <PaperDetailInner paperId={paperId} />;
+}
+
+function PaperDetailInner({ paperId }: { paperId: string }) {
   const s = useDemo();
   const router = useRouter();
   const start = useStart();
@@ -222,7 +259,7 @@ export function PaperDetail({ paperId }: { paperId: string }) {
       <div className="mt-5 flex flex-wrap items-start justify-between gap-6">
         <div>
           <Eyebrow className="flex items-center gap-2">
-            {exam.name} · {p.kind === "pyq" ? "Previous year paper" : "Mock test"} {p.isDemo && <DemoBadge />}
+            {exam.name} · {p.kind === "pyq" ? "Previous year paper" : "Mock test"} {p.isDemo && <DemoBadge force />}
           </Eyebrow>
           <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{p.title}</h1>
           <p className="mt-2 text-fg-muted tabular-nums">

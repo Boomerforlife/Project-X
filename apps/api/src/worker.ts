@@ -7,6 +7,7 @@ import {
   createNoopInvalidator,
   createNoopRateLimiter,
   createR2Storage,
+  createWebhookInvalidator,
   createWorkersCacheInvalidator,
   createZoneApiInvalidator,
   type CacheInvalidator,
@@ -34,6 +35,9 @@ function buildInvalidator(config: AppDeps['config']): CacheInvalidator {
   }
   if ((config.CACHE_PURGE_DRIVER === 'zone_api' || config.CACHE_PURGE_DRIVER === 'both') && config.CF_ZONE_ID && config.CF_API_TOKEN_PURGE) {
     list.push(createZoneApiInvalidator({ zoneId: config.CF_ZONE_ID, apiToken: config.CF_API_TOKEN_PURGE }));
+  }
+  if (config.WEB_REVALIDATE_URL && config.WEB_REVALIDATE_SECRET) {
+    list.push(createWebhookInvalidator({ url: config.WEB_REVALIDATE_URL, secret: config.WEB_REVALIDATE_SECRET }));
   }
   return list.length ? createCompositeInvalidator(list) : createNoopInvalidator();
 }

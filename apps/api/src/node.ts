@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { createPgliteDb } from '@projectx/db/pglite';
 import { createPostgresDb } from '@projectx/db/postgres';
 import type { Db } from '@projectx/db';
-import { createMemoryRateLimiter, createNoopInvalidator, type StorageSet } from '@projectx/edge';
+import { createMemoryRateLimiter, createNoopInvalidator, createWebhookInvalidator, type CacheInvalidator, type StorageSet } from '@projectx/edge';
 import { createLocalStorage } from '@projectx/edge/node';
 import { createApp } from './app';
 import { createAuthVerifier } from './auth/verifier';
@@ -36,11 +36,19 @@ const storage: StorageSet = {
   USER_UPLOADS: createLocalStorage(config.LOCAL_STORAGE_DIR, 'USER_UPLOADS'),
 };
 
+// Local dev: no CDN to purge; only the optional web revalidation webhook (B7).
+function buildInvalidator(): CacheInvalidator {
+  if (config.WEB_REVALIDATE_URL && config.WEB_REVALIDATE_SECRET) {
+    return createWebhookInvalidator({ url: config.WEB_REVALIDATE_URL, secret: config.WEB_REVALIDATE_SECRET });
+  }
+  return createNoopInvalidator();
+}
+
 const api = createApp({
   config,
   db,
   storage,
-  cache: createNoopInvalidator(),
+  cache: buildInvalidator(),
   rateLimiter: createMemoryRateLimiter(),
   auth: createAuthVerifier(config),
   clock: () => new Date(),

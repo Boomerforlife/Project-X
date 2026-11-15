@@ -30,6 +30,19 @@ export function pageMetadata({
 }
 
 /**
+ * Metadata must not be able to take a page down: when the data source fails
+ * (API unreachable) the page body renders the route error boundary instead, and
+ * the metadata is a safe noindex so an error page is never indexed.
+ */
+export async function safeMetadata(build: () => Promise<Metadata>): Promise<Metadata> {
+  try {
+    return await build();
+  } catch {
+    return { robots: { index: false, follow: false } };
+  }
+}
+
+/**
  * Thin-content guard: a chapter page is only indexable once it has at least
  * this many questions. Tune with real data; the point is "no empty shells".
  */

@@ -1,27 +1,30 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PaperCard } from "@/components/content/PaperCard";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { Kitty } from "@/components/brand/Kitty";
+import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { cn } from "@/lib/cn";
-import { getPapers } from "@/lib/data";
+import { PAPERS_VISIBLE, getPublicPapers } from "@/lib/data";
 import { EXAMS, TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata } from "@/lib/seo";
 
 export async function generateStaticParams() {
   return TRACKS.map((track) => ({ track }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/[track]/pyq">) {
-  const { track } = await params;
-  if (!isTrack(track)) return {};
-  const papers = await getPapers({ track, kind: "pyq" });
-  const names = TRACK_INFO[track].exams.map((e) => EXAMS[e].name).join(" and ");
-  return pageMetadata({
-    title: `${names} previous year papers (PYQs)`,
-    description: `Browse ${names} previous year papers by year. Attempt a full paper in the exam-style CBT interface or in practice mode, then review every solution.`,
-    path: `/${track}/pyq/`,
-    // Demo papers are assembled from sample items: never index them as real PYQs.
-    noindex: papers.length === 0 || papers.every((p) => p.isDemo),
+  return safeMetadata(async () => {
+    const { track } = await params;
+    if (!isTrack(track)) return {};
+    const papers = await getPublicPapers({ track, kind: "pyq" });
+    const names = TRACK_INFO[track].exams.map((e) => EXAMS[e].name).join(" and ");
+    return pageMetadata({
+      title: `${names} previous year papers (PYQs)`,
+      description: `Browse ${names} previous year papers by year. Attempt a full paper in the exam-style CBT interface or in practice mode, then review every solution.`,
+      path: `/${track}/pyq/`,
+      // Demo papers are assembled from sample items: never index them as real PYQs.
+      noindex: papers.length === 0 || papers.every((p) => p.isDemo),
+    });
   });
 }
 
@@ -29,7 +32,7 @@ export default async function PyqHubPage({ params }: PageProps<"/[track]/pyq">) 
   const { track } = await params;
   if (!isTrack(track)) notFound();
   const info = TRACK_INFO[track];
-  const papers = await getPapers({ track, kind: "pyq" });
+  const papers = await getPublicPapers({ track, kind: "pyq" });
 
   return (
     <>
@@ -59,6 +62,19 @@ export default async function PyqHubPage({ params }: PageProps<"/[track]/pyq">) 
       </PageHeader>
 
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        {papers.length === 0 && (
+          <EmptyState
+            kitty={<Kitty pose="sleep" className="h-16 w-auto text-fg-subtle" />}
+            title="Previous year papers are coming soon"
+            body="Full papers appear here once they have been added and checked. Practise chapter by chapter in the meantime."
+          >
+            <Link href={`/${track}/`} className="text-sm underline underline-offset-4">
+              Browse {info.name} chapters
+            </Link>
+          </EmptyState>
+        )}
+
+        {papers.some((p) => p.isDemo) && (
         <div role="note" className="mb-10 flex gap-3 rounded-xl border border-review/40 bg-review/5 p-4 text-sm">
           <span aria-hidden className="font-pixel text-review">!</span>
           <p className="text-fg-soft">
@@ -66,8 +82,9 @@ export default async function PyqHubPage({ params }: PageProps<"/[track]/pyq">) 
             interface, but the questions are original sample items — not the questions asked in that exam. Real papers arrive with the content pipeline.
           </p>
         </div>
+        )}
 
-        {info.exams.map((exam) => {
+        {info.exams.filter((exam) => papers.some((p) => p.exam === exam)).map((exam) => {
           const list = papers.filter((p) => p.exam === exam);
           const years = [...new Set(list.map((p) => p.year))].sort((a, b) => (b ?? 0) - (a ?? 0));
           return (
@@ -96,13 +113,15 @@ export default async function PyqHubPage({ params }: PageProps<"/[track]/pyq">) 
           );
         })}
 
-        <p className="text-sm text-fg-muted">
-          Looking for original full-length tests?{" "}
-          <Link href="/tests/" className="text-fg underline underline-offset-4">
-            See mock tests
-          </Link>
-          .
-        </p>
+        {PAPERS_VISIBLE && (
+          <p className="text-sm text-fg-muted">
+            Looking for original full-length tests?{" "}
+            <Link href="/tests/" className="text-fg underline underline-offset-4">
+              See mock tests
+            </Link>
+            .
+          </p>
+        )}
       </div>
     </>
   );

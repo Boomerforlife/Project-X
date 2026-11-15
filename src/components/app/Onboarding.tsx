@@ -8,9 +8,13 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { PageSkeleton } from "@/components/ui/Primitives";
 import { cn } from "@/lib/cn";
-import { completeOnboarding, demoLogin, useDemo } from "@/lib/demo/store";
+import { completeOnboarding, demoLogin, useAuthStatus, useDemo } from "@/lib/demo/store";
 import type { ClassLevel } from "@/lib/demo/types";
-import { EXAM_LIST, EXAMS } from "@/lib/exams";
+import { EXAMS } from "@/lib/exams";
+import { availableExams } from "@/lib/session/exams";
+import { STREAK_MIN_QUESTIONS } from "@/lib/demo/progress";
+import { DATA_SOURCE } from "@/lib/site";
+import { LoadError } from "./DemoGate";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 const GOALS = [
@@ -20,24 +24,47 @@ const GOALS = [
   { n: 50, label: "Intense", sub: "~75 min a day" },
 ];
 
+const API = DATA_SOURCE === "api";
+
 export function Onboarding() {
   const s = useDemo();
+  const auth = useAuthStatus();
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [exam, setExam] = useState<ExamId>("jee-main");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const examList = availableExams();
+  const [exam, setExam] = useState<ExamId>(examList[0]?.id ?? "jee-main");
   const [cls, setCls] = useState<ClassLevel>("12");
   const [goal, setGoal] = useState(20);
 
   // Arriving here without a demo session (e.g. a bookmark) starts one.
+  const signedOut = API && auth.status === "signedOut";
   useEffect(() => {
-    if (s && !s.user) demoLogin();
-  }, [s]);
+    if (s && !s.user) {
+      if (API) router.replace("/login/?next=%2Fonboarding%2F");
+      else demoLogin();
+    }
+  }, [s, router]);
+  // Already onboarded (e.g. a bookmark of this page): nothing to do here.
+  const already = API && Boolean(s?.user?.onboarded) && !busy;
+  useEffect(() => {
+    if (already) router.replace("/dashboard/");
+  }, [already, router]);
 
-  if (!s?.user) return <PageSkeleton />;
+  if (API && auth.status === "error") return <LoadError message={auth.message} />;
+  if (!s?.user || signedOut || already) return <PageSkeleton />;
 
-  const finish = (patch: { exam: ExamId; classLevel: ClassLevel; dailyGoal: number }) => {
-    completeOnboarding(patch);
-    router.push("/dashboard/");
+  const finish = async (patch: { exam: ExamId; classLevel: ClassLevel; dailyGoal: number }) => {
+    setBusy(true);
+    setFailed(false);
+    try {
+      await completeOnboarding(patch);
+      router.push("/dashboard/");
+    } catch {
+      setBusy(false);
+      setFailed(true);
+    }
   };
   const steps = ["Exam", "Class", "Daily goal"];
 
@@ -62,7 +89,7 @@ export function Onboarding() {
               <legend className="text-3xl font-semibold">Which exam are you preparing for?</legend>
               <p className="mt-2 text-fg-muted">You can switch any time from the header.</p>
               <div className="mt-8 grid gap-3">
-                {EXAM_LIST.map((e) => (
+                {examList.map((e) => (
                   <label key={e.id} className={cn("flex cursor-pointer items-start gap-4 rounded-xl border p-5 transition-colors", exam === e.id ? "border-fg bg-surface-2" : "border-line hover:border-line-strong")}>
                     <input type="radio" name="exam" className="sr-only" checked={exam === e.id} onChange={() => setExam(e.id)} />
                     <span aria-hidden className={cn("mt-1 grid size-5 shrink-0 place-items-center rounded-full border", exam === e.id ? "border-fg" : "border-line-strong")}>
@@ -109,7 +136,7 @@ export function Onboarding() {
           {step === 2 && (
             <fieldset>
               <legend className="text-3xl font-semibold">Set a daily goal</legend>
-              <p className="mt-2 text-fg-muted">A streak day counts once you answer at least 5 questions. Your goal is just for you.</p>
+              <p className="mt-2 text-fg-muted">{STREAK_MIN_QUESTIONS === 1 ? "A streak day counts once you answer a question." : `A streak day counts once you answer at least ${STREAK_MIN_QUESTIONS} questions.`} Your goal is just for you.</p>
               <div className="mt-8 grid gap-3 sm:grid-cols-4">
                 {GOALS.map((g) => (
                   <label key={g.n} className={cn("cursor-pointer rounded-xl border p-5 text-center transition-colors", goal === g.n ? "border-fg bg-surface-2" : "border-line hover:border-line-strong")}>
@@ -135,17 +162,24 @@ export function Onboarding() {
               Continue <Icon name="arrowRight" className="size-4" />
             </Button>
           ) : (
-            <Button pixel onClick={() => finish({ exam, classLevel: cls, dailyGoal: goal })}>
-              Go to my dashboard <Icon name="arrowRight" className="size-4" />
+            <Button pixel disabled={busy} onClick={() => finish({ exam, classLevel: cls, dailyGoal: goal })}>
+              {busy ? "Saving…" : "Go to my dashboard"} <Icon name="arrowRight" className="size-4" />
             </Button>
           )}
           <button type="button" onClick={() => finish({ exam, classLevel: cls, dailyGoal: goal })} className="ml-auto text-sm text-fg-muted underline-offset-4 hover:text-fg hover:underline">
             Skip for now
           </button>
         </div>
-        <p className="mt-8 text-xs text-fg-muted">
-          Demo: finishing fills your account with two months of sample practice for {EXAMS[exam].name} so every screen has something to show.
-        </p>
+        {failed && (
+          <p role="alert" className="mt-6 rounded-lg border border-bad/50 bg-bad/5 p-3 text-sm">
+            We couldn&rsquo;t save your choices. Check your connection and try again.
+          </p>
+        )}
+        {!API && (
+          <p className="mt-8 text-xs text-fg-muted">
+            Demo: finishing fills your account with two months of sample practice for {EXAMS[exam].name} so every screen has something to show.
+          </p>
+        )}
       </div>
       <div className="hidden items-end md:flex">
         <Kitty pose="sit" animated className="w-full text-fg-subtle" />

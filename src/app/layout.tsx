@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Inter, Silkscreen, Space_Grotesk } from "next/font/google";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -43,7 +44,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-dvh bg-bg text-fg">
         <Splash />
-        <NavProgress />
+        {/* usePathname() is runtime data; without a boundary, on-demand regeneration of cached routes fails. */}
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
         {children}
         <Toaster />
         <AppReady />

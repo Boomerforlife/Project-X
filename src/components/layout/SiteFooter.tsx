@@ -1,11 +1,15 @@
 import Link from "next/link";
-import { getSubjects } from "@/lib/data";
+import { PAPERS_VISIBLE, getSubjects } from "@/lib/data";
+import { TRACK_INFO } from "@/lib/exams";
 import { SITE } from "@/lib/site";
 import { Wordmark } from "./SiteHeader";
 
 export async function SiteFooter() {
-  const subjects = await getSubjects();
-  const jee = subjects.filter((s) => s.id !== "biology");
+  // The footer must never take the whole site down: if the API is unreachable, fall back to
+  // plain subject links (navigation only, no content) and let the page itself show its error state.
+  const jee = await getSubjects("jee").catch(() =>
+    TRACK_INFO.jee.subjects.map((id) => ({ id, name: id.charAt(0).toUpperCase() + id.slice(1), summary: "" })),
+  );
   const cols = [
     {
       title: "JEE",
@@ -27,7 +31,7 @@ export async function SiteFooter() {
     {
       title: "Study",
       links: [
-        { href: "/tests/", label: "Mock tests" },
+        ...(PAPERS_VISIBLE ? [{ href: "/tests/", label: "Mock tests" }] : []),
         { href: "/study-plans/", label: "Study plans" },
         { href: "/resources/", label: "Resources" },
         { href: "/login/", label: "Log in" },

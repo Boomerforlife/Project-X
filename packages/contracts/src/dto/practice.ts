@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { AnswerKeyWithLabelsSchema } from '../domain/answers';
+import { AnswerKeyWithLabelsSchema, AnswerResponseSchema } from '../domain/answers';
 import { PublicContentBlockSchema } from '../domain/content';
 import { ChapterRefSchema, ExamRefSchema, SubjectRefSchema, TopicRefSchema } from '../domain/refs';
 import {
@@ -70,6 +70,8 @@ export const AttemptResultSchema = z
     solution: PublicSolutionSchema,
     submitted_at: TsSchema,
     session: SessionProgressSchema.nullable(),
+    response: AnswerResponseSchema,
+    time_spent_ms: z.int().nullable(),
   })
   .openapi('AttemptResult');
 export type AttemptResult = z.infer<typeof AttemptResultSchema>;
@@ -77,8 +79,19 @@ export type AttemptResult = z.infer<typeof AttemptResultSchema>;
 export const SessionSummarySchema = SessionProgressSchema.extend({
   mode: PracticeModeSchema,
   started_at: TsSchema,
+  ui_mode: z.enum(['learning', 'test']),
+  time_limit_sec: z.int().nullable(),
 }).openapi('SessionSummary');
 export type SessionSummary = z.infer<typeof SessionSummarySchema>;
+
+export const SessionListItemSchema = SessionSummarySchema.extend({
+  completed_at: TsSchema.nullable(),
+  last_activity_at: TsSchema,
+  exam: ExamRefSchema,
+  subject: SubjectRefSchema.nullable(),
+  chapter: ChapterRefSchema.nullable(),
+}).openapi('SessionListItem');
+export type SessionListItem = z.infer<typeof SessionListItemSchema>;
 
 export const SessionCreatedSchema = z
   .object({ session: SessionSummarySchema, questions: z.array(PracticeQuestionSchema) })

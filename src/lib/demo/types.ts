@@ -38,6 +38,11 @@ export type Attempt = {
   current: number;
   elapsedSec: number;
   responses: Record<string, Response>;
+  /**
+   * API mode only: true for attempts that live in this browser (flagged paper
+   * demo). Everything else is a server session and is graded by the server.
+   */
+  local?: boolean;
 };
 
 export const MISTAKE_CATEGORIES = [
@@ -70,4 +75,12 @@ export type DemoState = {
   mistakes: Record<string, MistakeRecord>;
   /** Keyed by local date YYYY-MM-DD. */
   activity: Record<string, DayActivity>;
+  /** API mode only: server-owned progress that the local rules cannot derive. */
+  server?: {
+    streak: { current: number; longest: number; todayAttempts: number; goalMetToday: boolean } | null;
+    /** subject/chapter -> answered/correct, from GET /users/me/progress. */
+    chapters: { subject: SubjectId; chapter: string; answered: number; correct: number }[];
+    subjects: { subject: SubjectId; answered: number; correct: number }[];
+    weak: { subject: SubjectId; chapter: string; answered: number; accuracy: number }[];
+  };
 };

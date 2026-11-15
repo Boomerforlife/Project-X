@@ -13,9 +13,12 @@ export const SITE = {
   locale: "en_IN",
 } as const;
 
-/** Where content comes from. Until Person 2's API exists this is always "mock". */
+/**
+ * Where content comes from. "api" only when a base URL is also configured, so a
+ * half-configured build falls back to whole-app mock mode (never per entity).
+ */
 export const DATA_SOURCE: "mock" | "api" =
-  process.env.NEXT_PUBLIC_DATA_SOURCE === "api" ? "api" : "mock";
+  process.env.NEXT_PUBLIC_DATA_SOURCE === "api" && process.env.NEXT_PUBLIC_API_BASE_URL ? "api" : "mock";
 
 /**
  * Indexing is OFF unless explicitly enabled AND real data is in use, so sample

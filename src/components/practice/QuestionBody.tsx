@@ -1,7 +1,7 @@
 "use client";
 
 import type { Question, ResponseValue, Solution } from "@/contracts";
-import { RichText } from "@/components/content/RichText";
+import { Blocks } from "@/components/content/Blocks";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 
@@ -49,7 +49,7 @@ export function QuestionBody({
     <div>
       <div className={cn("leading-relaxed", variant === "cbt" ? "text-[1.02rem]" : "text-[1.075rem]")}>
         {numberLabel && <span className="sr-only">{numberLabel}. </span>}
-        <RichText value={q.stem} />
+        <Blocks blocks={q.blocks} fallback={q.stem} />
       </div>
 
       {q.assets.map((a) => (
@@ -102,7 +102,7 @@ export function QuestionBody({
                     {state === "right" ? <Icon name="check" className="size-4" /> : state === "wrong" ? <Icon name="x" className="size-4" /> : o.id}
                   </span>
                   <span className="min-w-0 flex-1 pt-0.5">
-                    <RichText value={o.body} />
+                    <Blocks blocks={o.blocks} fallback={o.body} />
                     {revealed && (isRight || isChosen) && (
                       <span className={cn("mt-1 block text-xs font-medium", isRight ? "text-ok" : "text-bad")}>
                         {isRight && isChosen ? "Your answer · correct" : isRight ? "Correct answer" : "Your answer"}
@@ -164,7 +164,7 @@ function NumericalInput({
         />
         {key && (
           <span className="text-sm">
-            Correct answer: <span className="font-mono font-semibold text-ok">{key.value}</span>
+            Correct answer: <span className="font-mono font-semibold text-ok">{key.display ?? key.value}</span>
             {key.tolerance ? <span className="text-fg-muted"> (±{key.tolerance})</span> : null}
           </span>
         )}

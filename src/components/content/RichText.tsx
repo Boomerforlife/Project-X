@@ -21,7 +21,7 @@ export function parseRichText(src: string): Segment[] {
   return out;
 }
 
-function renderTex(tex: string, displayMode: boolean) {
+export function renderTex(tex: string, displayMode: boolean) {
   return katex.renderToString(tex, {
     displayMode,
     throwOnError: false, // malformed TeX shows in red instead of crashing the page

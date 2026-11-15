@@ -1,15 +1,15 @@
 import { notFound } from "next/navigation";
 import { PaperCard } from "@/components/content/PaperCard";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { getPapers } from "@/lib/data";
+import { getPublicPapers } from "@/lib/data";
 import { TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata } from "@/lib/seo";
 
 /** Year landing pages exist only for years that have papers. */
 export async function generateStaticParams() {
   const out: { track: string; year: string }[] = [];
   for (const track of TRACKS) {
-    const years = [...new Set((await getPapers({ track, kind: "pyq" })).map((p) => String(p.year)))];
+    const years = [...new Set((await getPublicPapers({ track, kind: "pyq" })).map((p) => String(p.year)))];
     out.push(...years.map((year) => ({ track, year })));
   }
   return out.length ? out : [{ track: "jee", year: "none" }];
@@ -17,20 +17,22 @@ export async function generateStaticParams() {
 
 async function load(track: string, year: string) {
   if (!isTrack(track) || !/^\d{4}$/.test(year)) return null;
-  const papers = (await getPapers({ track, kind: "pyq" })).filter((p) => String(p.year) === year);
+  const papers = (await getPublicPapers({ track, kind: "pyq" })).filter((p) => String(p.year) === year);
   return papers.length ? { track, papers } : null;
 }
 
 export async function generateMetadata({ params }: PageProps<"/[track]/pyq/[year]">) {
-  const { track, year } = await params;
-  const d = await load(track, year);
-  if (!d) return {};
-  const name = TRACK_INFO[d.track].name;
-  return pageMetadata({
-    title: `${name} ${year} papers`,
-    description: `Every available ${name} ${year} paper, with full-paper practice, CBT mode and worked solutions.`,
-    path: `/${d.track}/pyq/${year}/`,
-    noindex: d.papers.every((p) => p.isDemo),
+  return safeMetadata(async () => {
+    const { track, year } = await params;
+    const d = await load(track, year);
+    if (!d) return {};
+    const name = TRACK_INFO[d.track].name;
+    return pageMetadata({
+      title: `${name} ${year} papers`,
+      description: `Every available ${name} ${year} paper, with full-paper practice, CBT mode and worked solutions.`,
+      path: `/${d.track}/pyq/${year}/`,
+      noindex: d.papers.every((p) => p.isDemo),
+    });
   });
 }
 

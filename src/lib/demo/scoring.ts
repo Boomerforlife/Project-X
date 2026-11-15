@@ -5,6 +5,8 @@
  */
 import type { MarkingRule, MarkingScheme, Question, ResponseValue, Solution } from "@/contracts";
 import { catalog } from "@/lib/data/catalog";
+import { registry } from "@/lib/session/registry";
+import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt } from "./types";
 
 export type Outcome = "correct" | "incorrect" | "partial" | "unattempted";
@@ -31,6 +33,20 @@ export function judge(q: Question, sol: Solution | null, a: ResponseValue | null
   if (wrongChosen) return { outcome: "incorrect", correctCount: 0 };
   if (chosen.size === right.size) return { outcome: "correct", correctCount: chosen.size };
   return { outcome: "partial", correctCount: chosen.size };
+}
+
+/**
+ * Outcome of one response within an attempt. In API mode the SERVER decides
+ * (registry holds `is_correct` from the attempt result); nothing is computed in
+ * the browser. Local attempts (mock mode, flagged paper demo) use `judge`.
+ */
+export function outcomeFor(attempt: Attempt, q: Question, resp: { answer: ResponseValue | null } | undefined): { outcome: Outcome; correctCount: number } {
+  if (DATA_SOURCE === "api" && !attempt.local) {
+    const o = registry.outcome(`${attempt.id}:${q.id}`);
+    if (!o) return { outcome: "unattempted", correctCount: 0 };
+    return { outcome: o.isCorrect ? "correct" : "incorrect", correctCount: 0 };
+  }
+  return judge(q, catalog.solution(q.id), resp?.answer);
 }
 
 export function marksFor(rule: MarkingRule | undefined, outcome: Outcome, correctCount: number) {
@@ -65,8 +81,9 @@ export function scoreAttempt(attempt: Attempt): AttemptResult {
       if (!q) continue;
       const rule = (s.marking as MarkingScheme)[q.type];
       const resp = attempt.responses[qid];
-      const { outcome, correctCount } = judge(q, catalog.solution(qid), resp?.answer);
-      const marks = marksFor(rule, outcome, correctCount);
+      const { outcome, correctCount } = outcomeFor(attempt, q, resp);
+      const server = DATA_SOURCE === "api" && !attempt.local ? registry.outcome(`${attempt.id}:${qid}`) : null;
+      const marks = server ? Number(server.score) : marksFor(rule, outcome, correctCount);
       const max = rule?.correct ?? 4;
       row.score += marks;
       row.max += max;

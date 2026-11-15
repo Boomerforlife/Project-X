@@ -7,13 +7,27 @@ import type { SubjectId } from "@/contracts";
 import { catalog } from "@/lib/data/catalog";
 import { EXAMS } from "@/lib/exams";
 import { dayKey, daysAgo, startOfWeek } from "./dates";
+import { flags } from "@/lib/api/env";
+import { DATA_SOURCE } from "@/lib/site";
 import { judge, scoreAttempt } from "./scoring";
 import type { CosmeticId, DemoState } from "./types";
 
-/** A day only counts towards a streak with real practice behind it. */
-export const STREAK_MIN_QUESTIONS = 5;
+const API = DATA_SOURCE === "api";
+/** Papers/CBT (and anything built on them) are hidden in API mode unless the demo flag is on. */
+export const PAPERS_ENABLED = !API || flags.papers === "demo";
+export const LEADERBOARD_ENABLED = !API || flags.leaderboard === "demo";
+
+/**
+ * A day only counts towards a streak with real practice behind it. Mock mode
+ * proposes 5; API mode follows the server rule: one graded answer per day.
+ */
+export const STREAK_MIN_QUESTIONS = API ? 1 : 5;
 
 export function streaks(s: DemoState) {
+  if (s.server?.streak) {
+    const x = s.server.streak;
+    return { current: x.current, longest: Math.max(x.longest, x.current), todayDone: x.todayAttempts >= STREAK_MIN_QUESTIONS };
+  }
   const active = (k: string) => (s.activity[k]?.answered ?? 0) >= STREAK_MIN_QUESTIONS;
   let current = 0;
   // Today counts if done; otherwise the streak is still alive from yesterday.
@@ -97,6 +111,13 @@ export function level(xp: number) {
 
 export function subjectStats(s: DemoState) {
   const exam = s.user?.exam ?? "jee-main";
+  if (s.server) {
+    // Server truth: GET /users/me/progress. No blending with invented averages.
+    return EXAMS[exam].subjects.map((subject) => {
+      const row = s.server!.subjects.find((x) => x.subject === subject);
+      return { subject, answered: row?.answered ?? 0, accuracy: row && row.answered ? row.correct / row.answered : 0 };
+    });
+  }
   const out = new Map<SubjectId, { answered: number; correct: number }>();
   for (const id of EXAMS[exam].subjects) out.set(id, { answered: 0, correct: 0 });
   for (const d of Object.values(s.activity)) {
@@ -130,6 +151,7 @@ export function subjectStats(s: DemoState) {
 }
 
 export function chapterStats(s: DemoState) {
+  if (s.server) return s.server.chapters;
   const m = new Map<string, { subject: SubjectId; chapter: string; answered: number; correct: number }>();
   for (const a of Object.values(s.attempts)) {
     for (const qid of a.questionIds) {
@@ -150,7 +172,11 @@ export function chapterStats(s: DemoState) {
 /** The weakest chapter with enough evidence, or the next untouched one. */
 export function recommendation(s: DemoState) {
   const exam = s.user?.exam ?? "jee-main";
-  const stats = chapterStats(s).filter((c) => c.answered >= 3 && catalog.chapter(c.subject, c.chapter)?.exams.includes(exam));
+  if (s.server?.weak.length) {
+    const w = s.server.weak[0]!;
+    return { kind: "weak" as const, subject: w.subject, chapter: w.chapter, accuracy: w.accuracy, answered: w.answered };
+  }
+  const stats = s.server ? [] : chapterStats(s).filter((c) => c.answered >= 3 && catalog.chapter(c.subject, c.chapter)?.exams.includes(exam));
   stats.sort((a, b) => a.correct / a.answered - b.correct / b.answered);
   const weak = stats[0];
   if (weak && weak.correct / weak.answered < 0.75) {
@@ -202,7 +228,7 @@ export function achievements(s: DemoState): Achievement[] {
   const A = (id: string, name: string, desc: string, icon: PixelIconName, have: number, need: number): Achievement => ({
     id, name, desc, icon, done: have >= need, progress: [Math.min(have, need), need],
   });
-  return [
+  const list = [
     A("first", "First steps", "Answer your first question.", "spark", t.answered, 1),
     A("streak7", "Week-long", "Keep a 7-day practice streak.", "flame", st.longest, 7),
     A("streak30", "Habit formed", "Keep a 30-day practice streak.", "flame2", st.longest, 30),
@@ -214,6 +240,7 @@ export function achievements(s: DemoState): Achievement[] {
     A("allround", "All-rounder", "Practise every subject in your exam.", "atom", subjectsDone, nSub),
     A("cbt3", "Exam-ready", "Finish 3 attempts in the CBT interface.", "monitor", cbts, 3),
   ];
+  return PAPERS_ENABLED ? list : list.filter((a) => a.id !== "paper" && a.id !== "cbt3");
 }
 
 export function scoredAttempts(s: DemoState) {
@@ -233,12 +260,14 @@ export function challenges(s: DemoState) {
   const exam = s.user?.exam ?? "jee-main";
   const nSub = EXAMS[exam].subjects.length;
   const goal = (s.user?.dailyGoal ?? 20) * 5;
-  return [
+  const list = [
     { id: "volume", name: `Answer ${goal} questions`, xp: 100, have: w.answered, need: goal },
     { id: "paper", name: "Finish a full paper or mock", xp: 150, have: papers, need: 1 },
     { id: "mistakes", name: "Clear 5 mistakes", xp: 75, have: cleared, need: 5 },
     { id: "spread", name: `Practise all ${nSub} subjects`, xp: 50, have: [...w.subjects].filter((x) => EXAMS[exam].subjects.includes(x as SubjectId)).length, need: nSub },
   ];
+  // API mode: no paper bonus, and the per-day subject split is not available from the server.
+  return API ? list.filter((c) => c.id !== "spread" && (PAPERS_ENABLED || c.id !== "paper")) : list;
 }
 
 /* ---------- Leaderboard (mock peers) ---------- */

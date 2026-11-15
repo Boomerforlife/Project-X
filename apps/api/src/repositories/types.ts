@@ -217,6 +217,8 @@ export interface SessionRow {
   started_at: Date;
   completed_at: Date | null;
   last_activity_at: Date;
+  ui_mode: 'learning' | 'test';
+  time_limit_sec: number | null;
 }
 export interface AttemptRow {
   id: string;
@@ -240,6 +242,7 @@ export interface ProfileRow {
   target_year: number | null;
   daily_goal_attempts: number;
   onboarding_completed_at: Date | null;
+  class_level: '11' | '12' | 'dropper' | null;
   created_at: Date;
 }
 export interface PrefRow {
@@ -281,6 +284,10 @@ export interface DailyActivityRow {
   activity_date: string;
   attempts_count: number;
   correct_count: number;
+}
+/** daily_activity row with time spent (activity listing). */
+export interface ActivityRow extends DailyActivityRow {
+  total_time_ms: number;
 }
 export interface DoubtRow {
   id: string;
@@ -456,7 +463,7 @@ export interface ContentRepo {
     after: PageCursor | null;
     limit: number;
   }): Promise<Keyed<QuestionRow & { rank: number }>[]>;
-  sitemap(after: PageCursor | null, limit: number): Promise<Keyed<{ slug: string; updated_at: Date }>[]>;
+  sitemap(after: PageCursor | null, limit: number): Promise<Keyed<{ slug: string; exam_id: string; updated_at: Date }>[]>;
   listPractice(f: PracticeFilter, after: PageCursor | null, limit: number): Promise<Keyed<QuestionRow>[]>;
   optionsByQuestionIds(ids: string[]): Promise<OptionRow[]>;
   summaries(ids: string[]): Promise<QuestionRow[]>;
@@ -488,6 +495,10 @@ export interface PracticeRepo {
   /** Returns null if (user, client_request_id) already exists. */
   insertSession(s: Omit<SessionRow, 'id' | 'attempted_count' | 'correct_count' | 'score' | 'completed_at' | 'last_activity_at'>): Promise<SessionRow | null>;
   abandonSession(userId: string, id: string): Promise<SessionRow | null>;
+  /** ACTIVE -> COMPLETED (completed_at = now). Null when the session is not ACTIVE. */
+  completeSession(userId: string, id: string): Promise<SessionRow | null>;
+  /** Newest activity first (`last_activity_at desc, id`). */
+  listSessions(userId: string, statuses: SessionStatus[] | null, after: PageCursor | null, limit: number): Promise<Keyed<SessionRow>[]>;
   attemptsForSession(userId: string, sessionId: string): Promise<AttemptRow[]>;
   findAttempt(userId: string, clientAttemptId: string): Promise<AttemptRow | null>;
   findAttemptForSessionQuestion(sessionId: string, questionId: string): Promise<AttemptRow | null>;
@@ -513,7 +524,7 @@ export interface UserRepo {
   getProfile(userId: string): Promise<ProfileRow | null>;
   updateProfile(
     userId: string,
-    patch: Partial<Pick<ProfileRow, 'display_name' | 'timezone' | 'target_exam_id' | 'target_year' | 'daily_goal_attempts'>> & {
+    patch: Partial<Pick<ProfileRow, 'display_name' | 'timezone' | 'target_exam_id' | 'target_year' | 'daily_goal_attempts' | 'class_level'>> & {
       onboarding_completed?: true;
     },
   ): Promise<ProfileRow | null>;
@@ -537,6 +548,8 @@ export interface UserRepo {
     limit: number,
   ): Promise<Keyed<AttemptRow>[]>;
   listDoubts(userId: string, after: PageCursor | null, limit: number): Promise<Keyed<DoubtRow>[]>;
+  /** Per-day activity between two dates (inclusive), ascending. Days without attempts are absent. */
+  listActivity(userId: string, from: string, to: string): Promise<ActivityRow[]>;
 }
 
 export interface QuestionListFilter {

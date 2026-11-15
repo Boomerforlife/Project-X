@@ -9,11 +9,14 @@ import { RichText } from "@/components/content/RichText";
 import { SubjectTag } from "@/components/ui/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { DemoBadge, Eyebrow, Segmented } from "@/components/ui/Primitives";
+import { Eyebrow, Segmented } from "@/components/ui/Primitives";
+import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { relativeDay } from "@/lib/demo/dates";
-import { removeMistake, setMistakeCategory, startPractice, toggleBookmark, toggleReview } from "@/lib/demo/store";
+import { removeMistake, setMistakeCategory, startPractice, startSingleBySlug, toggleBookmark, toggleReview } from "@/lib/demo/store";
+import { toast } from "@/components/ui/Toast";
+import { DATA_SOURCE } from "@/lib/site";
 import { MISTAKE_CATEGORIES, type DemoState, type MistakeCategory } from "@/lib/demo/types";
 import { DemoGate } from "./DemoGate";
 
@@ -52,11 +55,28 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
     .sort((a, b) => b.at.localeCompare(a.at));
   const subjects = [...new Set(entries.map((e) => catalog.question(e.qid)?.subject).filter(Boolean))] as SubjectId[];
 
-  const practise = (ids: string[], title: string) => {
-    if (!ids.length) return;
-    const exam = catalog.question(ids[0])!.exams.includes(s.user.exam) ? s.user.exam : catalog.question(ids[0])!.exams[0];
-    const id = startPractice({ exam, mode: "learning", title, questionIds: ids.slice(0, 25), scope: { source: kind === "review" ? "review" : kind } });
-    router.push(`/practice/session/?id=${id}`);
+  const [busy, setBusy] = useState(false);
+  const practise = async (ids: string[], title: string) => {
+    if (!ids.length || busy) return;
+    const first = catalog.question(ids[0]!)!;
+    const exam = first.exams.includes(s.user.exam) ? s.user.exam : first.exams[0];
+    setBusy(true);
+    try {
+      let id: string;
+      if (DATA_SOURCE === "api") {
+        // The server picks sessions from your mistakes / bookmarks; a single question is opened by its slug.
+        id =
+          ids.length === 1
+            ? await startSingleBySlug(first.slug, exam)
+            : await startPractice({ exam, mode: "learning", title, questionIds: [], count: Math.min(20, ids.length), scope: { source: kind === "bookmarks" ? "bookmarks" : "mistakes" } });
+      } else {
+        id = await startPractice({ exam, mode: "learning", title, questionIds: ids.slice(0, 25), scope: { source: kind === "review" ? "review" : kind } });
+      }
+      router.push(`/practice/session/?id=${id}`);
+    } catch {
+      setBusy(false);
+      toast("Couldn't start that session. Please try again.", { icon: "alert", tone: "warn" });
+    }
   };
   const openIds = items.filter((i) => kind !== "mistakes" || s.mistakes[i.qid]?.status === "open").map((i) => i.qid);
 
@@ -67,6 +87,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
       </Eyebrow>
       <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{tab.label}</h1>
       <p className="mt-2 max-w-2xl text-fg-muted">{tab.blurb}</p>
+      {DATA_SOURCE === "api" && kind === "review" && <p className="mt-2 text-sm text-fg-muted">The review list is saved on this device only for now.</p>}
 
       <nav aria-label="Notebook" className="mt-8 flex gap-1 border-b border-line">
         {TABS.map((t) => (
@@ -94,8 +115,8 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
         {subjects.length > 1 && (
           <Segmented label="Subject" value={subject} onChange={setSubject} options={[{ id: "all" as const, label: "All subjects" }, ...subjects.map((id) => ({ id, label: catalog.subject(id)!.name }))]} />
         )}
-        {openIds.length > 0 && (
-          <Button pixel size="sm" className="ml-auto" onClick={() => practise(openIds, kind === "mistakes" ? "Mistake revision" : kind === "bookmarks" ? "Bookmarked questions" : "Review list")}>
+        {openIds.length > 0 && !(DATA_SOURCE === "api" && kind === "review") && (
+          <Button pixel size="sm" className="ml-auto" disabled={busy} onClick={() => practise(openIds, kind === "mistakes" ? "Mistake revision" : kind === "bookmarks" ? "Bookmarked questions" : "Review list")}>
             <Icon name="play" className="size-3.5" /> {kind === "mistakes" ? `Reattempt ${Math.min(openIds.length, 25)}` : `Practise ${Math.min(openIds.length, 25)}`}
           </Button>
         )}
@@ -141,12 +162,13 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
                   <RichText value={q!.stem} inline />
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => practise([qid], "Single question")}>
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => practise([qid], "Single question")}>
                     <Icon name="rotate" className="size-4" /> {kind === "mistakes" ? "Reattempt" : "Practise"}
                   </Button>
                   {kind === "mistakes" && m && (
                     <label className="flex items-center gap-2 text-sm text-fg-muted">
                       <span className="sr-only">Why did you get this wrong?</span>
+                      {DATA_SOURCE === "api" && <span className="hidden text-xs text-fg-subtle sm:inline">On this device</span>}
                       <select
                         value={m.category ?? ""}
                         onChange={(e) => setMistakeCategory(qid, (e.target.value || null) as MistakeCategory | null)}
@@ -163,7 +185,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
                   )}
                   <button
                     type="button"
-                    onClick={() => (kind === "mistakes" ? removeMistake(qid) : kind === "bookmarks" ? toggleBookmark(qid) : toggleReview(qid))}
+                    onClick={() => void (kind === "mistakes" ? removeMistake(qid) : kind === "bookmarks" ? toggleBookmark(qid) : toggleReview(qid))}
                     className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg"
                   >
                     <Icon name="trash" className="size-4" /> Remove

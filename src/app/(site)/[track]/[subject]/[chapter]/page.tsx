@@ -6,10 +6,10 @@ import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import { getChapter, getChapters, getQuestions, getSubject } from "@/lib/data";
+import { PAPERS_VISIBLE, getChapter, getChapters, getQuestionCounts, getQuestions, getSubjects } from "@/lib/data";
 import { TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
 import { isChapterIndexable } from "@/lib/indexing";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 const PREVIEW = 12;
@@ -17,28 +17,32 @@ const PREVIEW = 12;
 export async function generateStaticParams() {
   const out: { track: string; subject: string; chapter: string }[] = [];
   for (const track of TRACKS) for (const c of await getChapters({ track })) out.push({ track, subject: c.subject, chapter: c.slug });
-  return out;
+  // cacheComponents requires at least one param; the sentinel resolves to notFound() in load().
+  return out.length ? out : [{ track: "jee", subject: "physics", chapter: "none" }];
 }
 
 async function load(track: string, subject: string, chapter: string) {
   if (!isTrack(track)) return null;
-  const [s, c] = await Promise.all([getSubject(subject), getChapter(subject, chapter)]);
+  const [subjects, c] = await Promise.all([getSubjects(track), getChapter(subject, chapter)]);
+  const s = subjects.find((x) => x.id === subject);
   if (!s || !c || !c.exams.some((e) => TRACK_INFO[track].exams.includes(e))) return null;
   return { track, s, c };
 }
 
 export async function generateMetadata({ params }: PageProps<"/[track]/[subject]/[chapter]">) {
-  const { track, subject, chapter } = await params;
-  const d = await load(track, subject, chapter);
-  if (!d) return {};
-  const qs = await getQuestions({ subject: d.s.id, chapter: d.c.slug, track: d.track });
-  const name = TRACK_INFO[d.track].name;
-  return pageMetadata({
-    title: `${d.c.name} – ${name} ${d.s.name} practice`,
-    description: `${d.c.summary} Practise ${name} ${d.c.name} questions with step-by-step solutions.`,
-    path: `/${d.track}/${d.s.id}/${d.c.slug}/`,
-    // Thin-content guard (CLAUDE.md §5): no index until the chapter has real substance.
-    noindex: !isChapterIndexable(qs.filter((q) => q.publicPage).length),
+  return safeMetadata(async () => {
+    const { track, subject, chapter } = await params;
+    const d = await load(track, subject, chapter);
+    if (!d) return {};
+    const counts = await getQuestionCounts(d.track);
+    const name = TRACK_INFO[d.track].name;
+    return pageMetadata({
+      title: `${d.c.name} – ${name} ${d.s.name} practice`,
+      description: `${d.c.summary} Practise ${name} ${d.c.name} questions with step-by-step solutions.`.trim(),
+      path: `/${d.track}/${d.s.id}/${d.c.slug}/`,
+      // Thin-content guard (CLAUDE.md §5): no index until the chapter has real substance.
+      noindex: !isChapterIndexable(counts.byChapter.get(`${d.s.id}/${d.c.slug}`) ?? 0),
+    });
   });
 }
 
@@ -48,7 +52,12 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
   if (!d) notFound();
   const { track, s, c } = d;
   const info = TRACK_INFO[track];
-  const [qs, siblings] = await Promise.all([getQuestions({ subject: s.id, chapter: c.slug, track }), getChapters({ subject: s.id, track })]);
+  const [qs, siblings, counts] = await Promise.all([
+    getQuestions({ subject: s.id, chapter: c.slug, track }),
+    getChapters({ subject: s.id, track }),
+    getQuestionCounts(track),
+  ]);
+  const total = Math.max(qs.length, counts.byChapter.get(`${s.id}/${c.slug}`) ?? 0);
   const style = SUBJECT_STYLE[s.id];
   const idx = siblings.findIndex((x) => x.slug === c.slug);
   const prev = siblings[idx - 1];
@@ -68,7 +77,8 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
         ]}
         eyebrow={
           <span>
-            <span className={style.text}>{s.name}</span> · {c.group ? `${c.group} · ` : ""}Class {c.grade}
+            <span className={style.text}>{s.name}</span>
+            {[c.group, c.grade ? `Class ${c.grade}` : null].filter(Boolean).map((part) => ` · ${part}`)}
           </span>
         }
         title={c.name}
@@ -81,9 +91,9 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
           <ButtonLink href={`${base}&mode=test`} variant="secondary">
             <Icon name="clock" className="size-4" /> Timed test
           </ButtonLink>
-          {qs.length > 0 && (
+          {total > 0 && (
             <span className="text-sm tabular-nums text-fg-muted">
-              {qs.length} question{qs.length === 1 ? "" : "s"} available
+              {total} question{total === 1 ? "" : "s"} available
             </span>
           )}
         </div>
@@ -95,16 +105,16 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
             <h2 id="qs-h" className="text-xl font-semibold">
               Questions
             </h2>
-            {qs.length > PREVIEW && <p className="text-sm text-fg-muted">Showing {PREVIEW} of {qs.length}</p>}
+            {total > PREVIEW && <p className="text-sm text-fg-muted">Showing {Math.min(PREVIEW, shown.length)} of {total}</p>}
           </div>
           {qs.length ? (
             <>
               <QuestionList questions={shown} track={track} />
-              {qs.length > PREVIEW && (
+              {total > PREVIEW && (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-line-strong p-4 text-sm">
-                  <span className="text-fg-muted">{qs.length - PREVIEW} more questions are available in practice.</span>
+                  <span className="text-fg-muted">{total - PREVIEW} more questions are available in practice.</span>
                   <ButtonLink href={`${base}&mode=learning`} size="sm" variant="secondary">
-                    Practise all {qs.length}
+                    Practise all {total}
                   </ButtonLink>
                 </div>
               )}
@@ -136,13 +146,15 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
               ))}
             </ul>
           </section>
-          <section className="rounded-xl border border-line p-4">
-            <h2 className="font-medium">Exam-style practice</h2>
-            <p className="mt-1 text-fg-muted">Sit a full paper in the CBT interface when you are ready.</p>
-            <Link href={`/tests/?exam=${info.primaryExam}`} className="mt-3 inline-flex items-center gap-1 text-fg underline-offset-4 hover:underline">
-              Papers & mocks <Icon name="arrowRight" className="size-3.5" />
-            </Link>
-          </section>
+          {PAPERS_VISIBLE && (
+            <section className="rounded-xl border border-line p-4">
+              <h2 className="font-medium">Exam-style practice</h2>
+              <p className="mt-1 text-fg-muted">Sit a full paper in the CBT interface when you are ready.</p>
+              <Link href={`/tests/?exam=${info.primaryExam}`} className="mt-3 inline-flex items-center gap-1 text-fg underline-offset-4 hover:underline">
+                Papers & mocks <Icon name="arrowRight" className="size-3.5" />
+              </Link>
+            </section>
+          )}
           <nav aria-label="Adjacent chapters" className="space-y-2 border-t border-line pt-6">
             {prev && (
               <Link href={`/${track}/${s.id}/${prev.slug}/`} className="block text-fg-muted hover:text-fg">

@@ -28,6 +28,8 @@ const EnvSchema = z.object({
   CACHE_MODE: z.enum(['workers', 'cache_api', 'none']).default('none'),
   CF_ZONE_ID: z.string().optional(),
   CF_API_TOKEN_PURGE: z.string().optional(),
+  WEB_REVALIDATE_URL: z.string().url().optional(),
+  WEB_REVALIDATE_SECRET: z.string().optional(),
   RATE_LIMIT_DRIVER: z.enum(['memory', 'cloudflare', 'noop']).default('memory'),
   API_VERSION: z.string().default('0.1.0'),
 });
@@ -58,6 +60,9 @@ export function parseConfig(env: Record<string, unknown>): AppConfig {
   if (c.AUTH_MODE === 'test' && !c.TEST_JWT_SECRET) throw new Error('AUTH_MODE=test requires TEST_JWT_SECRET');
   if (c.AUTH_MODE === 'hs256' && !c.SUPABASE_JWT_SECRET) throw new Error('AUTH_MODE=hs256 requires SUPABASE_JWT_SECRET');
   if (c.AUTH_MODE === 'jwks' && !c.SUPABASE_URL) throw new Error('AUTH_MODE=jwks requires SUPABASE_URL');
+  if (c.WEB_REVALIDATE_URL && (c.WEB_REVALIDATE_SECRET ?? '').length < 32) {
+    throw new Error('WEB_REVALIDATE_SECRET (>= 32 chars) is required when WEB_REVALIDATE_URL is set');
+  }
   const issuer = c.SUPABASE_JWT_ISSUER ?? (c.SUPABASE_URL ? `${c.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1` : null);
   return {
     ...c,
