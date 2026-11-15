@@ -14,7 +14,7 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 | Analytics | Cookieless aggregate counters (signups, sessions, pricing views, checkout funnel, payments); DNT/GPC honoured; revenue reported from orders, not client events | `src/lib/analytics.ts`, migration 0018 |
 | Legal | Draft Terms, Privacy, Refund, Contact pages with `[TO FILL]` blanks (noindex) | `src/app/(site)/{terms,privacy,refund-policy,contact}` |
 | SEO | Twitter cards, canonical/OG, sitemap = only pages with enough approved content, noindex on thin hubs/chapters, honest hub copy | `SEO_LAUNCH_CHECKLIST.md` |
-| Content tools | `pxw content validate|import|coverage`: CSV/JSON/JSONL; source + licence required per row; checks duplicates (file + DB), answers, options, LaTeX structure, chapter mapping, approved source; imports land as DRAFT with provenance in audit_log; coverage by exam × year × chapter | `workers/tests/test_content_*.py` (117 tests) |
+| Content tools | `pxw content` validate / import / coverage: CSV/JSON/JSONL; source + licence required per row; checks duplicates (file + DB), answers, options, LaTeX structure, chapter mapping, approved source; imports land as DRAFT with provenance in audit_log; coverage by exam × year × chapter | `workers/tests/test_content_*.py` (117 tests) |
 | Scraper | Branch `scraper`: discovery crawler for official PDFs (NTA JEE Main + NEET, JEE Advanced archive), 240 PDFs catalogued, GitHub Actions run green, GCS storage for workers | `workers/scraper/`, Actions run on `scraper` |
 | Quality | typecheck (web + all packages), ESLint, tests: web 75, api 65, db 246, contracts 10, shared 36, edge 40, ai 124, workers 127+; `next build` OK | see PR |
 
