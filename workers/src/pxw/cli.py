@@ -374,6 +374,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--questions", type=int, default=6)
     sp.add_argument("--image-only-page", type=int, default=None)
     sp.set_defaults(fn=cmd_dev_synth_pdf)
+
+    from pxw.content.commands import add_content_parser
+
+    add_content_parser(sub)
     return p
 
 
