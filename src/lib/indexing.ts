@@ -18,3 +18,15 @@ export function isCardIndexable(q: Pick<QuestionCard, "indexable" | "publicPage"
 export function isChapterIndexable(questionCount: number) {
   return questionCount >= MIN_QUESTIONS_TO_INDEX_CHAPTER;
 }
+
+type Counts = { byChapter: Map<string, number> };
+
+/** A subject hub is worth indexing only when at least one of its chapters is (no thin "0 questions" hubs). */
+export function isSubjectIndexable(subjectId: string, chapters: { subject: string; slug: string }[], counts: Counts) {
+  return chapters.some((c) => c.subject === subjectId && isChapterIndexable(counts.byChapter.get(`${c.subject}/${c.slug}`) ?? 0));
+}
+
+/** An exam hub (/jee/, /neet/) is indexable when any of its subjects is. */
+export function isTrackIndexable(chapters: { subject: string; slug: string }[], counts: Counts) {
+  return chapters.some((c) => isChapterIndexable(counts.byChapter.get(`${c.subject}/${c.slug}`) ?? 0));
+}

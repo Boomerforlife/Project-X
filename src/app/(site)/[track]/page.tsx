@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isTrackIndexable } from "@/lib/indexing";
 import { notFound } from "next/navigation";
 import { Kitty } from "@/components/brand/Kitty";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
@@ -18,14 +19,18 @@ const COPY = {
   jee: {
     title: "JEE Main & Advanced practice by subject and chapter",
     description: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with step-by-step solutions, attempt full papers in an exam-style CBT, and track what to revisit.",
+    descriptionNoPapers: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with step-by-step solutions and track what to revisit.",
     heading: "JEE practice",
     lede: "One syllabus, two exams. Practise chapter by chapter, then sit full JEE Main or JEE Advanced papers in the exam-style interface.",
+    ledeNoPapers: "One syllabus, two exams. Practise chapter by chapter with step-by-step solutions.",
   },
   neet: {
     title: "NEET UG practice by subject and chapter",
     description: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise with step-by-step solutions and sit full NEET papers in an exam-style CBT.",
+    descriptionNoPapers: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise with step-by-step solutions.",
     heading: "NEET practice",
-    lede: "Physics, Chemistry, Botany and Zoology, chapter by chapter — then full 180-question papers in the exam-style interface.",
+    lede: "Physics, Chemistry, Botany and Zoology, chapter by chapter — then full papers in the exam-style interface.",
+    ledeNoPapers: "Physics, Chemistry, Botany and Zoology, chapter by chapter, with step-by-step solutions.",
   },
 } as const;
 
@@ -34,8 +39,15 @@ export async function generateMetadata({ params }: PageProps<"/[track]">) {
     const { track } = await params;
     if (!isTrack(track)) return {};
     // An exam with no active content (e.g. NEET before launch) is a "coming soon" page: never indexed.
-    const subjects = await getSubjects(track);
-    return pageMetadata({ title: COPY[track].title, description: COPY[track].description, path: `/${track}/`, noindex: subjects.length === 0 });
+    const [subjects, chapters, counts, papers] = await Promise.all([getSubjects(track), getChapters({ track }), getQuestionCounts(track), getPublicPapers({ track })]);
+    // Only claim full papers when real (non-demo) papers exist; only index when some chapter has enough published questions.
+    const hasPapers = papers.some((p) => !p.isDemo);
+    return pageMetadata({
+      title: COPY[track].title,
+      description: hasPapers ? COPY[track].description : COPY[track].descriptionNoPapers,
+      path: `/${track}/`,
+      noindex: subjects.length === 0 || !isTrackIndexable(chapters, counts),
+    });
   });
 }
 
@@ -54,7 +66,7 @@ export default async function TrackHubPage({ params }: PageProps<"/[track]">) {
         ]}
         eyebrow={(exams.length ? exams : info.exams).map((e) => EXAMS[e].name).join(" · ")}
         title={COPY[track].heading}
-        lede={COPY[track].lede}
+        lede={papers.some((p) => !p.isDemo) ? COPY[track].lede : COPY[track].ledeNoPapers}
       >
         <div className="mt-8 flex flex-wrap gap-2">
           {subjects.map((s) => (

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isSubjectIndexable } from "@/lib/indexing";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
@@ -29,10 +30,12 @@ export async function generateMetadata({ params }: PageProps<"/[track]/[subject]
     const d = await load(track, subject);
     if (!d) return {};
     const name = TRACK_INFO[d.track].name;
+    const [chapters, counts] = await Promise.all([getChapters({ subject: d.s.id, track: d.track }), getQuestionCounts(d.track)]);
     return pageMetadata({
       title: `${name} ${d.s.name}: chapter-wise practice`,
       description: `All ${name} ${d.s.name} chapters with practice questions and step-by-step solutions. ${d.s.summary}`.trim(),
       path: `/${d.track}/${d.s.id}/`,
+      noindex: !isSubjectIndexable(d.s.id, chapters, counts),
     });
   });
 }
