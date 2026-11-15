@@ -1,0 +1,15 @@
+{
+  "_comment": "EXAMPLE ONLY. Replace with real, licence-cleared URLs. A source must be approved in the database before anything is fetched, and every host (and redirect hop) must be listed here.",
+  "allowed_hosts": { "PROJECTX_EDITORIAL": ["example.invalid"] },
+  "entries": [
+    {
+      "source": "PROJECTX_EDITORIAL",
+      "url": "https://example.invalid/papers/sample-paper.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "example-paper-2099",
+      "paper_title": "Example paper (placeholder)",
+      "year": 2099,
+      "exam": "jee-main"
+    }
+  ]
+}

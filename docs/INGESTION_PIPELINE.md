@@ -150,3 +150,13 @@ chain fallback order + low-confidence escalation + OCR_UNAVAILABLE; normalizatio
 (IDs, labels, ranges, drop, multi); FileJobStore lease/backoff/DEAD/idempotent enqueue; stage artifact resume (kill after stage 4 → rerun skips 1–4);
 idempotent persist (run twice → same row counts); source-not-approved refusal. Optional (skipped unless `PXW_TEST_DATABASE_URL`): PgJobStore/
 PgIngestionRepo against `npm run db:serve`.
+
+## 11. Approved-URL fetcher (`pxw ingest fetch`)
+Not a crawler. It downloads only the PDFs listed in a curated manifest (`workers/manifests/*.manifest.json`; see `example.manifest.json`).
+Run: `pxw ingest fetch --manifest <file> [--dry-run] [--auto-promote] [--min-interval 5]`, then `pxw jobs run --once`.
+Guards (tests: `workers/tests/test_fetcher.py`): every source in the manifest must be approved *before any network request*
+(exit 3 otherwise); `allowed_hosts` per source, re-checked on every redirect hop (max 3); https only; robots.txt honoured
+(a robots error means deny); 5 s per-host spacing; 60 MB cap; Content-Type must be `application/pdf` and the body must start with `%PDF`.
+Downloads land in `<work-dir>/downloads/<sha256>.pdf` with a `.json` provenance sidecar (requested/final URL, time), then go
+through the normal `register` path (idempotent by sha256). The database has no source-URL column yet, so the URL lives in the sidecar only.
+Setting the real NTA source to approved (licence recorded by an admin) is a prerequisite for any NTA manifest.
