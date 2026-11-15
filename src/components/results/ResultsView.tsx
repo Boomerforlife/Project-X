@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DemoRequired } from "@/components/app/DemoGate";
-import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { QuestionBody } from "@/components/practice/QuestionBody";
 import { SolutionPanel } from "@/components/practice/SolutionPanel";
 import { formatClock } from "@/components/practice/useAttemptClock";
@@ -109,7 +109,11 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
           <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{a.title}</h1>
           {a.retryOf && <p className="mt-1 text-sm text-fg-muted">Retry attempt — your earlier attempt is kept unchanged.</p>}
         </div>
-        <DemoBadge>Demo scoring</DemoBadge>
+        <div className="flex items-end gap-5">
+          {/* Celebrates finishing, not the score: no shame for a low mark. */}
+          {r.accuracy !== null && <TabbyMascot state="success" className="hidden h-14 text-fg sm:block" />}
+          <DemoBadge>Demo scoring</DemoBadge>
+        </div>
       </div>
 
       {/* Score hero */}
@@ -219,7 +223,7 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
         </div>
         {rows.length === 0 ? (
           <div className="mt-6 flex flex-col items-center rounded-xl border border-dashed border-line-strong px-6 py-12 text-center">
-            <Kitty pose="sleep" className="h-14 w-auto text-fg-subtle" />
+            <TabbyMascot state="curious" className="h-14 text-fg-subtle" />
             <p className="mt-4 text-sm text-fg-muted">Nothing in this filter.</p>
           </div>
         ) : (

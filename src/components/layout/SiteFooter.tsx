@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getSubjects } from "@/lib/data";
 import { SITE } from "@/lib/site";
-import { Wordmark } from "./SiteHeader";
+import { Wordmark } from "./Wordmark";
 
 export async function SiteFooter() {
   const subjects = await getSubjects();
@@ -36,7 +36,7 @@ export async function SiteFooter() {
   ];
 
   return (
-    <footer className="mt-24 border-t border-line">
+    <footer data-chrome className="mt-24 border-t border-line">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div className="space-y-3">
           <Wordmark />

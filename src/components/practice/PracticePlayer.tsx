@@ -8,7 +8,8 @@ import { RichText } from "@/components/content/RichText";
 import { DifficultyChip, SubjectTag, TypeChip, VerificationBadge } from "@/components/ui/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { DemoBadge, Dialog, Kbd, PageSkeleton } from "@/components/ui/Primitives";
+import { LoadingScreen, SESSION_MESSAGES } from "@/components/states/Loading";
+import { DemoBadge, Dialog, Kbd } from "@/components/ui/Primitives";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { isAnswered, judge } from "@/lib/demo/scoring";
@@ -33,7 +34,7 @@ export function PracticeSession() {
     else if (a?.mode === "cbt") router.replace(`/cbt/?id=${a.id}`);
   }, [a?.status, a?.mode, a?.id, router]);
 
-  if (s === null) return <PageSkeleton />;
+  if (s === null) return <SessionLoading />;
   if (!s.user) return <DemoRequired />;
   if (!a) {
     return (
@@ -46,8 +47,13 @@ export function PracticeSession() {
       </div>
     );
   }
-  if (a.status === "submitted" || a.mode === "cbt") return <PageSkeleton />;
+  if (a.status === "submitted" || a.mode === "cbt") return <SessionLoading />;
   return <Player key={a.id} attempt={a} state={s} />;
+}
+
+/** The focus shell has no navigation, so the full branded loader fits. */
+function SessionLoading() {
+  return <LoadingScreen messages={SESSION_MESSAGES} label="Loading your practice session" />;
 }
 
 type Panel = null | "calc" | "pad";
@@ -135,7 +141,7 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
     return () => document.removeEventListener("keydown", onKey);
   });
 
-  if (!q) return <PageSkeleton />;
+  if (!q) return <SessionLoading />;
 
   const sol = learning && resp?.checked ? catalog.solution(q.id) : null;
   const hint = learning ? catalog.hint(q.id) : null;

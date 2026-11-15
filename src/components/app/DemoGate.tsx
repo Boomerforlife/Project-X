@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { PageSkeleton } from "@/components/ui/Primitives";
 import { demoLogin, useDemo } from "@/lib/demo/store";
@@ -35,7 +35,7 @@ export function DemoRequired() {
   const router = useRouter();
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-24 text-center">
-      <Kitty pose="sit" className="h-24 w-auto text-fg" />
+      <TabbyMascot state="curious" className="h-24 text-fg" />
       <h1 className="mt-8 text-3xl font-semibold">Sign in to continue</h1>
       <p className="mt-3 text-fg-muted">
         Accounts aren&rsquo;t connected yet. Enter the demo to explore everything with a sample student profile — it lives only in this browser.

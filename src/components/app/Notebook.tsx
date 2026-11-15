@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { SubjectId } from "@/contracts";
-import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { RichText } from "@/components/content/RichText";
 import { SubjectTag } from "@/components/ui/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -103,7 +103,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
 
       {items.length === 0 ? (
         <div className="mt-8 flex flex-col items-center rounded-xl border border-dashed border-line-strong px-6 py-16 text-center">
-          <Kitty pose={kind === "mistakes" ? "sleep" : "sit"} className="h-16 w-auto text-fg-subtle" />
+          <TabbyMascot state={kind === "mistakes" && status === "open" ? "idle" : "curious"} className="h-16 text-fg-subtle" />
           <p className="mt-5 font-medium">
             {kind === "mistakes" ? (status === "open" ? "Nothing to revise" : "Nothing here yet") : kind === "bookmarks" ? "No bookmarks yet" : "Your review list is empty"}
           </p>

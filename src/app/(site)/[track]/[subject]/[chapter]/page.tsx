@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { QuestionList } from "@/components/content/QuestionList";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
@@ -111,7 +111,7 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
             </>
           ) : (
             <EmptyState
-              kitty={<Kitty pose="sleep" className="h-16 w-auto text-fg-subtle" />}
+              kitty={<TabbyMascot state="idle" className="h-16 text-fg-subtle" />}
               title="No questions here yet"
               body={`Questions for ${c.name} are still being added and checked. Try another ${s.name} chapter in the meantime.`}
             >
