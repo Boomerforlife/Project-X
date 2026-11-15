@@ -7,12 +7,12 @@ import { openPglite, wrapPglite } from '../src/pglite';
 import type { PgliteDb } from '../src/pglite';
 
 describe('listMigrations', () => {
-  it('lists 0001..0014 in order with sha256 checksums', async () => {
+  it('lists 0001..0015 in order with sha256 checksums', async () => {
     const files = await listMigrations();
     expect(files.map((f) => f.name)).toEqual([
       '0001_extensions_helpers.sql', '0002_enums.sql', '0003_taxonomy.sql', '0004_provenance.sql', '0005_questions.sql',
       '0006_solutions.sql', '0007_pipeline.sql', '0008_verification.sql', '0009_users.sql', '0010_practice.sql',
-      '0011_doubts_uploads.sql', '0012_rls_and_grants.sql', '0013_publication_guard.sql', '0014_publication_guard_hardening.sql',
+      '0011_doubts_uploads.sql', '0012_rls_and_grants.sql', '0013_publication_guard.sql', '0014_publication_guard_hardening.sql', '0015_profile_class_level_session_ui.sql',
     ]);
     for (const f of files) expect(f.sha256).toMatch(/^[0-9a-f]{64}$/);
   });

@@ -1,5 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import {
+  ActivityDaySchema,
+  ActivityQuery,
   AttemptHistoryItemSchema,
   AttemptResultSchema,
   AttemptsQuery,
@@ -23,6 +25,8 @@ import {
   QuestionIdParam,
   SessionCreatedSchema,
   SessionDetailSchema,
+  SessionListItemSchema,
+  SessionListQuery,
   SessionProgressSchema,
   StreakSchema,
   SubmitAttemptBody,
@@ -70,6 +74,27 @@ export function registerPractice(app: App, g: Guards): void {
   app.openapi(get, async (c: Ctx) => {
     const p = valid(c, 'param', IdParam);
     return send(c, 200, await practice.getSession(store(c), deps(c), requireUser(c).id, p.id));
+  });
+
+  const listSessions = defineRoute({
+    method: 'get', path: '/practice/sessions', summary: 'List my practice sessions (resume)', tags: ['practice'], access: 'user', cache: 'PRIVATE',
+    description: 'Newest activity first. Filter with status=ACTIVE,COMPLETED,ABANDONED (comma separated).',
+    request: { query: SessionListQuery }, data: z.array(SessionListItemSchema),
+  })(g);
+  app.openapi(listSessions, async (c: Ctx) => {
+    const q = valid(c, 'query', SessionListQuery);
+    const r = await practice.listSessions(store(c), requireUser(c).id, { status: q.status, cursor: parseCursor(q.cursor), limit: q.limit });
+    return send(c, 200, r.data, r.meta ? { meta: r.meta } : {});
+  });
+
+  const complete = defineRoute({
+    method: 'post', path: '/practice/sessions/{id}/complete', summary: 'Complete an active session (idempotent)', tags: ['practice'], access: 'user', cache: 'PRIVATE', rl: 'RL_WRITE',
+    description: 'ACTIVE -> COMPLETED. Already COMPLETED returns the same progress; ABANDONED -> 409 INVALID_STATE_TRANSITION.',
+    request: { params: IdParam }, data: SessionProgressSchema,
+  })(g);
+  app.openapi(complete, async (c: Ctx) => {
+    const p = valid(c, 'param', IdParam);
+    return send(c, 200, await practice.completeSession(store(c), requireUser(c).id, p.id));
   });
 
   const abandon = defineRoute({
@@ -124,6 +149,16 @@ export function registerStudent(app: App, g: Guards): void {
 
   const streak = defineRoute({ method: 'get', path: '/users/me/streak', summary: 'Streak and daily goal', tags: ['student'], ...base, data: StreakSchema })(g);
   app.openapi(streak, async (c: Ctx) => send(c, 200, await student.streak(store(c), requireUser(c))));
+
+  const activity = defineRoute({
+    method: 'get', path: '/users/me/activity', summary: 'Daily activity (heatmap / trends)', tags: ['student'], ...base,
+    description: 'Per-day attempts, correct and time spent, ascending. Default: last 120 days; max span 400 days.',
+    request: { query: ActivityQuery }, data: z.array(ActivityDaySchema),
+  })(g);
+  app.openapi(activity, async (c: Ctx) => {
+    const q = valid(c, 'query', ActivityQuery);
+    return send(c, 200, await student.activity(store(c), requireUser(c), { from: q.from, to: q.to }));
+  });
 
   const attempts = defineRoute({
     method: 'get', path: '/users/me/attempts', summary: 'Attempt history', tags: ['student'], ...base,

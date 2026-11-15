@@ -143,14 +143,15 @@ export function seedMemory(): MemoryState {
   addMcq(IDS.qDraft, 'demo-draft', 'SINGLE_MCQ', [1], { publication_status: 'DRAFT', verification_status: 'AUTOMATED_CHECKS_PASSED', published_at: null, first_published_at: null, answer_key: null, answer_key_source: null });
   for (const [u, r] of [[IDS.admin, ['ADMIN']], [IDS.reviewer, ['REVIEWER']]] as const) s.roles.set(u, [...r]);
   for (const u of [IDS.user, IDS.user2, IDS.admin, IDS.reviewer]) {
-    s.profiles.set(u, { id: u, display_name: null, timezone: 'Asia/Kolkata', target_exam_id: null, target_year: null, daily_goal_attempts: 2, onboarding_completed_at: null, created_at: new Date() });
+    s.profiles.set(u, { id: u, display_name: null, timezone: 'Asia/Kolkata', target_exam_id: null, target_year: null, daily_goal_attempts: 2, onboarding_completed_at: null, class_level: null, created_at: new Date() });
   }
   return s;
 }
 
 export function memoryHarness(opts: { rateLimiter?: RateLimiter; clock?: () => Date } = {}) {
   const state = seedMemory();
-  const h = makeHarness({ store: createMemoryStore(state), ...opts });
+  // the API clock must agree with the seeded state clock, otherwise day-based assertions depend on the wall clock
+  const h = makeHarness({ store: createMemoryStore(state), clock: () => state.clock(), ...opts });
   return { state, ...h };
 }
 

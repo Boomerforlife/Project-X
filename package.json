@@ -16,12 +16,43 @@
     "db:migrate": "npm run migrate -w @projectx/db",
     "dev:api": "npm run dev -w @projectx/api",
     "openapi": "npm run openapi:generate -w @projectx/api",
-    "ai": "npm run ai -w @projectx/ai --"
+    "ai": "npm run ai -w @projectx/ai --",
+    "dev:web": "next dev",
+    "build:web": "next build",
+    "start:web": "next start",
+    "lint:web": "eslint",
+    "typecheck:web": "next typegen && tsc --noEmit",
+    "test:web": "vitest run",
+    "preview:web": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "upload:web": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "deploy:web": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:web:staging": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --env staging",
+    "deploy:web:production": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --env production",
+    "cf-typegen:web": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "devDependencies": {
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/katex": "^0.16.8",
+    "@types/node": "26.6.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "4.1.12",
-    "tsx": "4.23.15",
-    "@types/node": "26.6.6"
+    "wrangler": "4.156.0"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "1.20.17",
+    "@projectx/contracts": "*",
+    "@supabase/supabase-js": "2.118.0",
+    "jose": "6.2.14",
+    "katex": "^0.19.1",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.6.7"
   }
 }

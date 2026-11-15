@@ -207,6 +207,7 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
 | `CACHE_PURGE_DRIVER` | api | `noop` \| `workers` \| `zone_api` \| `both` |
 | `CACHE_MODE` | api | `workers` (Workers Caching via wrangler `[cache]`) \| `cache_api` (API mounts `edgeCacheMiddleware`) \| `none` (dev) |
 | `CF_ZONE_ID`, `CF_API_TOKEN_PURGE` | api | token scoped to Cache Purge only |
+| `WEB_REVALIDATE_URL`, `WEB_REVALIDATE_SECRET` | api | optional; web `POST /api/revalidate/` URL and shared bearer secret (>= 32 chars, secret). When both are set the API calls it with `{"tags":[...]}` on every cache purge |
 | `RATE_LIMIT_DRIVER` | api | `memory` \| `cloudflare` \| `noop` |
 | `AI_PROVIDER` | ai | `mock` \| `gemini` (auto-`mock` + warning if no key) |
 | `GEMINI_API_KEY` | ai | secret |

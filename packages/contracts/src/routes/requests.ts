@@ -11,11 +11,13 @@ import {
   PublicationStatusSchema,
   QuestionOriginSchema,
   QuestionTypeSchema,
+  SessionStatusSchema,
   SourceKindSchema,
   SourceQuestionStatusSchema,
   SubjectCodeSchema,
   VerificationStatusSchema,
 } from '../enums';
+import { ClassLevelSchema } from '../dto/student';
 import { pageQuery } from '../pagination';
 import { SlugSchema, UuidSchema } from '../primitives';
 
@@ -92,6 +94,8 @@ export const CreateSessionBody = z
       })
       .optional(),
     size: z.int().min(1).max(50).default(10),
+    ui_mode: z.enum(['learning', 'test']).default('learning'),
+    time_limit_sec: z.int().min(60).max(21600).optional(),
   })
   .openapi('CreateSessionBody');
 export type CreateSessionBody = z.infer<typeof CreateSessionBody>;
@@ -115,6 +119,7 @@ export const PatchMeBody = z
     target_exam: SlugSchema.nullable().optional(),
     target_year: z.int().min(2020).max(2100).nullable().optional(),
     daily_goal_attempts: z.int().min(1).max(500).optional(),
+    class_level: ClassLevelSchema.nullable().optional(),
     onboarding_completed: z.literal(true).optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'at least one field required' })
@@ -132,6 +137,14 @@ export const ExamPreferencesBody = z
   .openapi('ExamPreferencesBody');
 export type ExamPreferencesBody = z.infer<typeof ExamPreferencesBody>;
 
+export const SessionListQuery = z.object({
+  status: csv(SessionStatusSchema).optional(),
+  ...pageQuery(50),
+});
+export const ActivityQuery = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 export const ProgressQuery = z.object({ exam: SlugSchema.optional() });
 export const AttemptsQuery = z.object({ question_id: UuidSchema.optional(), session_id: UuidSchema.optional(), ...pageQuery(100) });
 export const BookmarkBody = z

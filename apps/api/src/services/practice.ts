@@ -3,6 +3,7 @@ import {
   type CreateSessionBody,
   type PracticeQuestion,
   type SessionDetail,
+  type SessionListItem,
   type SessionProgress,
   type SessionSummary,
   type SubmitAttemptBody,
@@ -45,7 +46,13 @@ export function sessionProgress(s: SessionRow): SessionProgress {
     score: normalizeDecimal(s.score),
   };
 }
-const sessionSummary = (s: SessionRow): SessionSummary => ({ ...sessionProgress(s), mode: s.mode, started_at: iso(s.started_at) });
+const sessionSummary = (s: SessionRow): SessionSummary => ({
+  ...sessionProgress(s),
+  mode: s.mode,
+  started_at: iso(s.started_at),
+  ui_mode: s.ui_mode,
+  time_limit_sec: s.time_limit_sec,
+});
 
 /** Build practice DTOs (no answers) for the given questions, preserving `rows` order. */
 export async function buildPracticeQuestions(
@@ -92,6 +99,8 @@ async function attemptResult(
     solution: toPublicSolution(bundle.solution, bundle.options, assets, deps.logger),
     submitted_at: iso(attempt.submitted_at),
     session: session ? sessionProgress(session) : null,
+    response: attempt.response,
+    time_spent_ms: attempt.time_spent_ms,
   };
 }
 
@@ -213,6 +222,8 @@ export async function createSession(
       question_ids: ids,
       status: 'ACTIVE',
       started_at: deps.clock(),
+      ui_mode: body.ui_mode ?? 'learning',
+      time_limit_sec: body.time_limit_sec ?? null,
     });
     if (!inserted) {
       const again = await r.practice.findSessionByRequest(user.id, body.client_request_id);
@@ -260,6 +271,49 @@ export async function abandonSession(store: Store, userId: string, id: string): 
     const updated = await r.practice.abandonSession(userId, id);
     if (!updated) throw invalidState(s.status, 'abandon');
     return sessionProgress(updated);
+  });
+}
+
+export async function completeSession(store: Store, userId: string, id: string): Promise<SessionProgress> {
+  return store.service(async (r) => {
+    const s = await r.practice.getSession(userId, id);
+    if (!s) throw notFound('Session');
+    if (s.status === 'COMPLETED') return sessionProgress(s);
+    if (s.status !== 'ACTIVE') throw invalidState(s.status, 'complete');
+    const updated = await r.practice.completeSession(userId, id);
+    if (updated) return sessionProgress(updated);
+    // lost a race (e.g. the last attempt auto-completed it); re-read
+    const again = await r.practice.getSession(userId, id);
+    if (again?.status === 'COMPLETED') return sessionProgress(again);
+    throw invalidState(again?.status ?? s.status, 'complete');
+  });
+}
+
+export async function listSessions(
+  store: Store,
+  userId: string,
+  q: { status?: ('ACTIVE' | 'COMPLETED' | 'ABANDONED')[] | undefined; cursor: PageCursor | null; limit: number },
+): Promise<Out<SessionListItem[]>> {
+  return store.service(async (r) => {
+    const tax = new TaxIndex(await r.taxonomy.load());
+    const rows = await r.practice.listSessions(userId, q.status ?? null, q.cursor, q.limit + 1);
+    const page = paginate(rows, q.limit);
+    const data: SessionListItem[] = [];
+    for (const s of page.rows) {
+      const exam = tax.exams.get(s.exam_id);
+      if (!exam) continue;
+      const subject = s.subject_id ? tax.subjects.get(s.subject_id) : undefined;
+      const chapter = s.chapter_id ? tax.chapters.get(s.chapter_id) : undefined;
+      data.push({
+        ...sessionSummary(s),
+        completed_at: isoOrNull(s.completed_at),
+        last_activity_at: iso(s.last_activity_at),
+        exam: tax.examRef(exam),
+        subject: subject ? tax.subjectRef(subject) : null,
+        chapter: chapter ? tax.chapterRef(chapter) : null,
+      });
+    }
+    return { data, meta: page.meta, tags: [] };
   });
 }
 

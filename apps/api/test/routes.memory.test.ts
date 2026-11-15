@@ -124,7 +124,7 @@ describe('taxonomy + public content + cache classes', () => {
     expect(s.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=300, stale-while-revalidate=600');
     expect((await j(s)).data.length).toBe(3);
     const sm = await req('/public/sitemap/questions');
-    expect((await j(sm)).data).toEqual([expect.objectContaining({ canonical_path: '/questions/demo-multi' })]);
+    expect((await j(sm)).data).toEqual([expect.objectContaining({ canonical_path: '/questions/demo-multi', slug: 'demo-multi', exam_slug: 'jee-main' })]);
     expect((await j(await req('/public/exams/jee-main'))).data.subjects[0].published_question_count).toBe(3);
     expect((await j(await req('/public/subjects/jee-main-physics'))).data.chapters).toHaveLength(2);
   });

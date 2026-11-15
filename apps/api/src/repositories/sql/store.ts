@@ -36,11 +36,12 @@ const ASSET = `a.id, a.question_id, a.solution_version_id, a.source_question_id,
 const PAPER = `p.id, p.exam_id, p.slug, p.title, p.year, p.session_label, p.exam_date::text as exam_date, p.shift, p.paper_code`;
 const SRC = `s.id, s.code, s.name, s.kind, s.publisher, s.homepage_url, s.license_name, s.license_url, s.reuse_permitted, s.attribution_text, s.approved_by, s.approved_at, s.notes, s.created_at`;
 const SESS = `s.id, s.user_id, s.client_request_id, s.mode, s.exam_id, s.subject_id, s.chapter_id, s.topic_id, s.paper_id, s.filters, s.question_ids,
- s.status, s.attempted_count, s.correct_count, s.score::text as score, s.started_at, s.completed_at, s.last_activity_at`;
+ s.status, s.attempted_count, s.correct_count, s.score::text as score, s.started_at, s.completed_at, s.last_activity_at, s.ui_mode, s.time_limit_sec`;
 const ATT = `a.id, a.user_id, a.question_id, a.session_id, a.client_attempt_id, a.request_hash, a.response, a.is_correct, a.score::text as score,
  a.time_spent_ms, a.activity_date::text as activity_date, a.submitted_at`;
+const SESS_RET = `id, user_id, client_request_id, mode, exam_id, subject_id, chapter_id, topic_id, paper_id, filters, question_ids, status, attempted_count, correct_count, score::text as score, started_at, completed_at, last_activity_at, ui_mode, time_limit_sec`;
 const JOB = `j.id, j.kind, j.idempotency_key, j.status, j.priority, j.attempts, j.max_attempts, j.run_after, j.locked_by, j.last_error, j.question_id, j.source_document_id, j.created_at, j.finished_at`;
-const PROFILE = `p.id, p.display_name, p.timezone, p.target_exam_id, p.target_year, p.daily_goal_attempts, p.onboarding_completed_at, p.created_at`;
+const PROFILE = `p.id, p.display_name, p.timezone, p.target_exam_id, p.target_year, p.daily_goal_attempts, p.onboarding_completed_at, p.class_level, p.created_at`;
 
 const rows = async <T>(tx: Tx, sql: string, params: readonly unknown[] = []): Promise<T[]> => (await tx.query<T>(sql, params)).rows;
 const one = async <T>(tx: Tx, sql: string, params: readonly unknown[] = []): Promise<T | null> => (await rows<T>(tx, sql, params))[0] ?? null;
@@ -119,7 +120,7 @@ function contentRepo(tx: Tx): ContentRepo {
     sitemap: async (after, limit) => {
       const p = new Params();
       const c = ['q.is_indexable', 'q.sitemap_include', keysetWhere(p, after, ['q.updated_at'], 'q.id', 'asc', ['timestamptz'])];
-      const r = await rows<Record<string, unknown>>(tx, `select q.id, q.slug, q.updated_at, q.updated_at::text as _k0 from public.questions q where ${c.join(' and ')} order by q.updated_at asc, q.id asc limit ${p.add(limit)}`, p.values);
+      const r = await rows<Record<string, unknown>>(tx, `select q.id, q.slug, q.exam_id, q.updated_at, q.updated_at::text as _k0 from public.questions q where ${c.join(' and ')} order by q.updated_at asc, q.id asc limit ${p.add(limit)}`, p.values);
       return keyed(r, 1) as never;
     },
     listPractice: async (f, after, limit) => {
@@ -170,11 +171,11 @@ function practiceRepo(tx: Tx): PracticeRepo {
     insertSession: async (s) => {
       const r = await rows<SessionRow>(
         tx,
-        `insert into public.practice_sessions (user_id, client_request_id, mode, exam_id, subject_id, chapter_id, topic_id, paper_id, filters, question_ids, status, started_at)
-         values ($1,$2,$3::public.practice_mode,$4,$5,$6,$7,$8,$9::jsonb, ${uuidArray(10)}, 'ACTIVE', $11)
+        `insert into public.practice_sessions (user_id, client_request_id, mode, exam_id, subject_id, chapter_id, topic_id, paper_id, filters, question_ids, status, started_at, ui_mode, time_limit_sec)
+         values ($1,$2,$3::public.practice_mode,$4,$5,$6,$7,$8,$9::jsonb, ${uuidArray(10)}, 'ACTIVE', $11, $12, $13)
          on conflict (user_id, client_request_id) do nothing
-         returning id, user_id, client_request_id, mode, exam_id, subject_id, chapter_id, topic_id, paper_id, filters, question_ids, status, attempted_count, correct_count, score::text as score, started_at, completed_at, last_activity_at`,
-        [s.user_id, s.client_request_id, s.mode, s.exam_id, s.subject_id, s.chapter_id, s.topic_id, s.paper_id, JSON.stringify(s.filters), jsonList(s.question_ids), s.started_at],
+         returning ${SESS_RET}`,
+        [s.user_id, s.client_request_id, s.mode, s.exam_id, s.subject_id, s.chapter_id, s.topic_id, s.paper_id, JSON.stringify(s.filters), jsonList(s.question_ids), s.started_at, s.ui_mode, s.time_limit_sec],
       );
       return r[0] ?? null;
     },
@@ -182,9 +183,24 @@ function practiceRepo(tx: Tx): PracticeRepo {
       one(
         tx,
         `update public.practice_sessions set status='ABANDONED', last_activity_at=now() where user_id=$1 and id=$2 and status='ACTIVE'
-         returning id, user_id, client_request_id, mode, exam_id, subject_id, chapter_id, topic_id, paper_id, filters, question_ids, status, attempted_count, correct_count, score::text as score, started_at, completed_at, last_activity_at`,
+         returning ${SESS_RET}`,
         [u, id],
       ),
+    completeSession: (u, id) =>
+      one(
+        tx,
+        `update public.practice_sessions set status='COMPLETED', completed_at=now(), last_activity_at=now() where user_id=$1 and id=$2 and status='ACTIVE'
+         returning ${SESS_RET}`,
+        [u, id],
+      ),
+    listSessions: async (u, statuses, after, limit) => {
+      const p = new Params();
+      const c = [`s.user_id=${p.add(u)}`];
+      if (statuses) c.push(`s.status::text in ${textSet(p.next)}`, `${p.add(jsonList(statuses))}::jsonb is not null`);
+      c.push(keysetWhere(p, after, ['s.last_activity_at'], 's.id', 'desc', ['timestamptz']));
+      const r = await rows<Record<string, unknown>>(tx, `select ${SESS}, s.last_activity_at::text as _k0 from public.practice_sessions s where ${c.join(' and ')} order by s.last_activity_at desc, s.id desc limit ${p.add(limit)}`, p.values);
+      return keyed(r, 1) as never;
+    },
     attemptsForSession: (u, sid) => rows(tx, `select ${ATT} from public.attempts a where a.user_id=$1 and a.session_id=$2 order by a.submitted_at`, [u, sid]),
     findAttempt: (u, cid) => one(tx, `select ${ATT} from public.attempts a where a.user_id=$1 and a.client_attempt_id=$2`, [u, cid]),
     findAttemptForSessionQuestion: (sid, qid) => one(tx, `select ${ATT} from public.attempts a where a.session_id=$1 and a.question_id=$2`, [sid, qid]),
@@ -306,6 +322,12 @@ export function userRepo(tx: Tx): UserRepo {
       const r = await rows<Record<string, unknown>>(tx, `select ${ATT}, a.submitted_at::text as _k0 from public.attempts a where ${c.join(' and ')} order by a.submitted_at desc, a.id desc limit ${p.add(limit)}`, p.values);
       return keyed(r, 1) as never;
     },
+    listActivity: async (id, from, to) =>
+      (await rows<{ activity_date: string; attempts_count: number; correct_count: number; total_time_ms: number }>(
+        tx,
+        `select activity_date::text as activity_date, attempts_count, correct_count, total_time_ms::float8 as total_time_ms from public.daily_activity where user_id=$1 and activity_date between $2::date and $3::date order by activity_date`,
+        [id, from, to],
+      )).map((r) => ({ ...r, attempts_count: num(r.attempts_count), correct_count: num(r.correct_count), total_time_ms: num(r.total_time_ms) })),
     listDoubts: async (id, after, limit) => {
       const p = new Params();
       const c = [`d.user_id=${p.add(id)}`, keysetWhere(p, after, ['d.created_at'], 'd.id', 'desc', ['timestamptz'])];

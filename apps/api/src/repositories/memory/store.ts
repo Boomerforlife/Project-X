@@ -8,6 +8,7 @@ import type {
   BookmarkRow,
   ChapterStatRow,
   ContentRepo,
+  ActivityRow,
   DailyActivityRow,
   DoubtRow,
   IngestionDocRow,
@@ -69,7 +70,7 @@ export class MemoryState {
   prefs = new Map<string, PrefRow[]>();
   bookmarks: (BookmarkRow & { user_id: string })[] = [];
   mistakes: (MistakeRow & { user_id: string })[] = [];
-  daily: (DailyActivityRow & { user_id: string })[] = [];
+  daily: (ActivityRow & { user_id: string })[] = [];
   chapterStats: (ChapterStatRow & { user_id: string })[] = [];
   doubts: DoubtRow[] = [];
   uploads: UploadRow[] = [];
@@ -209,7 +210,7 @@ function contentRepo(s: MemoryState): ContentRepo {
     },
     sitemap: async (after, limit) => {
       const rows = s.questions.filter((q) => q.is_indexable && q.sitemap_include);
-      return keyset(rows, (q) => [iso(q.updated_at)], (q) => q.id, 'asc', after, limit).map((q) => Object.assign(q, { slug: q.slug, updated_at: q.updated_at })) as never;
+      return keyset(rows, (q) => [iso(q.updated_at)], (q) => q.id, 'asc', after, limit).map((q) => Object.assign(q, { slug: q.slug, exam_id: q.exam_id, updated_at: q.updated_at })) as never;
     },
     listPractice: async (f, after, limit) => {
       const taxOk = (q: QuestionRow) => {
@@ -295,6 +296,23 @@ function practiceRepo(s: MemoryState): PracticeRepo {
       x.status = 'ABANDONED';
       return x;
     },
+    completeSession: async (u, id) => {
+      const x = s.sessions.find((y) => y.user_id === u && y.id === id && y.status === 'ACTIVE');
+      if (!x) return null;
+      x.status = 'COMPLETED';
+      x.completed_at = s.clock();
+      x.last_activity_at = x.completed_at;
+      return x;
+    },
+    listSessions: async (u, statuses, after, limit) =>
+      keyset(
+        s.sessions.filter((x) => x.user_id === u && (!statuses || statuses.includes(x.status))),
+        (x) => [iso(x.last_activity_at)],
+        (x) => x.id,
+        'desc',
+        after,
+        limit,
+      ),
     attemptsForSession: async (u, sid) => s.attempts.filter((a) => a.user_id === u && a.session_id === sid),
     findAttempt: async (u, cid) => s.attempts.find((a) => a.user_id === u && a.client_attempt_id === cid) ?? null,
     findAttemptForSessionQuestion: async (sid, qid) => s.attempts.find((a) => a.session_id === sid && a.question_id === qid) ?? null,
@@ -309,11 +327,12 @@ function practiceRepo(s: MemoryState): PracticeRepo {
       // daily activity
       let d = s.daily.find((x) => x.user_id === a.user_id && x.activity_date === row.activity_date);
       if (!d) {
-        d = { user_id: a.user_id, activity_date: row.activity_date, attempts_count: 0, correct_count: 0 };
+        d = { user_id: a.user_id, activity_date: row.activity_date, attempts_count: 0, correct_count: 0, total_time_ms: 0 };
         s.daily.push(d);
       }
       d.attempts_count += 1;
       d.correct_count += a.is_correct ? 1 : 0;
+      d.total_time_ms += a.time_spent_ms ?? 0;
       // mistakes
       const now = a.submitted_at;
       const m = s.mistakes.find((x) => x.user_id === a.user_id && x.question_id === a.question_id);
@@ -445,6 +464,11 @@ function userRepo(s: MemoryState): UserRepo {
         after,
         limit,
       ),
+    listActivity: async (id, from, to) =>
+      s.daily
+        .filter((d) => d.user_id === id && d.activity_date >= from && d.activity_date <= to)
+        .sort((a, b) => (a.activity_date < b.activity_date ? -1 : 1))
+        .map((d) => ({ activity_date: d.activity_date, attempts_count: d.attempts_count, correct_count: d.correct_count, total_time_ms: d.total_time_ms })),
     listDoubts: async (id, after, limit) =>
       keyset(s.doubts.filter((d) => d.user_id === id), (d) => [iso(d.created_at)], (d) => d.id, 'desc', after, limit),
   };

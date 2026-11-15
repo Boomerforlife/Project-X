@@ -114,3 +114,16 @@ describe('review-finding fixes (memory)', () => {
     expect(r.status).toBe(422);
   });
 });
+
+describe('B7: web revalidation config', () => {
+  const base = { APP_ENV: 'test', AUTH_MODE: 'test', TEST_JWT_SECRET: 'x'.repeat(32) };
+  it('requires a >= 32 char secret when WEB_REVALIDATE_URL is set', () => {
+    expect(() => parseConfig(base)).not.toThrow();
+    expect(() => parseConfig({ ...base, WEB_REVALIDATE_URL: 'http://localhost:3000/api/revalidate/' })).toThrow(/WEB_REVALIDATE_SECRET/);
+    expect(() => parseConfig({ ...base, WEB_REVALIDATE_URL: 'http://localhost:3000/api/revalidate/', WEB_REVALIDATE_SECRET: 'short' })).toThrow(/WEB_REVALIDATE_SECRET/);
+    expect(parseConfig({ ...base, WEB_REVALIDATE_URL: 'http://localhost:3000/api/revalidate/', WEB_REVALIDATE_SECRET: 'w'.repeat(32) }).WEB_REVALIDATE_URL).toBe('http://localhost:3000/api/revalidate/');
+  });
+  it('blank values (as in .env.example) are treated as unset', () => {
+    expect(() => parseConfig({ ...base, WEB_REVALIDATE_URL: '', WEB_REVALIDATE_SECRET: '' })).not.toThrow();
+  });
+});

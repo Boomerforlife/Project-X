@@ -632,6 +632,8 @@ export type Database = {
           last_activity_at: string
           created_at: string
           updated_at: string
+          ui_mode: string
+          time_limit_sec: number | null
         };
         Insert: {
           id?: string
@@ -654,6 +656,8 @@ export type Database = {
           last_activity_at?: string
           created_at?: string
           updated_at?: string
+          ui_mode?: string
+          time_limit_sec?: number | null
         };
         Update: {
           id?: string
@@ -676,6 +680,8 @@ export type Database = {
           last_activity_at?: string
           created_at?: string
           updated_at?: string
+          ui_mode?: string
+          time_limit_sec?: number | null
         };
         Relationships: [];
       };
@@ -690,6 +696,7 @@ export type Database = {
           onboarding_completed_at: string | null
           created_at: string
           updated_at: string
+          class_level: string | null
         };
         Insert: {
           id: string
@@ -701,6 +708,7 @@ export type Database = {
           onboarding_completed_at?: string | null
           created_at?: string
           updated_at?: string
+          class_level?: string | null
         };
         Update: {
           id?: string
@@ -712,6 +720,7 @@ export type Database = {
           onboarding_completed_at?: string | null
           created_at?: string
           updated_at?: string
+          class_level?: string | null
         };
         Relationships: [];
       };

@@ -147,7 +147,7 @@ export const SearchResultSchema = QuestionSummarySchema.extend({ rank: z.number(
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 
 export const SitemapEntrySchema = z
-  .object({ canonical_path: z.string(), updated_at: TsSchema })
+  .object({ canonical_path: z.string(), slug: SlugSchema, exam_slug: SlugSchema, updated_at: TsSchema })
   .openapi('SitemapEntry');
 export type SitemapEntry = z.infer<typeof SitemapEntrySchema>;
 
@@ -158,6 +158,7 @@ export const TaxonomyChapterSchema = ChapterRefSchema.extend({
   topic_count: z.int(),
   published_question_count: z.int(),
 }).openapi('TaxonomyChapter');
+export type TaxonomyExam = z.infer<typeof TaxonomyExamSchema>;
 export const TaxonomyTopicSchema = TopicRefSchema.extend({ published_question_count: z.int() }).openapi('TaxonomyTopic');
 export const TaxonomyTreeSchema = z
   .object({
@@ -167,3 +168,4 @@ export const TaxonomyTreeSchema = z
     ),
   })
   .openapi('TaxonomyTree');
+export type TaxonomyTree = z.infer<typeof TaxonomyTreeSchema>;

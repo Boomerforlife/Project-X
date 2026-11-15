@@ -93,6 +93,7 @@ R2_BUCKET_USER_UPLOADS = "projectx-user-uploads"
 #   IP_HASH_SECRET        HMAC secret for IP hashing
 #   CF_API_TOKEN_PURGE    token scoped to Cache Purge only (only when CACHE_PURGE_DRIVER = zone_api | both)
 #   SUPABASE_JWT_SECRET   only when AUTH_MODE = hs256
+#   WEB_REVALIDATE_SECRET shared with the web app's REVALIDATE_SECRET (set WEB_REVALIDATE_URL as a var; both optional)
 # Never set on the Worker: GEMINI_API_KEY, R2_* S3 keys, service-role key (operator machine only).
 
 # =====================================================================================================

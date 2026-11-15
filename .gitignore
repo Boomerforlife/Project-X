@@ -11,3 +11,12 @@ __pycache__/
 *.log
 coverage/
 *.egg-info/
+
+/.next/
+/out/
+*.tsbuildinfo
+next-env.d.ts
+.playwright-mcp/
+.open-next/
+.next/
+next-env.d.ts

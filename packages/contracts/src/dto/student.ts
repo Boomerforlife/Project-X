@@ -5,6 +5,9 @@ import { AppRoleSchema, DoubtStatusSchema } from '../enums';
 import { DateStringSchema, DecSchema, TsSchema, UuidSchema } from '../primitives';
 import { QuestionSummarySchema } from './public';
 
+export const ClassLevelSchema = z.enum(['11', '12', 'dropper']).openapi('ClassLevel');
+export type ClassLevel = z.infer<typeof ClassLevelSchema>;
+
 export const MeSchema = z
   .object({
     id: UuidSchema,
@@ -14,6 +17,8 @@ export const MeSchema = z
     target_exam: ExamRefSchema.nullable(),
     target_year: z.int().nullable(),
     daily_goal_attempts: z.int(),
+    class_level: ClassLevelSchema.nullable(),
+    onboarding_completed: z.boolean(),
     roles: z.array(AppRoleSchema),
     exam_preferences: z.array(
       z.object({ exam: ExamRefSchema, is_primary: z.boolean(), target_year: z.int().nullable() }),
@@ -125,3 +130,8 @@ export const UploadCreatedSchema = z
     url: z.string(),
   })
   .openapi('UploadCreated');
+
+export const ActivityDaySchema = z
+  .object({ date: DateStringSchema, attempts: z.int(), correct: z.int(), total_time_ms: z.number() })
+  .openapi('ActivityDay');
+export type ActivityDay = z.infer<typeof ActivityDaySchema>;

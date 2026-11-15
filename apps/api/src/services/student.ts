@@ -3,6 +3,7 @@ import type {
   BookmarkItem,
   DoubtItem,
   ExamPreferencesBody,
+  ActivityDay,
   Me,
   MistakeItem,
   PatchMeBody,
@@ -45,6 +46,8 @@ async function buildMe(store: Store, user: AuthUser, profile: ProfileRow, prefs:
     target_exam: target ? tax.examRef(target) : null,
     target_year: profile.target_year,
     daily_goal_attempts: profile.daily_goal_attempts,
+    class_level: profile.class_level,
+    onboarding_completed: profile.onboarding_completed_at !== null,
     roles,
     exam_preferences: prefs.flatMap((p) => {
       const e = tax.exams.get(p.exam_id);
@@ -72,6 +75,7 @@ export async function patchMe(store: Store, user: AuthUser, body: PatchMeBody): 
   if (body.timezone !== undefined) patch.timezone = body.timezone;
   if (body.target_year !== undefined) patch.target_year = body.target_year;
   if (body.daily_goal_attempts !== undefined) patch.daily_goal_attempts = body.daily_goal_attempts;
+  if (body.class_level !== undefined) patch.class_level = body.class_level;
   if (body.onboarding_completed) patch.onboarding_completed = true;
   if (body.target_exam !== undefined) {
     if (body.target_exam === null) patch.target_exam_id = null;
@@ -191,6 +195,28 @@ export async function streak(store: Store, user: AuthUser): Promise<Streak> {
     goal_met_today: todayAttempts >= goal,
     last_7_days: last7,
   };
+}
+
+const MAX_ACTIVITY_SPAN_DAYS = 400;
+const DEFAULT_ACTIVITY_DAYS = 120;
+const dayNumber = (d: string): number => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10))) / 86_400_000;
+const validDate = (d: string): boolean => !Number.isNaN(dayNumber(d)) && new Date(dayNumber(d) * 86_400_000).toISOString().slice(0, 10) === d;
+
+/** Per-day attempts/correct/time from `daily_activity` (RLS owner-select). Default: last 120 days in the user's timezone. */
+export async function activity(store: Store, user: AuthUser, q: { from?: string | undefined; to?: string | undefined }): Promise<ActivityDay[]> {
+  for (const [k, v] of [['from', q.from], ['to', q.to]] as const) {
+    if (v !== undefined && !validDate(v)) throw validation(`Invalid ${k} date`, [{ path: k, message: 'not a calendar date' }]);
+  }
+  const today = q.to ? undefined : (await store.service((r) => r.students.getStreak(user.id))).today;
+  const to = q.to ?? today!;
+  const from = q.from ?? shiftDate(to, -(DEFAULT_ACTIVITY_DAYS - 1));
+  const span = dayNumber(to) - dayNumber(from);
+  if (span < 0) throw validation('from must not be after to', [{ path: 'from', message: 'after to' }]);
+  if (span > MAX_ACTIVITY_SPAN_DAYS) {
+    throw validation(`Date range must not exceed ${MAX_ACTIVITY_SPAN_DAYS} days`, [{ path: 'to', message: `span > ${MAX_ACTIVITY_SPAN_DAYS} days` }]);
+  }
+  const rows = await store.user({ id: user.id, claims: user.claims }, (u) => u.user.listActivity(user.id, from, to));
+  return rows.map((d) => ({ date: d.activity_date, attempts: d.attempts_count, correct: d.correct_count, total_time_ms: d.total_time_ms }));
 }
 
 async function summariesFor(r: ServiceRepos, tax: TaxIndex, ids: string[]): Promise<Map<string, QuestionSummary>> {

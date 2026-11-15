@@ -304,8 +304,15 @@ export async function sitemapQuestions(store: Store, cursor: PageCursor | null, 
   return store.service(async (r) => {
     const rows = await r.content.sitemap(cursor, limit + 1);
     const page = paginate(rows, limit);
+    const tax = new TaxIndex(await r.taxonomy.load());
+    const data: SitemapEntry[] = [];
+    for (const x of page.rows) {
+      const exam = tax.exams.get(x.exam_id);
+      if (!exam) continue;
+      data.push({ canonical_path: questionPath(x.slug), slug: x.slug, exam_slug: exam.slug, updated_at: iso(x.updated_at) });
+    }
     return {
-      data: page.rows.map((x) => ({ canonical_path: questionPath(x.slug), updated_at: iso(x.updated_at) })),
+      data,
       meta: page.meta,
       tags: [cacheTags.sitemap],
     };
