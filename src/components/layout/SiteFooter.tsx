@@ -34,14 +34,24 @@ export async function SiteFooter() {
         ...(PAPERS_VISIBLE ? [{ href: "/tests/", label: "Mock tests" }] : []),
         { href: "/study-plans/", label: "Study plans" },
         { href: "/resources/", label: "Resources" },
+        { href: "/pricing/", label: "Pricing" },
         { href: "/login/", label: "Log in" },
+      ],
+    },
+    {
+      title: "Company",
+      links: [
+        { href: "/contact/", label: "Contact" },
+        { href: "/terms/", label: "Terms" },
+        { href: "/privacy/", label: "Privacy" },
+        { href: "/refund-policy/", label: "Refunds" },
       ],
     },
   ];
 
   return (
     <footer data-chrome className="mt-24 border-t border-line">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_repeat(3,1fr)]">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_repeat(4,1fr)]">
         <div className="space-y-3">
           <Wordmark />
           <p className="max-w-xs text-sm text-fg-muted">{SITE.tagline}.</p>

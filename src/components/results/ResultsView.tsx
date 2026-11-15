@@ -1,5 +1,6 @@
 "use client";
 
+import { PremiumUpgradePrompt } from "@/components/billing/PremiumUpgradePrompt";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -314,6 +315,9 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
           </ol>
         )}
       </section>
+      <div className="mt-10">
+        <PremiumUpgradePrompt context="results" />
+      </div>
     </div>
   );
 }

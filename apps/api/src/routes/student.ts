@@ -1,4 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
+import * as billing from '../billing/service';
+import { billingDeps } from '../billing/routes';
 import {
   ActivityDaySchema,
   ActivityQuery,
@@ -63,7 +65,11 @@ export function registerPractice(app: App, g: Guards): void {
   })(g);
   app.openapi(create, async (c: Ctx) => {
     const body = valid(c, 'json', CreateSessionBody);
+    const fullPaper = body.mode === 'PYQ_PAPER';
+    // Free plan: monthly full-paper allowance (billing module; no-op while payments are disabled).
+    if (fullPaper) await billing.assertFullPaperAllowed(billingDeps(c), requireUser(c).id, body.client_request_id);
     const r = await practice.createSession(store(c), deps(c), requireUser(c), body);
+    if (fullPaper && r.created) await billing.recordFullPaper(billingDeps(c), requireUser(c).id, body.client_request_id);
     return send(c, r.created ? 201 : 200, r.data, r.created ? {} : { meta: { replayed: true } });
   });
 

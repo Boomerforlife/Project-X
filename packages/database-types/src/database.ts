@@ -70,6 +70,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      analytics_daily: {
+        Row: {
+          day: string
+          event: string
+          dim: string
+          count: number
+        };
+        Insert: {
+          day: string
+          event: string
+          dim?: string
+          count?: number
+        };
+        Update: {
+          day?: string
+          event?: string
+          dim?: string
+          count?: number
+        };
+        Relationships: [];
+      };
       attempts: {
         Row: {
           id: string
@@ -165,6 +186,312 @@ export type Database = {
           request_id?: string | null
           ip_hash?: string | null
           details?: Json | null
+          created_at?: string
+        };
+        Relationships: [];
+      };
+      billing_entitlements: {
+        Row: {
+          id: string
+          user_id: string
+          source: Database['public']['Enums']['billing_entitlement_source']
+          order_id: string | null
+          starts_at: string
+          ends_at: string
+          revoked_at: string | null
+          note: string | null
+          created_by: string | null
+          created_at: string
+        };
+        Insert: {
+          id?: string
+          user_id: string
+          source: Database['public']['Enums']['billing_entitlement_source']
+          order_id?: string | null
+          starts_at: string
+          ends_at: string
+          revoked_at?: string | null
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+        };
+        Update: {
+          id?: string
+          user_id?: string
+          source?: Database['public']['Enums']['billing_entitlement_source']
+          order_id?: string | null
+          starts_at?: string
+          ends_at?: string
+          revoked_at?: string | null
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+        };
+        Relationships: [];
+      };
+      billing_events: {
+        Row: {
+          id: string
+          type: string
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          payload: Json
+          received_at: string
+          processed_at: string | null
+          outcome: string | null
+          error: string | null
+        };
+        Insert: {
+          id: string
+          type: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          payload: Json
+          received_at?: string
+          processed_at?: string | null
+          outcome?: string | null
+          error?: string | null
+        };
+        Update: {
+          id?: string
+          type?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          payload?: Json
+          received_at?: string
+          processed_at?: string | null
+          outcome?: string | null
+          error?: string | null
+        };
+        Relationships: [];
+      };
+      billing_full_paper_usage: {
+        Row: {
+          user_id: string
+          client_request_id: string
+          period: string
+          created_at: string
+        };
+        Insert: {
+          user_id: string
+          client_request_id: string
+          period: string
+          created_at?: string
+        };
+        Update: {
+          user_id?: string
+          client_request_id?: string
+          period?: string
+          created_at?: string
+        };
+        Relationships: [];
+      };
+      billing_orders: {
+        Row: {
+          id: string
+          user_id: string | null
+          client_request_id: string | null
+          plan_code: string
+          amount_paise: number
+          list_price_paise: number
+          currency: string
+          promo_code: string | null
+          payer: string
+          payment_link_id: string | null
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          status: Database['public']['Enums']['billing_order_status']
+          refund_requested_at: string | null
+          created_at: string
+          paid_at: string | null
+          failed_at: string | null
+          refunded_at: string | null
+          receipt: string
+        };
+        Insert: {
+          id?: string
+          user_id?: string | null
+          client_request_id?: string | null
+          plan_code: string
+          amount_paise: number
+          list_price_paise: number
+          currency?: string
+          promo_code?: string | null
+          payer?: string
+          payment_link_id?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          status?: Database['public']['Enums']['billing_order_status']
+          refund_requested_at?: string | null
+          created_at?: string
+          paid_at?: string | null
+          failed_at?: string | null
+          refunded_at?: string | null
+          receipt: string
+        };
+        Update: {
+          id?: string
+          user_id?: string | null
+          client_request_id?: string | null
+          plan_code?: string
+          amount_paise?: number
+          list_price_paise?: number
+          currency?: string
+          promo_code?: string | null
+          payer?: string
+          payment_link_id?: string | null
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          status?: Database['public']['Enums']['billing_order_status']
+          refund_requested_at?: string | null
+          created_at?: string
+          paid_at?: string | null
+          failed_at?: string | null
+          refunded_at?: string | null
+          receipt?: string
+        };
+        Relationships: [];
+      };
+      billing_payment_links: {
+        Row: {
+          id: string
+          token: string
+          user_id: string
+          plan_code: string
+          created_at: string
+          expires_at: string
+          paid_order_id: string | null
+        };
+        Insert: {
+          id?: string
+          token: string
+          user_id: string
+          plan_code: string
+          created_at?: string
+          expires_at: string
+          paid_order_id?: string | null
+        };
+        Update: {
+          id?: string
+          token?: string
+          user_id?: string
+          plan_code?: string
+          created_at?: string
+          expires_at?: string
+          paid_order_id?: string | null
+        };
+        Relationships: [];
+      };
+      billing_plans: {
+        Row: {
+          code: string
+          name: string
+          price_paise: number
+          currency: string
+          duration_days: number
+          badge: string | null
+          launch_only: boolean
+          active: boolean
+          sort_order: number
+          features: string[]
+          created_at: string
+          updated_at: string
+        };
+        Insert: {
+          code: string
+          name: string
+          price_paise: number
+          currency?: string
+          duration_days: number
+          badge?: string | null
+          launch_only?: boolean
+          active?: boolean
+          sort_order?: number
+          features?: string[]
+          created_at?: string
+          updated_at?: string
+        };
+        Update: {
+          code?: string
+          name?: string
+          price_paise?: number
+          currency?: string
+          duration_days?: number
+          badge?: string | null
+          launch_only?: boolean
+          active?: boolean
+          sort_order?: number
+          features?: string[]
+          created_at?: string
+          updated_at?: string
+        };
+        Relationships: [];
+      };
+      billing_promo_codes: {
+        Row: {
+          code: string
+          percent_off: number | null
+          amount_off_paise: number | null
+          plan_codes: string[] | null
+          max_redemptions: number | null
+          redeemed: number
+          new_users_only: boolean
+          valid_from: string | null
+          valid_to: string | null
+          active: boolean
+          note: string | null
+          created_by: string | null
+          created_at: string
+        };
+        Insert: {
+          code: string
+          percent_off?: number | null
+          amount_off_paise?: number | null
+          plan_codes?: string[] | null
+          max_redemptions?: number | null
+          redeemed?: number
+          new_users_only?: boolean
+          valid_from?: string | null
+          valid_to?: string | null
+          active?: boolean
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+        };
+        Update: {
+          code?: string
+          percent_off?: number | null
+          amount_off_paise?: number | null
+          plan_codes?: string[] | null
+          max_redemptions?: number | null
+          redeemed?: number
+          new_users_only?: boolean
+          valid_from?: string | null
+          valid_to?: string | null
+          active?: boolean
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+        };
+        Relationships: [];
+      };
+      billing_promo_redemptions: {
+        Row: {
+          code: string
+          user_id: string
+          order_id: string
+          created_at: string
+        };
+        Insert: {
+          code: string
+          user_id: string
+          order_id: string
+          created_at?: string
+        };
+        Update: {
+          code?: string
+          user_id?: string
+          order_id?: string
           created_at?: string
         };
         Relationships: [];
@@ -1569,6 +1896,8 @@ export type Database = {
       answer_key_source: 'OFFICIAL' | 'HUMAN' | 'AI_CONSENSUS';
       app_role: 'ADMIN' | 'REVIEWER';
       asset_kind: 'IMAGE' | 'DIAGRAM' | 'TABLE_IMAGE' | 'ORIGINAL_CROP';
+      billing_entitlement_source: 'PURCHASE' | 'PROMO' | 'SUPPORT_GRANT';
+      billing_order_status: 'CREATED' | 'PAID' | 'FAILED' | 'REFUNDED';
       check_kind: 'OFFICIAL_KEY_MATCH' | 'INDEPENDENT_ANSWER_AGREEMENT' | 'SYMPY_CHECK' | 'AI_CRITIQUE' | 'CONTENT_COMPLETENESS' | 'CLASSIFICATION_CONFIDENCE';
       check_result: 'PASS' | 'FAIL' | 'INCONCLUSIVE' | 'SKIPPED' | 'ERROR';
       difficulty: 'EASY' | 'MEDIUM' | 'HARD';
@@ -1608,6 +1937,8 @@ export const enumValues = {
   answer_key_source: ['OFFICIAL', 'HUMAN', 'AI_CONSENSUS'],
   app_role: ['ADMIN', 'REVIEWER'],
   asset_kind: ['IMAGE', 'DIAGRAM', 'TABLE_IMAGE', 'ORIGINAL_CROP'],
+  billing_entitlement_source: ['PURCHASE', 'PROMO', 'SUPPORT_GRANT'],
+  billing_order_status: ['CREATED', 'PAID', 'FAILED', 'REFUNDED'],
   check_kind: ['OFFICIAL_KEY_MATCH', 'INDEPENDENT_ANSWER_AGREEMENT', 'SYMPY_CHECK', 'AI_CRITIQUE', 'CONTENT_COMPLETENESS', 'CLASSIFICATION_CONFIDENCE'],
   check_result: ['PASS', 'FAIL', 'INCONCLUSIVE', 'SKIPPED', 'ERROR'],
   difficulty: ['EASY', 'MEDIUM', 'HARD'],

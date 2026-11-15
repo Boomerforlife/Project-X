@@ -1,5 +1,6 @@
 "use client";
 
+import { PremiumUpgradePrompt } from "@/components/billing/PremiumUpgradePrompt";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -188,6 +189,10 @@ function Dashboard({ s, user }: { s: DemoState; user: DemoUser }) {
           <TodayPanel s={s} user={user} />
         </div>
       </section>
+
+      <div className="pb-10">
+        <PremiumUpgradePrompt context="dashboard" />
+      </div>
 
       <Performance s={s} user={user} onStart={start} />
       <Momentum s={s} user={user} />

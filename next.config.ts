@@ -30,17 +30,21 @@ function buildCspHeaders(): { key: string; value: string }[] {
   const supabaseOrigin = originOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
   if (apiOrigin) connect.add(apiOrigin);
   if (supabaseOrigin) connect.add(supabaseOrigin);
+  // Razorpay Checkout (pricing, /billing/*, /pay/*): script + iframe + its telemetry endpoint.
+  const razorpay = ["https://checkout.razorpay.com", "https://api.razorpay.com", "https://lumberjack.razorpay.com"];
+  for (const o of razorpay) connect.add(o);
 
   const enforced = ["frame-ancestors 'none'", "base-uri 'self'", "object-src 'none'", "form-action 'self'"].join("; ");
 
   const reportOnly = [
     "default-src 'self'",
-    "script-src 'self'", // no 'unsafe-inline': inline scripts will be reported (expected until nonce/hash is in place)
+    "script-src 'self' https://checkout.razorpay.com", // no 'unsafe-inline': inline scripts will be reported (expected until nonce/hash is in place)
     "style-src 'self' 'unsafe-inline'", // React style attributes + KaTeX
     // Question/solution images are served from the public-assets custom domain (origin not known to the web build).
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:", // next/font and KaTeX fonts are self-hosted
     `connect-src ${[...connect].join(" ")}`,
+    "frame-src https://api.razorpay.com https://checkout.razorpay.com",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "frame-ancestors 'none'",

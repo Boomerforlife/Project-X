@@ -1,5 +1,6 @@
 "use client";
 
+import { BillingSection } from "@/components/billing/BillingSection";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Kitty } from "@/components/brand/Kitty";
@@ -462,6 +463,7 @@ function Account({ s }: { s: S }) {
           </div>
         </Card>
         )}
+        <BillingSection />
       </div>
 
       <Dialog open={reset} onClose={() => setReset(false)} title="Reset sample history?">

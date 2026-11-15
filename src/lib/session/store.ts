@@ -12,6 +12,8 @@
  * (`projectx-drafts-v1:*`), review list and mistake categories
  * (`projectx-prefs-v1:*`), and flagged demo paper attempts.
  */
+import { track } from "@/lib/analytics";
+import { QuotaExceededError, type QuotaDetails } from "@/lib/billing/quota";
 import { useSyncExternalStore } from "react";
 import type { ExamId, Question, Response, SubjectId, Solution } from "@/contracts";
 import { toast } from "@/components/ui/Toast";
@@ -446,9 +448,11 @@ export async function startPractice(opts: StartOpts): Promise<string> {
     const attempt: Attempt = { ...a, mode: opts.mode, title: opts.title || a.title, durationSec: opts.durationSec ?? a.durationSec, scope: opts.scope ?? a.scope, startedAt: created.session.started_at };
     if (userId) writeDraft(userId, attempt.id, { v: 1, current: 0, elapsedSec: 0, savedAt: new Date().toISOString(), responses: {}, mode: opts.mode, durationSec: attempt.durationSec, title: attempt.title });
     patchState((s) => ({ ...s, attempts: { ...s.attempts, [attempt.id]: attempt } }));
+    track("session_started", { mode: opts.mode });
     return attempt.id;
   } catch (e) {
     if (isApiError(e) && e.status === 422 && (e.details as { reason?: string } | undefined)?.reason === "NO_QUESTIONS") throw new NoQuestionsError();
+    if (isApiError(e) && e.code === "QUOTA_EXCEEDED") throw new QuotaExceededError(e.details as QuotaDetails);
     handleError(e, "start");
     throw e;
   }
@@ -745,7 +749,10 @@ export async function submitAttempt(attemptId: string): Promise<boolean> {
     setSubmit({ phase: "running", done, total });
   }
   try {
-    if (!attemptId.startsWith("single_")) await api.completeSession(attemptId);
+    if (!attemptId.startsWith("single_")) {
+      await api.completeSession(attemptId);
+      track("session_completed");
+    }
   } catch (e) {
     if (!(isApiError(e) && e.code === "INVALID_STATE_TRANSITION")) {
       setSubmit({ phase: "paused", done, total, message: "Couldn't finish the session yet. Retry to complete it." });

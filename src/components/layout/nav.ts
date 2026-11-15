@@ -5,6 +5,7 @@ export const PRIMARY_NAV = [
   { href: "/jee/pyq/", label: "PYQs", match: ["/jee/pyq", "/neet/pyq"] },
   { href: "/study-plans/", label: "Plans", match: ["/study-plans"] },
   { href: "/resources/", label: "Resources", match: ["/resources"] },
+  { href: "/pricing/", label: "Pricing", match: ["/pricing"] },
 ] as const;
 
 /** Signed-in navigation (CLAUDE.md §9: minimal top nav, practice first). */

@@ -1,5 +1,6 @@
 "use client";
 
+import { QuotaExceededError } from "@/lib/billing/quota";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -44,7 +45,12 @@ function useStart() {
     try {
       const id = await startPaper(paperId, mode, retryOf);
       router.push(mode === "cbt" ? `/cbt/?id=${id}` : `/practice/session/?id=${id}`);
-    } catch {
+    } catch (e) {
+      if (e instanceof QuotaExceededError) {
+        const q = new URLSearchParams({ used: String(e.details.used), limit: String(e.details.limit), resets: e.details.resets_on });
+        router.push(`/tests/limit/?${q.toString()}`);
+        return;
+      }
       toast("Couldn't start that paper. Please try again.", { icon: "alert", tone: "warn" });
     }
   };

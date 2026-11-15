@@ -32,11 +32,19 @@ const EnvSchema = z.object({
   WEB_REVALIDATE_SECRET: z.string().optional(),
   RATE_LIMIT_DRIVER: z.enum(['memory', 'cloudflare', 'noop']).default('memory'),
   API_VERSION: z.string().default('0.1.0'),
+  // ---- billing (Tabby Plus, Razorpay one-time Orders). Disabled unless all three Razorpay values are set.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  BILLING_ALLOW_LIVE: bool.default(false),
+  FREE_FULL_PAPERS_PER_MONTH: z.coerce.number().int().min(0).max(100).default(2),
+  WEB_BASE_URL: z.string().url().optional(),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema> & {
   corsOrigins: string[];
   jwtIssuer: string | null;
+  billingEnabled: boolean;
 };
 
 /** Parse + validate environment. Throws with a readable message on invalid config. */
@@ -63,11 +71,17 @@ export function parseConfig(env: Record<string, unknown>): AppConfig {
   if (c.WEB_REVALIDATE_URL && (c.WEB_REVALIDATE_SECRET ?? '').length < 32) {
     throw new Error('WEB_REVALIDATE_SECRET (>= 32 chars) is required when WEB_REVALIDATE_URL is set');
   }
+  const rzp = [c.RAZORPAY_KEY_ID, c.RAZORPAY_KEY_SECRET, c.RAZORPAY_WEBHOOK_SECRET].filter(Boolean).length;
+  if (rzp !== 0 && rzp !== 3) throw new Error('Billing needs all of RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET (or none)');
+  if (c.RAZORPAY_KEY_ID?.startsWith('rzp_live_') && !c.BILLING_ALLOW_LIVE) {
+    throw new Error('Live Razorpay keys are refused unless BILLING_ALLOW_LIVE=true (launch is test mode only)');
+  }
   const issuer = c.SUPABASE_JWT_ISSUER ?? (c.SUPABASE_URL ? `${c.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1` : null);
   return {
     ...c,
     corsOrigins: c.CORS_ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     jwtIssuer: issuer,
+    billingEnabled: rzp === 3,
   };
 }
 
