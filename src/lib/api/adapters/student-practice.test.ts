@@ -148,7 +148,7 @@ describe("student client", () => {
 
   it("sends the bearer token, no-store, idempotency key and builds query strings", async () => {
     setTokenProvider(async () => "tok-1");
-    const f = vi.fn(async (_u: string, _i?: RequestInit) => new Response(JSON.stringify({ data: [], meta: { page: { next_cursor: "c2", limit: 5 } } }), { headers: { "Content-Type": "application/json" } }));
+    const f = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ data: [], meta: { page: { next_cursor: "c2", limit: 5 } } }), { headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", f);
     const r = await student.listSessions({ status: ["ACTIVE", "COMPLETED"], limit: 5 });
     expect(r.nextCursor).toBe("c2");

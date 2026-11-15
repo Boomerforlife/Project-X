@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The web lint covers the Next.js app only, matching the root tsconfig scope
+    // (commit 12e71bd). Backend workspaces are checked by their own `tsc --noEmit`.
+    "apps/**",
+    "packages/**",
+    "workers/**",
+    ".open-next/**",
   ]),
 ]);
 
