@@ -33,3 +33,20 @@ Database URL = Supabase transaction pooler (port 6543) held in Secret Manager `d
   Payment endpoints (later) should use a shared class.
 * **Fetcher/ingestion can write to Cloud Storage.** `pxw --storage gcs` with `GCS_BUCKET_SOURCE_DOCS/PUBLIC_ASSETS/USER_UPLOADS`
   (optional extra `pip install -e "workers[gcs]"`). Auth = Application Default Credentials. Verified with a real put/get/delete.
+
+## Website on Cloud Run + API from `main` (2026-11-16)
+Hosting decision: commercial use (Razorpay) rules out Vercel Hobby, so the website runs on Cloud Run next to the API.
+* **Web** `projectx-web` -> https://projectx-web-989800061583.asia-south1.run.app (image `web:web-staging-1`, service account
+  `projectx-web@…` with access to `web-revalidate-secret` only). Build: `cloudbuild.web.yaml`; deploy: `infra/gcp/deploy-web-staging.sh`.
+* **API** `projectx-api` revision from `main` (`api:staging-5`): billing and analytics endpoints live; `WEB_BASE_URL`,
+  `WEB_REVALIDATE_URL`/`WEB_REVALIDATE_SECRET` and the web origin in CORS are set by `infra/gcp/deploy-api-staging.sh`.
+* **Billing is OFF** until `infra/gcp/set-razorpay-secrets.ps1` stores the three Razorpay test secrets; then redeploy the API.
+  Live keys stay refused unless `BILLING_ALLOW_LIVE=true`.
+* Verified live: home/hub/chapter/pricing/login 200; pricing shows server prices and "Payments are not open yet";
+  robots allows crawling but every page is noindex and the sitemap is empty (`NEXT_PUBLIC_ALLOW_INDEXING=false`);
+  AI-checked question URLs 404; `/api/revalidate/` refuses a wrong secret (401); dev token route 404; API CORS allows the web origin.
+* Build gotchas fixed: the web build prerenders against the live API, so it must be deployed AFTER the API it calls;
+  it used to prerender 433 practice-only pages and hit the API's public rate limit (429) - those pages are no longer built,
+  and server-side fetches now wait out 429s. `Dockerfile.web` no longer fails when there is no `public/` folder.
+* Network note: if `gcloud builds submit` keeps crashing with ConnectionResetError, use the regional endpoint
+  `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://asia-south1-cloudbuild.googleapis.com/` with `--async`.
