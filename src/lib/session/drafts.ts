@@ -59,6 +59,21 @@ export function deleteDraft(userId: string, sessionId: string) {
   }
 }
 
+/** Remove every draft of a user (sign-out on a shared device). */
+export function clearUserDrafts(userId: string) {
+  try {
+    const prefix = `projectx-drafts-v1:${userId}:`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(prefix)) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function newClientId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   // Fallback for very old browsers: RFC 4122 v4 from Math.random (only used as an idempotency id).

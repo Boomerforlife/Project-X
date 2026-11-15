@@ -2,12 +2,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import type { PracticeQuestion, PublicSolution } from "../schemas";
 import { Question, Solution } from "@/contracts";
 import { setTokenProvider } from "../auth";
 import {
   ActivityDaySchema,
   AttemptResultSchema,
   BookmarkItemSchema,
+  PracticeQuestionSchema,
   MeSchema,
   MistakeItemSchema,
   SessionCreatedSchema,
@@ -17,6 +19,7 @@ import {
   envelope,
 } from "../schemas";
 import * as student from "../student";
+import { solutionFromApi } from "./content";
 import { fromAnswerResponse, fromAttemptResult, isValidDecimal, sectionsFor, toAnswerResponse, toPracticeQuestion } from "./practice";
 import { toBookmarks, toDayActivity, toDemoUser, toMistakeRecords } from "./student";
 
@@ -170,5 +173,118 @@ describe("student client", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
     await expect(student.removeBookmark("q1")).resolves.toBeUndefined();
     await expect(student.dismissMistake("q1")).resolves.toBeUndefined();
+  });
+});
+
+/* ---- ported from the removed session/convert tests (hand-built practice question) ---- */
+
+const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const pqExam = { id: U(1), slug: "jee-main", name: "JEE Main", short_name: "Main" };
+const pqSubject = { id: U(2), slug: "jee-main-physics", segment: "physics", name: "Physics", code: "PHYSICS" as const };
+const pqChapter = { id: U(3), slug: "jee-main-physics-kinematics", segment: "kinematics", name: "Kinematics", unit_number: 1 };
+
+const pq = {
+  id: U(10),
+  slug: "q-one",
+  question_type: "SINGLE_MCQ",
+  difficulty: "EASY",
+  marks: "4",
+  negative_marks: "1",
+  content: [{ type: "paragraph", text: "Find $v$." }],
+  options: [
+    { id: U(21), label: "A", content: [{ type: "paragraph", text: "1" }] },
+    { id: U(22), label: "B", content: [{ type: "paragraph", text: "2" }] },
+  ],
+  exam: pqExam,
+  subject: pqSubject,
+  chapter: pqChapter,
+  topic: null,
+  attribution: { origin: "EDITORIAL", year: null, paper_title: null },
+} as PracticeQuestion;
+
+describe("practice question conversion (hand-built)", () => {
+  it("round-trips the contract schema", () => {
+    expect(PracticeQuestionSchema.safeParse(pq).success).toBe(true);
+  });
+
+  it("maps option labels to ids and refs without computing any answer", () => {
+    const q = toPracticeQuestion(pq);
+    expect(q.type).toBe("single_correct");
+    expect(q.subject).toBe("physics");
+    expect(q.chapter).toBe("kinematics");
+    expect(q.options.map((o) => [o.id, o.ref])).toEqual([
+      ["A", U(21)],
+      ["B", U(22)],
+    ]);
+    expect(q.stem).toBe("Find $v$.");
+    expect(q.verification.status).toBe("processed");
+  });
+
+  it("throws on an unknown exam so callers can skip the item", () => {
+    expect(() => toPracticeQuestion({ ...pq, exam: { ...pqExam, slug: "gate" } })).toThrow();
+  });
+
+  it("sends option uuids for single, multi and a validated decimal for numerical", () => {
+    const q = toPracticeQuestion(pq);
+    expect(toAnswerResponse(q, { optionIds: ["B"] })).toEqual({ type: "SINGLE_MCQ", option_id: U(22) });
+    const multi = { ...q, type: "multiple_correct" as const };
+    expect(toAnswerResponse(multi, { optionIds: ["A", "B"] })).toEqual({ type: "MULTI_MCQ", option_ids: [U(21), U(22)] });
+    const num = { ...q, type: "numerical" as const, options: [] };
+    expect(toAnswerResponse(num, { value: "-2.5" })).toEqual({ type: "NUMERICAL", value: "-2.5" });
+    expect(toAnswerResponse(num, { value: "1e3" })).toBeNull();
+    expect(toAnswerResponse(num, { value: "." })).toBeNull();
+    expect(toAnswerResponse(q, { optionIds: ["Z"] })).toBeNull();
+  });
+
+  it("maps stored responses back to labels", () => {
+    const q = toPracticeQuestion(pq);
+    expect(fromAnswerResponse(q, { type: "SINGLE_MCQ", option_id: U(21) })).toEqual({ optionIds: ["A"] });
+    expect(fromAnswerResponse(q, { type: "NUMERICAL", value: "3" })).toEqual({ value: "3" });
+  });
+
+  it("validates decimals the way the API does", () => {
+    for (const ok of ["0", "-1", "12.50"]) expect(isValidDecimal(ok)).toBe(true);
+    for (const bad of ["", " ", "1.", ".5", "1,5", "abc", "--1"]) expect(isValidDecimal(bad)).toBe(false);
+  });
+});
+
+describe("solutionFromApi for practice results (provenance override)", () => {
+  const base = {
+    id: U(30),
+    version: 1,
+    summary: null,
+    steps: [{ index: 1, title: null, blocks: [{ type: "paragraph" as const, text: "Because." }] }],
+    formulas: [],
+    concepts: [],
+    alternatives: [],
+    shortcuts: [],
+    common_mistakes: [],
+    approved_at: null,
+  };
+  const labels = new Map([
+    [U(21), "A"],
+    [U(22), "B"],
+  ]);
+  const sol = (provenance: string, final_answer: unknown) => ({ ...base, provenance, final_answer }) as PublicSolution;
+
+  it("single answer uses the server label and never claims an official key", () => {
+    const s = solutionFromApi(pq.id, sol("AI_GENERATED", { type: "SINGLE_MCQ", correct_option_ids: [U(22)], correct_labels: ["B"] }), "processed", labels, "unknown");
+    expect(s.answer).toEqual({ type: "single_correct", optionId: "B" });
+    expect(s.answerProvenance).toBe("unknown");
+    expect(s.generatedBy).toBe("ai");
+    expect(s.steps[0]).toMatchObject({ body: "Because." });
+  });
+
+  it("falls back to option refs when labels are missing; numerical keeps the display string", () => {
+    const s1 = solutionFromApi(pq.id, sol("OFFICIAL", { type: "SINGLE_MCQ", correct_option_ids: [U(21)] }), "processed", labels, "unknown");
+    expect(s1.answer).toEqual({ type: "single_correct", optionId: "A" });
+    expect(s1.generatedBy).toBe("official");
+    const s2 = solutionFromApi(pq.id, sol("HUMAN_AUTHORED", { type: "NUMERICAL", accepted_ranges: [{ min: "2", max: "2" }], display_value: "2.50" }), "processed", labels, "unknown");
+    expect(s2.answer).toMatchObject({ type: "numerical", value: 2.5, display: "2.50" });
+  });
+
+  it("without the override the adapter derives provenance from verification", () => {
+    const s = solutionFromApi(pq.id, sol("AI_GENERATED", { type: "SINGLE_MCQ", correct_option_ids: [U(22)] }), "processed", labels);
+    expect(s.answerProvenance).toBe("derived");
   });
 });

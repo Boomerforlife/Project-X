@@ -17,3 +17,6 @@ coverage/
 *.tsbuildinfo
 next-env.d.ts
 .playwright-mcp/
+.open-next/
+.next/
+next-env.d.ts

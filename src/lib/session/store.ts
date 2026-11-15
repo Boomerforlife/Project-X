@@ -13,7 +13,7 @@
  * (`projectx-prefs-v1:*`), and flagged demo paper attempts.
  */
 import { useSyncExternalStore } from "react";
-import type { ExamId, Response, SubjectId } from "@/contracts";
+import type { ExamId, Question, Response, SubjectId, Solution } from "@/contracts";
 import { toast } from "@/components/ui/Toast";
 import { examFromApi, examToApi, subjectFromApi } from "@/lib/api/adapters/ids";
 import { setTokenProvider } from "@/lib/api/auth";
@@ -24,9 +24,13 @@ import { catalog } from "@/lib/data/catalog";
 import { dayKey, daysAgo } from "@/lib/demo/dates";
 import { EXAMS } from "@/lib/exams";
 import type { Attempt, AttemptSection, DemoState, DemoUser, MistakeCategory, MistakeRecord } from "@/lib/demo/types";
-import { api, type AttemptResultX, type MeX, type SessionDetailX, type SessionListItemX } from "./client";
-import { fromAnswerResponse, toAnswerResponse, toQuestion, toSolution } from "./convert";
-import { deleteDraft, newClientId, readDraft, writeDraft, type Draft } from "./drafts";
+import * as api from "@/lib/api/student";
+import { publicQuestion } from "@/lib/api/public";
+import type { AttemptResult, MistakeItem, PatchMeInput, PublicSolution, SessionDetail, SessionListItem } from "@/lib/api/schemas";
+import { toQuestion as publicToQuestion, solutionFromApi } from "@/lib/api/adapters/content";
+import { fromAnswerResponse, toAnswerResponse, toPracticeQuestion } from "@/lib/api/adapters/practice";
+import { toDayActivity, toDemoUser, toMistakeRecords } from "@/lib/api/adapters/student";
+import { clearUserDrafts, deleteDraft, newClientId, readDraft, writeDraft, type Draft } from "./drafts";
 import { DEFAULT_PREFS, readPrefs, writePrefs, type Prefs } from "./prefs";
 import { registry } from "./registry";
 
@@ -119,6 +123,7 @@ function signedOut() {
   registry.clear();
   submits.clear();
   pending.clear();
+  reservedIds.clear();
   status = "signedOut";
   statusMessage = "";
   state = EMPTY;
@@ -141,7 +146,7 @@ async function doRefresh() {
     userId = me.id;
     prefs = readPrefs(me.id);
     for (const stub of Object.values(prefs.reviewStubs)) if (!registry.getQuestion(stub.id)) registry.putQuestion(stub);
-    const user = toUser(me, prefs);
+    const user = toDemoUser(me, prefs);
     status = "ready";
     statusMessage = "";
     set({ ...EMPTY, user, review: prefs.review, attempts: loadLocalPapers(me.id) });
@@ -154,30 +159,7 @@ async function doRefresh() {
   }
 }
 
-export function toUser(me: MeX, p: Prefs): DemoUser {
-  const exam = me.target_exam ? examFromApi(me.target_exam.slug) : null;
-  return {
-    name: me.display_name?.trim() || me.email?.split("@")[0] || "Student",
-    exam: exam ?? "jee-main",
-    classLevel: me.class_level ?? "12",
-    dailyGoal: me.daily_goal_attempts,
-    // Before the backend returns `onboarding_completed`, a chosen target exam is the best signal.
-    onboarded: me.onboarding_completed ?? Boolean(me.target_exam),
-    joinedAt: me.created_at,
-    showOnLeaderboard: p.showOnLeaderboard,
-    cosmetic: p.cosmetic,
-  };
-}
-
 /* ------------------------------------------------------- derived server data */
-
-const xpOf = (answered: number, correct: number) => 10 * correct + 2 * (answered - correct);
-
-function activityFrom(rows: { date: string; attempts: number; correct: number; total_time_ms: number }[]): DemoState["activity"] {
-  const out: DemoState["activity"] = {};
-  for (const r of rows) out[r.date] = { answered: r.attempts, correct: r.correct, xp: xpOf(r.attempts, r.correct), seconds: Math.round(r.total_time_ms / 1000), subjects: {} };
-  return out;
-}
 
 function subjectOf(segment: string, name?: string): SubjectId | null {
   return subjectFromApi(segment, name)?.subject ?? null;
@@ -189,9 +171,9 @@ async function loadPrivate(exam: ExamId) {
     api.progress(examToApi(exam)),
     api.streak(),
     api.activity(from, dayKey()),
-    api.bookmarks(),
-    api.mistakes(),
-    api.listSessions(),
+    api.listBookmarks({ limit: 100 }).then((r) => r.data),
+    api.listMistakes({ status: "all", limit: 100 }).then((r) => r.data),
+    api.listSessions({ status: ["ACTIVE", "COMPLETED"], limit: 10 }).then((r) => r.data),
   ]);
   const all = [progress, streak, activity, bookmarks, mistakes];
   for (const r of all) if (r.status === "rejected" && isApiError(r.reason) && r.reason.status === 401) return signedOut();
@@ -232,11 +214,12 @@ async function loadPrivate(exam: ExamId) {
       }
       next.server = { ...next.server!, chapters, subjects, weak };
     }
-    if (activity.status === "fulfilled") next.activity = activityFrom(activity.value);
+    if (activity.status === "fulfilled") next.activity = toDayActivity(activity.value);
     if (bookmarks.status === "fulfilled") {
       next.bookmarks = Object.fromEntries(bookmarks.value.map((b) => (registry.stubFromSummary(b.question), [b.question.id, b.created_at])));
     }
     if (mistakes.status === "fulfilled") next.mistakes = mistakesFrom(mistakes.value);
+    // (mistakesFrom applies the local category overlay and registers list stubs)
     return next;
   });
   registry.touch();
@@ -244,19 +227,11 @@ async function loadPrivate(exam: ExamId) {
   if (sessions.status === "fulfilled") void hydrateSessions(sessions.value);
 }
 
-function mistakesFrom(items: { question: Parameters<typeof registry.stubFromSummary>[0]; wrong_count: number; last_wrong_at: string; resolved_at: string | null }[]): Record<string, MistakeRecord> {
-  const out: Record<string, MistakeRecord> = {};
+function mistakesFrom(items: MistakeItem[]): Record<string, MistakeRecord> {
+  const out = toMistakeRecords(items);
   for (const m of items) {
     registry.stubFromSummary(m.question);
-    out[m.question.id] = {
-      questionId: m.question.id,
-      attemptId: "",
-      at: m.last_wrong_at,
-      category: prefs.categories[m.question.id] ?? null,
-      status: m.resolved_at ? "resolved" : "open",
-      resolvedAt: m.resolved_at,
-      reattempts: Math.max(0, m.wrong_count - 1),
-    };
+    out[m.question.id] = { ...out[m.question.id]!, category: prefs.categories[m.question.id] ?? null };
   }
   return out;
 }
@@ -311,10 +286,25 @@ function titleFor(mode: string, qs: { subject: SubjectId; chapter: string }[]): 
 
 const blank = (questionId: string): Response => ({ questionId, answer: null, checked: false, markedForReview: false, visited: false, timeSpentSec: 0, savedAt: null });
 
-type SessionLike = SessionDetailX["session"] | SessionListItemX;
+type SessionLike = SessionDetail["session"] | SessionListItem;
 
-function buildAttempt(session: SessionLike, items: SessionDetailX["items"]): Attempt {
-  const questions = items.map((i) => toQuestion(i.question));
+/** Practice results carry no answer-key source, so provenance stays "unknown". */
+function toSolution(q: Question, s: PublicSolution): Solution {
+  return solutionFromApi(q.id, s, "processed", new Map(q.options.flatMap((o) => (o.ref ? [[o.ref, o.id] as const] : []))), "unknown");
+}
+
+function buildAttempt(session: SessionLike, allItems: SessionDetail["items"]): Attempt {
+  // Items with an exam/subject this web build doesn't know are skipped, not fatal.
+  const items: SessionDetail["items"] = [];
+  const questions: Question[] = [];
+  for (const item of allItems) {
+    try {
+      questions.push(toPracticeQuestion(item.question));
+      items.push(item);
+    } catch {
+      /* unsupported exam/subject */
+    }
+  }
   registry.putQuestions(questions);
   const exam = examFromApi(items[0]?.question.exam.slug ?? "") ?? state.user?.exam ?? "jee-main";
   const draft = userId ? readDraft(userId, session.id) : null;
@@ -346,7 +336,7 @@ function buildAttempt(session: SessionLike, items: SessionDetailX["items"]): Att
   });
   const ids = questions.map((q) => q.id);
   const started = session.started_at;
-  const listed = session as SessionListItemX;
+  const listed = session as SessionListItem;
   return {
     id: session.id,
     exam,
@@ -359,7 +349,7 @@ function buildAttempt(session: SessionLike, items: SessionDetailX["items"]): Att
     durationSec: session.time_limit_sec ?? draft?.durationSec ?? null,
     startedAt: started,
     updatedAt: listed.last_activity_at ?? draft?.savedAt ?? started,
-    submittedAt: completed ? ((session as SessionDetailX["session"]).completed_at ?? listed.completed_at ?? started) : null,
+    submittedAt: completed ? ((session as SessionDetail["session"]).completed_at ?? listed.completed_at ?? started) : null,
     status: completed ? "submitted" : "in_progress",
     current: Math.min(ids.length - 1, Math.max(0, draft?.current ?? (firstOpen < 0 ? 0 : firstOpen))),
     elapsedSec: draft?.elapsedSec ?? 0,
@@ -385,7 +375,7 @@ export async function loadSession(id: string): Promise<Attempt | null> {
   }
 }
 
-async function hydrateSessions(list: SessionListItemX[]) {
+async function hydrateSessions(list: SessionListItem[]) {
   const active = list.filter((s) => s.status === "ACTIVE").slice(0, 3);
   const done = list.filter((s) => s.status === "COMPLETED").slice(0, 5);
   await Promise.allSettled([...active, ...done].map((s) => (state.attempts[s.id] ? Promise.resolve(null) : loadSession(s.id))));
@@ -495,10 +485,10 @@ function startSingle(opts: StartOpts): string {
 
 /** Public question page -> practice: load the question (no solution is kept) and start a single attempt. */
 export async function startSingleBySlug(slug: string, exam: ExamId): Promise<string> {
-  const { pub } = await import("./client");
-  const { toQuestionFromPublic } = await import("./convert");
-  const pq = await pub.question(slug);
-  const q = toQuestionFromPublic(pq);
+  let r = await publicQuestion(slug);
+  if (r.status === "moved") r = await publicQuestion(r.slug);
+  if (r.status !== "ok") throw new Error("Question not found");
+  const q = publicToQuestion(r.data);
   registry.putQuestions([q]); // deliberately not putSolution: the answer is revealed only via an attempt
   return startSingle({ exam: q.exams[0] ?? exam, mode: "learning", title: "Single question", questionIds: [q.id], scope: { source: "single" } });
 }
@@ -614,18 +604,27 @@ export function tick(attemptId: string, qid: string, seconds: number) {
 
 /* ---------------------------------------------------------- checking / submit */
 
+/** Reserved ids also live in memory so a failed localStorage write can't mint a new id on retry. */
+const reservedIds = new Map<string, string>();
+
 function reserveClientId(a: Attempt, qid: string): string {
-  if (!userId || a.local) return newClientId();
+  const memKey = `${userId ?? ""}:${a.id}:${qid}`;
+  if (!userId || a.local) {
+    const id = reservedIds.get(memKey) ?? newClientId();
+    reservedIds.set(memKey, id);
+    return id;
+  }
   const d = readDraft(userId, a.id) ?? { v: 1 as const, current: a.current, elapsedSec: a.elapsedSec, savedAt: nowIso(), responses: {} };
   const cur = d.responses[qid] ?? { answer: a.responses[qid]?.answer ?? null, markedForReview: false, visited: true, timeSpentSec: 0 };
-  const id = cur.clientAttemptId ?? newClientId();
+  const id = cur.clientAttemptId ?? reservedIds.get(memKey) ?? newClientId();
+  reservedIds.set(memKey, id);
   // Written BEFORE the request so a retry after a network failure is idempotent.
   d.responses[qid] = { ...cur, clientAttemptId: id };
   writeDraft(userId, a.id, d);
   return id;
 }
 
-function applyResult(a: Attempt, qid: string, res: AttemptResultX) {
+function applyResult(a: Attempt, qid: string, res: AttemptResult) {
   const q = registry.getQuestion(qid);
   if (q) registry.putSolution(toSolution(q, res.solution));
   registry.putOutcome(`${a.id}:${qid}`, { isCorrect: res.is_correct, score: res.score });
@@ -643,7 +642,7 @@ function applyResult(a: Attempt, qid: string, res: AttemptResultX) {
   refreshDerivedSoon();
 }
 
-async function postOne(a: Attempt, qid: string): Promise<AttemptResultX | "already"> {
+export async function postOne(a: Attempt, qid: string): Promise<AttemptResult | "already"> {
   const q = registry.getQuestion(qid);
   const r = a.responses[qid];
   if (!q || !r?.answer) throw new Error("nothing to send");
@@ -659,7 +658,8 @@ async function postOne(a: Attempt, qid: string): Promise<AttemptResultX | "alrea
       time_spent_ms: Math.max(0, Math.min(10_800_000, Math.round(r.timeSpentSec * 1000))),
     });
   } catch (e) {
-    if (isApiError(e) && e.code === "ALREADY_ATTEMPTED") return "already";
+    // Server wins: a lost-response retry with an edited answer hits IDEMPOTENCY_CONFLICT; reload instead of pausing forever.
+    if (isApiError(e) && (e.code === "ALREADY_ATTEMPTED" || e.code === "IDEMPOTENCY_CONFLICT")) return "already";
     throw e;
   }
 }
@@ -854,7 +854,7 @@ export async function updateUser(patch: Partial<DemoUser>): Promise<void> {
   if (patch.showOnLeaderboard !== undefined || patch.cosmetic !== undefined) {
     savePrefs({ ...prefs, showOnLeaderboard: patch.showOnLeaderboard ?? prefs.showOnLeaderboard, cosmetic: patch.cosmetic === undefined ? prefs.cosmetic : patch.cosmetic });
   }
-  const body: Record<string, unknown> = {};
+  const body: PatchMeInput = {};
   if (patch.name !== undefined) body.display_name = patch.name.trim().slice(0, 60) || null;
   if (patch.dailyGoal !== undefined) body.daily_goal_attempts = Math.max(1, Math.min(500, Math.round(patch.dailyGoal)));
   if (patch.exam !== undefined) body.target_exam = examToApi(patch.exam);
@@ -863,7 +863,7 @@ export async function updateUser(patch: Partial<DemoUser>): Promise<void> {
   try {
     await api.patchMe(body);
     if (patch.exam) {
-      await api.putExamPreferences([{ exam: examToApi(patch.exam), is_primary: true }]);
+      await api.putExamPreferences({ preferences: [{ exam: examToApi(patch.exam), is_primary: true }] });
       void loadPrivate(patch.exam);
     }
   } catch (e) {
@@ -876,7 +876,7 @@ export async function updateUser(patch: Partial<DemoUser>): Promise<void> {
 export async function completeOnboarding(patch: Partial<DemoUser>): Promise<void> {
   if (!state.user) return;
   const user = { ...state.user, ...patch };
-  const body: Record<string, unknown> = {
+  const body: PatchMeInput = {
     target_exam: examToApi(user.exam),
     daily_goal_attempts: Math.max(1, Math.min(500, Math.round(user.dailyGoal))),
     class_level: user.classLevel,
@@ -885,7 +885,7 @@ export async function completeOnboarding(patch: Partial<DemoUser>): Promise<void
   };
   try {
     await api.patchMe(body);
-    await api.putExamPreferences([{ exam: examToApi(user.exam), is_primary: true }]);
+    await api.putExamPreferences({ preferences: [{ exam: examToApi(user.exam), is_primary: true }] });
   } catch (e) {
     handleError(e, "onboarding");
     throw e;
@@ -895,7 +895,9 @@ export async function completeOnboarding(patch: Partial<DemoUser>): Promise<void
 }
 
 export async function signOut(): Promise<void> {
+  const uid = userId;
   await authSignOut();
+  if (uid) clearUserDrafts(uid);
   signedOut();
 }
 

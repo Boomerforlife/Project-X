@@ -26,17 +26,67 @@ export function createRecordingInvalidator(): CacheInvalidator & { calls: string
 }
 
 /** Workers Caching purge (`cache.purge({tags})` from the Workers runtime). */
-export function createWorkersCacheInvalidator(cache: { purge(o: { tags: string[] }): Promise<unknown> }): CacheInvalidator {
+const WORKERS_CHUNK = 100;
+const WORKERS_ATTEMPTS = 3;
+const RATE_LIMIT_RE = /rate.?limit|too many|\b429\b|\b971\b|throttl/i;
+
+/** Inspect a resolved `cache.purge()` result. Returns an error string on failure, null on success. */
+function purgeFailure(res: unknown): string | null {
+  const r = res as { success?: unknown; errors?: unknown } | null | undefined;
+  if (r && typeof r === 'object' && r.success === true) return null;
+  const errs = r && typeof r === 'object' && Array.isArray(r.errors) ? r.errors : [];
+  const text = errs
+    .map((e: unknown) => {
+      const x = e as { code?: unknown; message?: unknown } | string;
+      return typeof x === 'string' ? x : [x?.code, x?.message].filter((v) => v !== undefined && v !== null).join(' ');
+    })
+    .filter(Boolean)
+    .join('; ');
+  if (text) return text;
+  return r && typeof r === 'object' && 'success' in r ? 'purge reported success=false' : 'purge returned no success flag';
+}
+
+/**
+ * Workers Caching purge (`cache.purge({tags})` from the Workers runtime).
+ * A rate-limited purge RESOLVES with `{success:false, errors}` rather than throwing, so the result is inspected.
+ * Tags are chunked to <=100 per call; rate-limit style failures are retried with bounded backoff.
+ */
+export function createWorkersCacheInvalidator(
+  cache: { purge(o: { tags: string[] }): Promise<unknown> },
+  o: { sleep?: (ms: number) => Promise<void>; attempts?: number; baseDelayMs?: number } = {},
+): CacheInvalidator {
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const attempts = Math.max(1, o.attempts ?? WORKERS_ATTEMPTS);
+  const base = o.baseDelayMs ?? 500;
+
+  async function purgeChunk(chunk: string[]): Promise<string | null> {
+    let last = 'unknown error';
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const err = purgeFailure(await cache.purge({ tags: chunk }));
+        if (err === null) return null;
+        last = err;
+      } catch (e) {
+        last = msg(e);
+      }
+      if (!RATE_LIMIT_RE.test(last)) return last;
+      if (attempt < attempts) await sleep(base * 2 ** (attempt - 1));
+    }
+    return last;
+  }
+
   return {
     async purgeTags(tags) {
       const t = uniq(tags);
-      if (t.length === 0) return { ok: true, purged: [] };
-      try {
-        await cache.purge({ tags: t });
-        return { ok: true, purged: t };
-      } catch (e) {
-        return { ok: false, purged: [], error: msg(e) };
+      const purged: string[] = [];
+      const errors: string[] = [];
+      for (let i = 0; i < t.length; i += WORKERS_CHUNK) {
+        const chunk = t.slice(i, i + WORKERS_CHUNK);
+        const err = await purgeChunk(chunk);
+        if (err === null) purged.push(...chunk);
+        else errors.push(err);
       }
+      return errors.length === 0 ? { ok: true, purged } : { ok: false, purged, error: [...new Set(errors)].join('; ') };
     },
   };
 }

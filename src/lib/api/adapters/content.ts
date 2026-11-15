@@ -201,6 +201,8 @@ export function solutionFromApi(
   sol: PublicSolution,
   verification: VerificationStatus,
   optionLabelById: ReadonlyMap<string, string> = new Map(),
+  /** Override when the source carries no answer-key evidence (practice results pass "unknown"). */
+  provenance?: Solution["answerProvenance"],
 ): Solution {
   const fa = sol.final_answer;
   const labelOf = (id: string) => optionLabelById.get(id) ?? id;
@@ -226,7 +228,7 @@ export function solutionFromApi(
   return {
     questionId,
     answer,
-    answerProvenance: verification === "official_key_checked" ? "official_key" : "derived",
+    answerProvenance: provenance ?? (verification === "official_key_checked" ? "official_key" : "derived"),
     steps: sol.steps.map(toStep),
     generatedBy: GENERATED_BY[sol.provenance],
     verification: { status: verification },

@@ -212,7 +212,7 @@ describe('invalidators', () => {
   });
   it('workers, composite, noop, recording', async () => {
     const calls: string[][] = [];
-    const w = createWorkersCacheInvalidator({ purge: async (o) => void calls.push(o.tags) });
+    const w = createWorkersCacheInvalidator({ purge: async (o) => (calls.push(o.tags), { success: true, errors: [] }) });
     const rec = createRecordingInvalidator();
     const c = createCompositeInvalidator([w, rec, createNoopInvalidator()]);
     const r = await c.purgeTags(['a', 'b']);
@@ -224,6 +224,72 @@ describe('invalidators', () => {
     expect(r2.ok).toBe(false);
     expect(r2.error).toBe('nope');
     expect(r2.purged).toEqual(['x']);
+  });
+
+  describe('workers cache result handling', () => {
+    const sleeps: number[] = [];
+    const sleep = async (ms: number) => void sleeps.push(ms);
+    const tags = (n: number) => Array.from({ length: n }, (_, i) => `t${i}`);
+
+    it('treats resolved success:false as failure', async () => {
+      const inv = createWorkersCacheInvalidator({ purge: async () => ({ success: false, errors: [{ code: 1000, message: 'bad zone' }] }) }, { sleep });
+      const r = await inv.purgeTags(['a']);
+      expect(r).toEqual({ ok: false, purged: [], error: '1000 bad zone' });
+    });
+    it('treats missing success flag as failure', async () => {
+      const r = await createWorkersCacheInvalidator({ purge: async () => undefined }, { sleep }).purgeTags(['a']);
+      expect(r.ok).toBe(false);
+      expect(r.purged).toEqual([]);
+    });
+    it('chunks to <=100 tags per call', async () => {
+      const calls: string[][] = [];
+      const inv = createWorkersCacheInvalidator({ purge: async (o) => (calls.push(o.tags), { success: true }) });
+      const r = await inv.purgeTags(tags(250));
+      expect(calls.map((c) => c.length)).toEqual([100, 100, 50]);
+      expect(r.ok).toBe(true);
+      expect(r.purged).toHaveLength(250);
+    });
+    it('reports partial failure with only succeeded tags purged', async () => {
+      let n = 0;
+      const inv = createWorkersCacheInvalidator({ purge: async () => (++n === 2 ? { success: false, errors: [{ message: 'denied' }] } : { success: true }) }, { sleep });
+      const r = await inv.purgeTags(tags(250));
+      expect(r.ok).toBe(false);
+      expect(r.purged).toHaveLength(150);
+      expect(r.purged).not.toContain('t100');
+      expect(r.error).toBe('denied');
+    });
+    it('retries rate-limit failures with backoff then succeeds', async () => {
+      sleeps.length = 0;
+      let n = 0;
+      const inv = createWorkersCacheInvalidator(
+        { purge: async () => (++n < 3 ? { success: false, errors: [{ code: 971, message: 'rate limit exceeded' }] } : { success: true }) },
+        { sleep, baseDelayMs: 10 },
+      );
+      const r = await inv.purgeTags(['a']);
+      expect(r).toEqual({ ok: true, purged: ['a'] });
+      expect(n).toBe(3);
+      expect(sleeps).toEqual([10, 20]);
+    });
+    it('gives up after bounded attempts on persistent rate limiting', async () => {
+      sleeps.length = 0;
+      let n = 0;
+      const inv = createWorkersCacheInvalidator({ purge: async () => (n++, { success: false, errors: [{ message: 'Too many requests' }] }) }, { sleep, attempts: 3, baseDelayMs: 1 });
+      const r = await inv.purgeTags(['a']);
+      expect(r.ok).toBe(false);
+      expect(n).toBe(3);
+    });
+    it('does not retry non-rate-limit failures', async () => {
+      let n = 0;
+      const inv = createWorkersCacheInvalidator({ purge: async () => (n++, { success: false, errors: [{ message: 'forbidden' }] }) }, { sleep });
+      await inv.purgeTags(['a']);
+      expect(n).toBe(1);
+    });
+    it('composite is not ok when workers purge resolves success:false', async () => {
+      const bad = createWorkersCacheInvalidator({ purge: async () => ({ success: false, errors: [{ message: 'nope2' }] }) }, { sleep });
+      const r = await createCompositeInvalidator([bad, createRecordingInvalidator()]).purgeTags(['x']);
+      expect(r.ok).toBe(false);
+      expect(r.error).toBe('nope2');
+    });
   });
 });
 

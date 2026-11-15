@@ -11,7 +11,7 @@ import type { Chapter, ExamId, Question, Solution, Subject, SubjectId } from "@/
 import { difficultyFromApi, examFromApi, subjectFromApi, typeFromApi } from "@/lib/api/adapters/ids";
 import { chapters as chapterOverlay, subjects as subjectOverlay } from "@/fixtures/syllabus";
 import { safeExcerpt } from "@/lib/api/adapters/blocks";
-import { pub } from "./client";
+import { publicSubject, taxonomyExams, taxonomyTree } from "@/lib/api/public";
 
 export type TaxChapter = { chapter: Chapter; apiSlug: string; subjectApiSlug: string; count: number };
 export type TaxExam = {
@@ -123,20 +123,20 @@ export const registry = {
     if (taxonomyLoaded === "loading") return;
     taxonomyLoaded = "loading";
     try {
-      const apiExams = await pub.exams();
+      const apiExams = (await taxonomyExams()).data;
       const next = new Map<ExamId, TaxExam>();
       await Promise.all(
         apiExams
           .filter((e) => e.is_active && examFromApi(e.slug))
           .map(async (e) => {
             const exam = examFromApi(e.slug)!;
-            const tree = await pub.tree(e.slug);
+            const tree = (await taxonomyTree(e.slug)).data;
             const built = buildExam(exam, tree);
             // Question counts per chapter come from the public subject endpoints.
             await Promise.all(
               built.subjects.map(async (s) => {
                 try {
-                  const sub = await pub.subject(s.apiSlug);
+                  const sub = (await publicSubject(s.apiSlug)).data;
                   for (const c of sub.chapters) {
                     const tc = built.chapters.find((x) => x.apiSlug === c.slug);
                     if (tc) tc.count = c.published_question_count;

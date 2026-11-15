@@ -9,9 +9,6 @@
  */
 import { z } from "zod";
 import { Chapter, Paper, Question, Solution, Subject, type ExamId, type QuestionCard, type SubjectId } from "@/contracts";
-import { getBank } from "@/fixtures/bank";
-import { getDemoPapers } from "@/fixtures/papers";
-import { chapters as chapterFx, subjects as subjectFx } from "@/fixtures/syllabus";
 import { flags } from "@/lib/api/env";
 import { TRACK_INFO, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
@@ -29,8 +26,14 @@ export const PAPERS_VISIBLE = !API || flags.papers === "demo";
 
 // Fixtures must pass the same schemas as API responses (CLAUDE.md §14).
 let validated = false;
-function validate() {
+async function validate() {
   if (validated) return;
+  // Lazy: the fixture bank is only loaded when mock mode (or the paper demo) actually needs it.
+  const [{ getBank }, { getDemoPapers }, { chapters: chapterFx, subjects: subjectFx }] = await Promise.all([
+    import("@/fixtures/bank"),
+    import("@/fixtures/papers"),
+    import("@/fixtures/syllabus"),
+  ]);
   const bank = getBank();
   z.array(Subject).parse(subjectFx);
   z.array(Chapter).parse(chapterFx);
@@ -47,7 +50,7 @@ export async function getExams(track: Track): Promise<ExamId[]> {
 
 export async function getSubjects(track?: Track) {
   if (API) return api.apiSubjects(track);
-  validate();
+  await validate();
   return track ? catalog.subjectsForTrack(track) : catalog.subjects();
 }
 
@@ -59,7 +62,7 @@ export async function getSubject(id: string) {
 export async function getChapters(filter: { subject?: SubjectId; track?: Track; exam?: ExamId } | SubjectId = {}) {
   const f = typeof filter === "string" ? { subject: filter } : filter;
   if (API) return api.apiChapters(f);
-  validate();
+  await validate();
   return catalog.chapters(f);
 }
 
@@ -78,7 +81,7 @@ export async function getQuestions(filter: { subject?: SubjectId; chapter?: stri
     const all = await api.apiPublicQuestions(filter.track);
     return all.filter((q) => (!filter.subject || q.subject === filter.subject) && (!filter.chapter || q.chapter === filter.chapter));
   }
-  validate();
+  await validate();
   return catalog.questions(filter);
 }
 
@@ -86,10 +89,6 @@ export async function getQuestions(filter: { subject?: SubjectId; chapter?: stri
 export async function getPublicQuestions(): Promise<QuestionCard[]> {
   if (API) return api.apiPublicQuestions();
   return catalog.questions().filter((q) => q.publicPage);
-}
-
-export async function getQuestionBySlug(slug: string) {
-  return catalog.questions().find((q) => q.slug === slug) ?? null;
 }
 
 export type QuestionPage =
@@ -141,9 +140,12 @@ export async function getSolution(questionId: string) {
  */
 export async function getPapers(filter: { track?: Track; exam?: ExamId; kind?: "pyq" | "mock" } = {}) {
   if (!API) {
-    validate();
+    await validate();
     return catalog.papers(filter);
   }
+  // API mode: papers are demo-only and hidden unless the flag is on.
+  if (!PAPERS_VISIBLE) return [];
+  const { getDemoPapers } = await import("@/fixtures/papers");
   const exams = filter.exam ? [filter.exam] : filter.track ? TRACK_INFO[filter.track].exams : null;
   return getDemoPapers().filter((p) => (!exams || exams.includes(p.exam)) && (!filter.kind || p.kind === filter.kind));
 }
@@ -158,7 +160,10 @@ export async function getPublicPapers(filter: { track?: Track; exam?: ExamId; ki
 }
 
 export async function getPaper(id: string) {
-  return API ? (getDemoPapers().find((p) => p.id === id) ?? null) : catalog.paper(id);
+  if (!API) return catalog.paper(id);
+  if (!PAPERS_VISIBLE) return null;
+  const { getDemoPapers } = await import("@/fixtures/papers");
+  return getDemoPapers().find((p) => p.id === id) ?? null;
 }
 
 export async function getQuestionCounts(track?: Track) {

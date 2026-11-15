@@ -3,7 +3,9 @@ import { PaperDetail } from "@/components/app/Papers";
 import { getPaper, getPapers } from "@/lib/data";
 
 export async function generateStaticParams() {
-  return (await getPapers()).map((p) => ({ paperId: p.id }));
+  const ids = (await getPapers()).map((p) => ({ paperId: p.id }));
+  // Cache Components needs at least one param; with papers hidden (API mode) this renders a 404.
+  return ids.length ? ids : [{ paperId: "unavailable" }];
 }
 
 export async function generateMetadata({ params }: PageProps<"/tests/[paperId]">) {

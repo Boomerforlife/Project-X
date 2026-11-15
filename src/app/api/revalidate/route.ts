@@ -25,7 +25,8 @@ function safeEqual(a: string, b: string) {
 
 export async function POST(request: Request) {
   const secret = process.env.REVALIDATE_SECRET;
-  if (!secret) return Response.json({ error: "Not found" }, { status: 404 });
+  // Disabled unless the secret is long enough to resist guessing.
+  if (!secret || secret.length < 32) return Response.json({ error: "Not found" }, { status: 404 });
 
   const header = request.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
