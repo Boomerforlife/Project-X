@@ -20,3 +20,6 @@ next-env.d.ts
 .open-next/
 .next/
 next-env.d.ts
+.vercel
+.env*
+supabase/.temp/
