@@ -49,7 +49,7 @@ export function DemoGate({
 export function LoadError({ message }: { message: string }) {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center" role="alert">
-      <Kitty pose="lost" className="h-20 w-auto text-fg-subtle" />
+      <TabbyMascot state="disconnected" className="h-20 text-fg-subtle" />
       <h1 className="mt-6 text-2xl font-semibold">{message || "We couldn't load your account."}</h1>
       <p className="mt-2 text-fg-muted">Nothing was lost. Check your connection and try again.</p>
       <Button className="mt-6" onClick={retryLoad}>
@@ -65,7 +65,7 @@ export function DemoRequired() {
   if (API) {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-24 text-center">
-        <Kitty pose="sit" className="h-24 w-auto text-fg" />
+        <TabbyMascot state="curious" className="h-24 text-fg" />
         <h1 className="mt-8 text-3xl font-semibold">Sign in to continue</h1>
         <p className="mt-3 text-fg-muted">Your practice, mistakes and progress are saved to your account.</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
