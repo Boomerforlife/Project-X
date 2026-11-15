@@ -62,10 +62,25 @@ The only part of `eeb0401` not in `main` was its original `.gitignore` and READM
 
 Environment note: the machine's global Python resolves its stdlib from `C:\Users\aztec\Downloads\Lib` and `pip` crashes there. The workers venv was created with `uv venv --python 3.12` and works. Unrelated to the repo.
 
+### Late arrival
+`origin/chore/vercel-config` (Owner B, 2 commits, pushed 17:43 IST during consolidation) adds `vercel.json` (npm install, `npm run build:web`) and ignores `supabase/.temp/`. Merged into `ownerAkamain` (`22d926e`); the `.gitignore` conflict was resolved by keeping the restored rules (which already included Owner B's `.env*`, `!.env.example`, `.vercel`) and adding `supabase/.temp/`.
+
 ## 5. Branch cleanup
 
-See §6 (filled in after the push).
+| Branch | Action | Reason |
+|---|---|---|
+| `origin/feature/frontend-implementation` | **deleted** | yours; content identical to `6d30e44` in `ownerAkamain`; tag `backup/20261115/feature-frontend-implementation` |
+| `origin/feature/frontend-implementation-20261115` | **deleted** | yours; tree identical to `6d30e44`; tag kept |
+| `origin/backup/local-wip-20261115` | **deleted** | created during this consolidation; commits cherry-picked; tag `backup/20261115/local-wip` |
+| `origin/main` | preserved | default branch |
+| `origin/ownerAkamain` | preserved | canonical |
+| `origin/owner-b/backend-foundation`, `owner-b/backend-foundation-v2`, `integration/web-api`, `feature/approved-url-fetcher`, `chore/vercel-config` | **preserved, pending approval** | authored by Owner B (another collaborator). All are contained in `ownerAkamain` (or tree-identical) and tagged, but deletion needs their owner's OK |
+| local `master`, `feature/frontend-implementation`, `feature/frontend-implementation-20261115`, `backup/local-wip-20261115` | preserved locally | `git branch -d` refuses because their commits are content-identical copies with different hashes, not ancestors; force deletion was not used. Each has a pushed backup tag. Delete with `git branch -D <name>` if you want them gone |
 
 ## 6. Result
 
-Filled in after push.
+- Canonical branch: `ownerAkamain` — https://github.com/Boomerforlife/Project-X/tree/ownerAkamain
+- Remote branches consolidated: 8 (`main`, `feature/approved-url-fetcher`, `integration/web-api`, `owner-b/backend-foundation`, `owner-b/backend-foundation-v2`, `feature/frontend-implementation`, `feature/frontend-implementation-20261115`, `chore/vercel-config`) plus local uncommitted work.
+- Unique commits preserved: `c2e6b0b` (fetcher), `5a9a61c` + `63005a4` (vercel config), and the full `main` history; the uncommitted work as `6f8e13b` and `2679c49`. Duplicate commits (`eeb0401`, `cd5a4bb`, the 8 commits of `owner-b/backend-foundation`) remain reachable through backup tags.
+- Uncommitted changes committed: 27 paths (20 modified, 7 untracked incl. directories) + 8 new audit docs.
+- `main` was not modified. No force-push.
