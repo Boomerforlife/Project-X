@@ -1,7 +1,7 @@
--- 0017: Tabby Plus billing (prepaid passes through Razorpay one-time Orders).
+-- 0018: Tabby Plus billing (prepaid passes through Razorpay one-time Orders).
 -- Separate module: every table is prefixed billing_, written only by the API with the service role.
 -- RLS is on with no client grants at all (same pattern as the editorial tables in migration 0012).
--- Numbered 0017 because Owner B's branch already uses 0016 (pin_helper_search_path).
+-- Numbered 0018: Owner B owns 0016 (pin_helper_search_path) and 0017 (shared_rate_limits).
 --
 -- Rules encoded here:
 --   * Prices live on the server (billing_plans); the client never sends an amount.

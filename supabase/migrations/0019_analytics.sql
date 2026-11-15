@@ -1,4 +1,4 @@
--- 0018: privacy-light product analytics. Aggregate daily counters only:
+-- 0019: privacy-light product analytics. Aggregate daily counters only:
 -- no user id, no IP, no device id, no free text. Dimension is an allow-listed short code (e.g. a plan code).
 create table analytics_daily (
   day date not null,
