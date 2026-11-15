@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.next
+.local
+.vercel
+.git
+workers/.venv
+workers
+src
+docs
+infra
+*.md
+.env*
+!.env.example
