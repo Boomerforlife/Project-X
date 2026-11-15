@@ -57,9 +57,9 @@ See `CLAUDE.md`, `docs/PERSON-1-PERSON-2-INTEGRATION.md`, and `docs/api-contract
 
 ### Frontend Commands
 ```bash
-pnpm run dev:web        # http://localhost:3000
-pnpm run build:web
-pnpm run typecheck:web
-pnpm run lint:web
-pnpm run test:web
+npm run dev:web        # http://localhost:3000
+npm run build:web
+npm run typecheck:web
+npm run lint:web
+npm run test:web
 ```

@@ -562,8 +562,10 @@ export async function reject(c: AdminCtx, id: string, body: RejectBody): Promise
 
 export function publishUnmet(q: QuestionRow, options: readonly OptionRow[], current: SolutionRow | null): string[] {
   const unmet: string[] = [];
-  if (q.verification_status !== 'OFFICIAL_KEY_MATCHED' && q.verification_status !== 'HUMAN_VERIFIED') {
-    unmet.push('verification_status must be OFFICIAL_KEY_MATCHED or HUMAN_VERIFIED');
+  // Mirrors migration 0020: AI-generated practice items may publish once automated checks pass.
+  const aiChecked = q.origin === 'AI_GENERATED' && q.verification_status === 'AUTOMATED_CHECKS_PASSED';
+  if (q.verification_status !== 'OFFICIAL_KEY_MATCHED' && q.verification_status !== 'HUMAN_VERIFIED' && !aiChecked) {
+    unmet.push('verification_status must be OFFICIAL_KEY_MATCHED or HUMAN_VERIFIED (AUTOMATED_CHECKS_PASSED allowed for AI_GENERATED)');
   }
   if (!q.current_solution_id || !current) unmet.push('current_solution_id is required');
   else if (current.question_id !== q.id || current.review_status !== 'APPROVED') unmet.push('current solution must be APPROVED and belong to the question');

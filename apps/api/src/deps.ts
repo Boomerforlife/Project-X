@@ -1,5 +1,6 @@
 import type { CacheInvalidator, RateLimiter, StorageSet } from '@projectx/edge';
 import type { Db, JwtClaims } from '@projectx/db';
+import type { RazorpayClient } from './billing/razorpay';
 import type { AppConfig } from './config';
 import type { Store } from './repositories/types';
 
@@ -34,6 +35,8 @@ export interface AppDeps {
   waitUntil(p: Promise<unknown>): void;
   /** Override the repository gateway (route tests use the memory store); default = SQL store over `db`. */
   store?: Store;
+  /** Override the Razorpay client (tests); default = built from RAZORPAY_* config, or null when billing is off. */
+  razorpay?: RazorpayClient | null;
 }
 
 export function createConsoleLogger(level: AppConfig['LOG_LEVEL']): Logger {

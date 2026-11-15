@@ -1,0 +1,112 @@
+# Continuous PYQ discovery. Indexes official exam-body PDF links into workers/scraper/catalog.json on the
+# `scraper` branch. It never downloads papers unless ingestion is explicitly enabled AND the source is
+# licence-approved in the database (the `pxw ingest fetch` approval gate refuses everything else).
+#
+# Triggers: daily schedule (GitHub only runs schedules from the default branch, so the schedule starts once
+# this file is on `main`), manual dispatch, and pushes to `scraper` that change the scraper itself.
+name: scraper
+
+on:
+  schedule:
+    - cron: "17 2 * * *" # 07:47 IST daily; off the hour to avoid GitHub's top-of-hour queue
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Comma-separated source codes (blank = all)"
+        required: false
+        default: ""
+  push:
+    branches: [scraper]
+    paths:
+      - "workers/scraper/sources.json"
+      - "workers/src/pxw/fetch/**"
+      - ".github/workflows/scraper.yml"
+
+permissions:
+  contents: write # commit the refreshed catalogue back to the scraper branch
+
+concurrency:
+  group: scraper
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: scraper
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (discovery needs only pydantic)
+        run: pip install "pydantic>=2.11,<3"
+      - name: Discover
+        env:
+          PYTHONPATH: workers/src
+        run: |
+          mkdir -p .local/work
+          python -m pxw.fetch.discover \
+            --sources workers/scraper/sources.json \
+            --catalog workers/scraper/catalog.json \
+            --manifest-out .local/work/manifest.json \
+            --only "${{ github.event.inputs.only }}" | tee .local/summary.json
+          {
+            echo "### PYQ discovery";
+            echo '```json'; cat .local/summary.json; echo '```';
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit catalogue if it changed
+        run: |
+          if git diff --quiet -- workers/scraper/catalog.json; then echo "No new papers."; exit 0; fi
+          # last_seen-only refreshes are noise: commit only when entries were added or removed.
+          if ! git diff -U0 -- workers/scraper/catalog.json | grep -E '^[+-] +"url"' >/dev/null; then
+            echo "Only last_seen changed; not committing."; exit 0
+          fi
+          git config user.name "projectx-scraper[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add workers/scraper/catalog.json
+          git commit -m "scraper: catalogue update $(date -u +%Y-%m-%d)"
+          git push origin HEAD:scraper
+      - name: Upload fetch manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: fetch-manifest
+          path: .local/work/manifest.json
+          retention-days: 14
+
+  # Optional: download + register newly discovered papers into the private source-docs bucket and the
+  # ingestion queue. Off unless the repo variable PXW_INGEST_ENABLED is "true" and the secrets exist
+  # (GCP_SA_KEY: JSON key of a service account with objectAdmin on the three buckets).
+  # Sources that are not licence-approved in the database are refused (exit 3) and nothing is downloaded.
+  ingest:
+    needs: discover
+    if: ${{ vars.PXW_INGEST_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: scraper
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - run: pip install -e workers
+      - uses: actions/download-artifact@v4
+        with:
+          name: fetch-manifest
+          path: .local/work
+      - name: Fetch approved sources only
+        env:
+          PXW_JOB_STORE: postgres
+          STORAGE_DRIVER: gcs
+          DATABASE_URL: ${{ secrets.PXW_DATABASE_URL }}
+          GCS_PROJECT: ${{ vars.GCS_PROJECT }}
+          GCS_BUCKET_SOURCE_DOCS: ${{ vars.GCS_BUCKET_SOURCE_DOCS }}
+          GCS_BUCKET_PUBLIC_ASSETS: ${{ vars.GCS_BUCKET_PUBLIC_ASSETS }}
+          GCS_BUCKET_USER_UPLOADS: ${{ vars.GCS_BUCKET_USER_UPLOADS }}
+          PXW_USER_AGENT: "ProjectXIngest/1.0 (educational PYQ index)"
+        run: pxw ingest fetch --manifest .local/work/manifest.json

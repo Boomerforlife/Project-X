@@ -148,6 +148,54 @@ def cmd_register(args: argparse.Namespace, settings: Settings) -> int:
     return EXIT_OK
 
 
+def cmd_fetch(args: argparse.Namespace, settings: Settings) -> int:
+    """Download manifest-listed PDFs from allow-listed hosts of APPROVED sources, then register them."""
+    from pxw.fetch.fetcher import DEFAULT_USER_AGENT, Fetcher, FetchError, Manifest, save_download
+
+    manifest = Manifest.model_validate_json(Path(args.manifest).read_text(encoding="utf-8"))
+    rt = _build_runtime(args, settings)
+    # Approval gate first: nothing touches the network unless EVERY source in the manifest is approved.
+    for code in sorted({e.source for e in manifest.entries}):
+        rt.repo.get_source(code)  # SourceNotApproved -> exit 3
+        if not manifest.allowed_hosts.get(code):
+            raise ConfigError(f"manifest has no allowed_hosts for source {code}")
+    if args.dry_run:
+        for e in manifest.entries:
+            emit({"event": "plan", "source": e.source, "url": e.url, "paper_slug": e.paper_slug, "year": e.year})
+        return EXIT_OK
+    fetcher = Fetcher(user_agent=args.user_agent or os.environ.get("PXW_USER_AGENT") or DEFAULT_USER_AGENT,
+                      min_interval_s=args.min_interval)
+    failures = 0
+    for e in manifest.entries:
+        try:
+            res = fetcher.fetch_pdf(e.url, manifest.allowed_hosts[e.source])
+        except FetchError as exc:
+            failures += 1
+            emit({"event": "fetch_failed", "url": e.url, "error": str(exc)})
+            continue
+        pdf = save_download(res, settings.work_dir / "downloads", e.url)
+        emit({"event": "fetched", "url": e.url, "sha256": res.sha256, "bytes": len(res.data)})
+        reg = argparse.Namespace(
+            job_store=args.job_store, storage=args.storage, source=e.source, file=str(pdf), kind=e.kind,
+            paper_slug=e.paper_slug, paper_title=e.paper_title, year=e.year, exam_date=e.exam_date, shift=e.shift,
+            session=e.session, paper_code=e.paper_code, layout=e.layout, auto_promote=args.auto_promote, exam=e.exam,
+        )
+        cmd_register(reg, settings)
+    return EXIT_ERROR if failures else EXIT_OK
+
+
+def cmd_discover(args: argparse.Namespace, settings: Settings) -> int:
+    """Crawl allow-listed official index pages for PDF links. Needs no database and downloads nothing."""
+    from pxw.fetch.discover import run as discover_run
+
+    only = [s.strip() for s in args.only.split(",") if s.strip()] or None
+    summary = discover_run(Path(args.sources), Path(args.catalog),
+                           Path(args.manifest_out) if args.manifest_out else None, only=only)
+    emit(summary)
+    pages = sum(v["pages"] for v in summary["sources"].values())  # type: ignore[union-attr]
+    return EXIT_ERROR if pages == 0 else EXIT_OK
+
+
 def cmd_jobs_run(args: argparse.Namespace, settings: Settings) -> int:
     from pxw.jobs.runner import JobRunner
     from pxw.pipeline.handlers import make_handlers
@@ -261,7 +309,7 @@ def cmd_dev_synth_pdf(args: argparse.Namespace, settings: Settings) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pxw", description="ProjectX ingestion workers")
     p.add_argument("--job-store", choices=["file", "postgres"], default=None)
-    p.add_argument("--storage", choices=["local", "r2"], default=None)
+    p.add_argument("--storage", choices=["local", "r2", "gcs"], default=None)
     p.add_argument("--work-dir", default=None)
     p.add_argument("--log-level", default=None)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -283,6 +331,21 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--auto-promote", action="store_true")
     r.add_argument("--exam", default="jee-main")
     r.set_defaults(fn=cmd_register)
+
+    f = ing_sub.add_parser("fetch", help="download manifest-listed PDFs from allow-listed hosts of approved sources")
+    f.add_argument("--manifest", required=True)
+    f.add_argument("--dry-run", action="store_true")
+    f.add_argument("--auto-promote", action="store_true")
+    f.add_argument("--min-interval", type=float, default=5.0, help="seconds between requests to one host")
+    f.add_argument("--user-agent", default=None)
+    f.set_defaults(fn=cmd_fetch)
+
+    dv = ing_sub.add_parser("discover", help="index official paper/answer-key PDF links into a catalogue (no downloads)")
+    dv.add_argument("--sources", default="workers/scraper/sources.json")
+    dv.add_argument("--catalog", default="workers/scraper/catalog.json")
+    dv.add_argument("--manifest-out", default=None, help="also write a `pxw ingest fetch` manifest")
+    dv.add_argument("--only", default="", help="comma-separated source codes")
+    dv.set_defaults(fn=cmd_discover)
 
     j = sub.add_parser("jobs", help="job runner")
     j_sub = j.add_subparsers(dest="jobs_cmd", required=True)
@@ -330,6 +393,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--questions", type=int, default=6)
     sp.add_argument("--image-only-page", type=int, default=None)
     sp.set_defaults(fn=cmd_dev_synth_pdf)
+
+    from pxw.content.commands import add_content_parser
+
+    add_content_parser(sub)
     return p
 
 

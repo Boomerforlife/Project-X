@@ -130,7 +130,7 @@ describe('B5 POST /practice/sessions/:id/complete', () => {
     const s = await j(await req('/practice/sessions', { method: 'POST', token: t, json: { ...base, client_request_id: id(7401), size: 3 } }));
     const sid = s.data.session.id;
     const q = s.data.questions[0];
-    await req('/practice/attempts', { method: 'POST', token: t, json: { client_attempt_id: id(7402), question_id: q.id, session_id: sid, response: q.question_type === 'NUMERICAL' ? { type: 'NUMERICAL', value: '2.5' } : { type: 'SINGLE_MCQ', option_id: q.options[0].id } } });
+    await req('/practice/attempts', { method: 'POST', token: t, json: { client_attempt_id: id(7402), question_id: q.id, session_id: sid, response: q.question_type === 'NUMERICAL' ? { type: 'NUMERICAL', value: '2.5' } : q.question_type === 'SINGLE_MCQ' ? { type: 'SINGLE_MCQ', option_id: q.options[0].id } : { type: 'MULTI_MCQ', option_ids: [q.options[0].id] } } });
 
     const done = await req(`/practice/sessions/${sid}/complete`, { method: 'POST', token: t });
     expect(done.status).toBe(200);

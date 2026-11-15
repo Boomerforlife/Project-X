@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -61,6 +62,7 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
   const done = (r: Awaited<ReturnType<typeof emailSignIn>>) => {
     setBusy(false);
     if (!r.ok) return setError(r.message);
+    if (mode === "signup") track("signup_completed");
     if (r.needsEmailConfirmation) return setConfirm(true);
     router.push(next);
   };

@@ -14,7 +14,7 @@ import r2IncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cac
 import d1NextTagCache from "@opennextjs/cloudflare/overrides/tag-cache/d1-next-tag-cache";
 import doQueue from "@opennextjs/cloudflare/overrides/queue/do-queue";
 
-export default {
+const config = {
   ...defineCloudflareConfig({
     incrementalCache: r2IncrementalCache,
     tagCache: d1NextTagCache,
@@ -24,3 +24,5 @@ export default {
   // The root package.json has no plain `build` script; the Next build is `build:web`.
   buildCommand: "npm run build:web",
 };
+
+export default config;

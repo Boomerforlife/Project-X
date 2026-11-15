@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getChapters, getPublicPapers, getQuestionCounts, getSitemapQuestions, getSubjects } from "@/lib/data";
 import { TRACKS } from "@/lib/exams";
-import { isChapterIndexable } from "@/lib/indexing";
+import { isChapterIndexable, isSubjectIndexable, isTrackIndexable } from "@/lib/indexing";
 import { INDEXABLE, absoluteUrl } from "@/lib/site";
 
 /** Lists only pages that are indexable — mirrors each page's robots decision. */
@@ -19,8 +19,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const real = papers.filter((p) => !p.isDemo);
     // A track with no active content (inactive exam) is a noindex "coming soon" page: not listed.
     if (subjects.length === 0) continue;
-    out.push({ url: absoluteUrl(`/${track}/`), priority: 0.9 });
-    out.push(...subjects.map((s) => ({ url: absoluteUrl(`/${track}/${s.id}/`), priority: 0.8 })));
+    // Hubs are listed only when they lead to real content (mirrors the pages' robots decision).
+    if (isTrackIndexable(chapters, counts)) out.push({ url: absoluteUrl(`/${track}/`), priority: 0.9 });
+    out.push(
+      ...subjects.filter((s) => isSubjectIndexable(s.id, chapters, counts)).map((s) => ({ url: absoluteUrl(`/${track}/${s.id}/`), priority: 0.8 })),
+    );
     out.push(
       ...chapters
         .filter((c) => isChapterIndexable(counts.byChapter.get(`${c.subject}/${c.slug}`) ?? 0))

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { ExamId, SubjectId } from "@/contracts";
-import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Card, Eyebrow, ListSkeleton, PageSkeleton, Ring, Segmented, Skeleton } from "@/components/ui/Primitives";
@@ -355,7 +355,7 @@ function Hub({ s }: { s: S }) {
 
         {shown.length === 0 ? (
           <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-line-strong px-6 py-14 text-center">
-            <Kitty pose="lost" className="h-14 w-auto text-fg-subtle" />
+            <TabbyMascot state="curious" className="h-14 text-fg-subtle" />
             <p className="mt-4 font-medium">No chapters match</p>
             <p className="mt-1 text-sm text-fg-muted">Try a different search or filter.</p>
             <Button
@@ -544,7 +544,7 @@ function Launcher({ s }: { s: DemoState & { user: NonNullable<DemoState["user"]>
 
       {available === 0 ? (
         <div className="mt-10 flex flex-col items-center rounded-xl border border-dashed border-line-strong px-6 py-12 text-center">
-          <Kitty pose="sleep" className="h-14 w-auto text-fg-subtle" />
+          <TabbyMascot state="idle" className="h-14 text-fg-subtle" />
           <p className="mt-4 font-medium">No questions here yet</p>
           <p className="mt-1 text-sm text-fg-muted">This chapter is still being added. Try another one.</p>
           <ButtonLink href="/practice/#chapters" variant="secondary" size="sm" className="mt-5">

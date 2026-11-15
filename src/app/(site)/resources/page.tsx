@@ -1,4 +1,4 @@
-import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { pageMetadata } from "@/lib/seo";
@@ -25,7 +25,7 @@ export default function ResourcesPage() {
       />
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <EmptyState
-          kitty={<Kitty pose="sleep" className="h-16 w-auto text-fg-subtle" />}
+          kitty={<TabbyMascot state="idle" className="h-16 text-fg-subtle" />}
           title="No guides published yet"
           body="Guides will appear here as they're written and reviewed."
         >
