@@ -176,7 +176,8 @@ async function apiExamCards(exam: ExamId): Promise<QuestionCard[]> {
 
 export async function apiPublicQuestions(track?: Track): Promise<QuestionCard[]> {
   const exams = (await Promise.all(tracksFor(track).map(apiExams))).flat();
-  return (await Promise.all(exams.map(apiExamCards))).flat().slice(0, STATIC_PARAM_CAP);
+  // Only public-page-eligible questions get a prerendered URL (AI-checked practice items do not).
+  return (await Promise.all(exams.map(apiExamCards))).flat().filter((c) => c.publicPage).slice(0, STATIC_PARAM_CAP);
 }
 
 /* ----------------------------------------------------------------------- *
