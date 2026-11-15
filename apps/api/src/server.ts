@@ -2,6 +2,7 @@
  * Production Node entry (Google Cloud Run / any container host). No dev defaults: everything comes from the environment.
  * Cloud Run provides PORT and Application Default Credentials (used by the GCS client).
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { serve } from '@hono/node-server';
 import { Storage } from '@google-cloud/storage';
 import { createPostgresDb } from '@projectx/db/postgres';
@@ -11,6 +12,7 @@ import { createApp } from './app';
 import { createAuthVerifier } from './auth/verifier';
 import { parseConfig } from './config';
 import { createConsoleLogger } from './deps';
+import { createPostgresRateLimiter } from './lib/pg-rate-limit';
 
 const config = parseConfig(process.env);
 if (config.APP_ENV !== 'staging' && config.APP_ENV !== 'production') {
@@ -48,20 +50,42 @@ function buildInvalidator(): CacheInvalidator {
 }
 
 const logger = createConsoleLogger(config.LOG_LEVEL);
+const requestTasks = new AsyncLocalStorage<Promise<unknown>[]>();
 const api = createApp({
   config,
   db,
   storage: buildStorage(),
   cache: buildInvalidator(),
-  rateLimiter: createMemoryRateLimiter(), // per instance; move to Cloud Armor / Redis only if abuse appears
+  // Sensitive classes (writes, attempts, doubts, admin) share one Postgres counter across all instances;
+  // high-volume public reads stay in memory per instance.
+  rateLimiter: createPostgresRateLimiter(db, createMemoryRateLimiter(), {
+    onError: (err) => logger.warn('shared rate limiter unavailable; allowing request', { error: String(err) }),
+  }),
   auth: createAuthVerifier(config),
   clock: () => new Date(),
   logger,
-  waitUntil: (p) => void p.catch((err: unknown) => logger.warn('background task failed', { error: String(err) })),
+  // Cloud Run throttles CPU once a response is sent, so "after the response" work could stall. Instead, each request
+  // collects its background tasks and the response is released only after they settle (see fetchWithTasks below).
+  waitUntil: (p) => {
+    const tasks = requestTasks.getStore();
+    const guarded = p.catch((err: unknown) => logger.warn('background task failed', { error: String(err) }));
+    if (tasks) tasks.push(guarded);
+    else void guarded;
+  },
 });
 
 const port = Number(process.env['PORT'] ?? 8080);
-const server = serve({ fetch: api.fetch, port, hostname: '0.0.0.0' }, (info) => {
+/** Run the request, then wait for any waitUntil() work (bounded: purge/webhook calls have their own timeouts). */
+async function fetchWithTasks(req: Request): Promise<Response> {
+  const tasks: Promise<unknown>[] = [];
+  return requestTasks.run(tasks, async () => {
+    const res = await api.fetch(req);
+    if (tasks.length) await Promise.allSettled(tasks);
+    return res;
+  });
+}
+
+const server = serve({ fetch: fetchWithTasks, port, hostname: '0.0.0.0' }, (info) => {
   console.log(JSON.stringify({ level: 'info', msg: 'api listening', port: info.port, env: config.APP_ENV, storage: config.STORAGE_DRIVER }));
 });
 

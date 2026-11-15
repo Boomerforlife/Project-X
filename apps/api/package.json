@@ -13,7 +13,9 @@
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "token": "tsx scripts/dev-token.ts",
     "deploy:dry": "wrangler deploy --dry-run --outdir dist -c wrangler.toml",
-    "start": "tsx src/server.ts"
+    "start": "node --enable-source-maps dist/server.mjs",
+    "build": "node scripts/build.mjs",
+    "start:ts": "tsx src/server.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "7.22.0",
@@ -27,11 +29,12 @@
     "@projectx/shared": "*",
     "hono": "4.13.18",
     "jose": "6.2.14",
-    "tsx": "4.23.15",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261030.1",
-    "wrangler": "4.156.0"
+    "wrangler": "4.156.0",
+    "tsx": "4.23.15",
+    "esbuild": "0.28.2"
   }
 }

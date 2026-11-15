@@ -25,4 +25,16 @@ def make_object_store(settings: Settings, driver: str | None = None) -> ObjectSt
                 "USER_UPLOADS": settings.r2_bucket_user_uploads,
             },
         )
-    raise ConfigError(f"unknown storage driver {d!r} (expected local|r2)")
+    if d == "gcs":
+        names = {
+            "SOURCE_DOCS": settings.gcs_bucket_source_docs,
+            "PUBLIC_ASSETS": settings.gcs_bucket_public_assets,
+            "USER_UPLOADS": settings.gcs_bucket_user_uploads,
+        }
+        missing = [k for k, v in names.items() if not v]
+        if missing:
+            raise ConfigError("GCS storage needs " + ", ".join(f"GCS_BUCKET_{k}" for k in missing))
+        from pxw.storage.gcs import GcsObjectStore
+
+        return GcsObjectStore({k: v for k, v in names.items() if v}, project=settings.gcs_project)
+    raise ConfigError(f"unknown storage driver {d!r} (expected local|r2|gcs)")
