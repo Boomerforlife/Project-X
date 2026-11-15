@@ -26,8 +26,9 @@ PYTHONPATH=workers/src python -m pxw.fetch.discover --sources workers/scraper/so
 * Runs on every push to `scraper` that touches the scraper, and on manual dispatch.
 * The **daily schedule only fires once the workflow file is on `main`** (GitHub runs schedules from the default branch).
 * Optional `ingest` job: downloads newly found papers into the private source-docs bucket and queues them for
-  extraction. Off unless repo variable `PXW_INGEST_ENABLED=true` and secrets `PXW_DATABASE_URL`,
-  `GCS_HMAC_ACCESS_ID`, `GCS_HMAC_SECRET` (+ variable `GCS_BUCKET_SOURCE_DOCS`) exist.
+  extraction. Off unless repo variable `PXW_INGEST_ENABLED=true`, secrets `PXW_DATABASE_URL` and `GCP_SA_KEY`
+  (service-account JSON with objectAdmin on the buckets), and variables `GCS_PROJECT` + the three `GCS_BUCKET_*` exist.
+  Storage uses Owner B's `GcsObjectStore` (google-cloud-storage, application default credentials).
 
 ## Licensing gate (unchanged, deliberate)
 `pxw ingest fetch` refuses any source whose `sources.reuse_permitted`/`approved_at` are not set in the database.

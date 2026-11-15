@@ -22,8 +22,8 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
 
 ## 1. Supabase (owner: Owner B, with the user for the dashboard)
 
-1. **Migrations.** Apply in order: `0016_pin_helper_search_path` (Owner B's branch), `0017_billing`, `0018_analytics`.
-   `supabase link --project-ref gardheietftxyforposh` then `supabase db push`. If 0016 is already applied remotely, 0017/0018 are simply newer.
+1. **Migrations.** `0001`–`0017` are applied (0016/0017 by Owner B). Ours: `0018_billing`, `0019_analytics`.
+   `supabase link --project-ref gardheietftxyforposh` then `supabase db push` (the CLI uses a temporary login role; no DB password needed).
    Check: `select count(*) from billing_plans` = 4.
 2. **Auth → URL configuration.** Site URL = the production web origin. Redirect URLs: `https://<prod domain>/**`, `https://<project>-*.vercel.app/**` (previews), `http://localhost:3000/**`.
 3. **Auth → providers.** Email on; decide on email confirmation (on is safer). Custom SMTP before launch (Supabase's default sender is rate-limited).
@@ -74,7 +74,7 @@ Do **not** set `DEV_TEST_JWT_SECRET` on Vercel. The `deploy:web*` scripts in `pa
 ## 5. GitHub (owner: the user)
 
 1. The `scraper` workflow runs on pushes to `scraper`. Its **daily schedule starts once `.github/workflows/scraper.yml` is on `main`** (merge the PR).
-2. Optional ingest job (off by default): repo variable `PXW_INGEST_ENABLED=true`, `GCS_BUCKET_SOURCE_DOCS`; secrets `PXW_DATABASE_URL`, `GCS_HMAC_ACCESS_ID`, `GCS_HMAC_SECRET` (Cloud Storage → Settings → Interoperability → HMAC key for a service account with objectAdmin on the source-docs bucket). It still refuses unapproved sources.
+2. Optional ingest job (off by default): repo variables `PXW_INGEST_ENABLED=true`, `GCS_PROJECT`, `GCS_BUCKET_SOURCE_DOCS`, `GCS_BUCKET_PUBLIC_ASSETS`, `GCS_BUCKET_USER_UPLOADS`; secrets `PXW_DATABASE_URL` and `GCP_SA_KEY` (JSON key of a service account with objectAdmin on the buckets). It still refuses unapproved sources.
 
 ## 6. Credentials checklist
 
@@ -84,5 +84,5 @@ Do **not** set `DEV_TEST_JWT_SECRET` on Vercel. The `deploy:web*` scripts in `pa
 | Supabase publishable key | Vercel env (+ local `.env.local`, git-ignored) | Owner B |
 | Signing / IP-hash / revalidate secrets (≥ 32 chars) | Secret Manager + Vercel (`REVALIDATE_SECRET`) | Owner B |
 | Razorpay test key id / secret / webhook secret | Cloud Run env / Secret Manager | User → Owner B |
-| GCS HMAC key (optional ingest) | GitHub secrets | Owner B |
+| GCP service-account key (optional ingest) | GitHub secret `GCP_SA_KEY` | Owner B |
 | gcloud login on this workstation | `gcloud auth login` (expired here) | User |

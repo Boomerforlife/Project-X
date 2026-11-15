@@ -20,7 +20,10 @@ const EnvSchema = z.object({
   ENABLE_API_DOCS: bool.default(false),
   PUBLIC_ASSETS_BASE_URL: z.string().default('http://localhost:8787/__local/public'),
   FILES_BASE_URL: z.string().default('http://localhost:8787/api/v1/files'),
-  STORAGE_DRIVER: z.enum(['local', 'r2']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 'r2', 'gcs']).default('local'),
+  GCS_BUCKET_SOURCE_DOCS: z.string().optional(),
+  GCS_BUCKET_PUBLIC_ASSETS: z.string().optional(),
+  GCS_BUCKET_USER_UPLOADS: z.string().optional(),
   LOCAL_STORAGE_DIR: z.string().default('.local/storage'),
   SIGNING_SECRET: z.string().default(''),
   IP_HASH_SECRET: z.string().default(''),
@@ -60,9 +63,14 @@ export function parseConfig(env: Record<string, unknown>): AppConfig {
   const c = parsed.data;
   const devLike = c.APP_ENV === 'development' || c.APP_ENV === 'test';
   if (c.AUTH_MODE === 'test' && !devLike) throw new Error('AUTH_MODE=test is only allowed when APP_ENV is development or test');
-  if (c.STORAGE_DRIVER === 'r2' || !devLike) {
+  if (c.STORAGE_DRIVER !== 'local' || !devLike) {
     for (const k of ['SIGNING_SECRET', 'IP_HASH_SECRET'] as const) {
-      if (c[k].length < 32) throw new Error(`${k} (>= 32 chars) is required when STORAGE_DRIVER=r2 or APP_ENV is staging/production`);
+      if (c[k].length < 32) throw new Error(`${k} (>= 32 chars) is required when STORAGE_DRIVER is r2/gcs or APP_ENV is staging/production`);
+    }
+  }
+  if (c.STORAGE_DRIVER === 'gcs') {
+    for (const k of ['GCS_BUCKET_SOURCE_DOCS', 'GCS_BUCKET_PUBLIC_ASSETS', 'GCS_BUCKET_USER_UPLOADS'] as const) {
+      if (!c[k]) throw new Error(`${k} is required when STORAGE_DRIVER=gcs`);
     }
   }
   if (c.AUTH_MODE === 'test' && !c.TEST_JWT_SECRET) throw new Error('AUTH_MODE=test requires TEST_JWT_SECRET');

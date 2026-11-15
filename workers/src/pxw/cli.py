@@ -309,7 +309,7 @@ def cmd_dev_synth_pdf(args: argparse.Namespace, settings: Settings) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pxw", description="ProjectX ingestion workers")
     p.add_argument("--job-store", choices=["file", "postgres"], default=None)
-    p.add_argument("--storage", choices=["local", "r2"], default=None)
+    p.add_argument("--storage", choices=["local", "r2", "gcs"], default=None)
     p.add_argument("--work-dir", default=None)
     p.add_argument("--log-level", default=None)
     sub = p.add_subparsers(dest="cmd", required=True)

@@ -11,7 +11,7 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 | Billing backend | Separate module: server-side plans and prices, Razorpay one-time Orders, signed webhook as the only path to access (idempotent, single transaction), passes stack from current expiry, refunds revoke and pull later passes earlier, ₹29 launch pass (new account, first purchase), promo codes, parent payment links, free full-paper quota (2/month), live keys refused | `apps/api/test/billing.sql.test.ts` (15 tests) |
 | Admin | Orders list, refund request, promo codes, grant/revoke access (audit_log), daily analytics + revenue + signups | same tests + `apps/api/src/analytics/routes.ts` |
 | Pricing UI | `/pricing/` (Free, Monthly ₹59, Quarterly ₹149 Recommended, Annual ₹499 Best value, launch pass), Razorpay Checkout, real success page (polls until the webhook confirms), cancel page, `/pay/[token]/` parent page, Account → Billing, upgrade prompt (≤ once a week, free users, never in sessions/CBT/checkout), full-paper lock screen | `next build` passes; rendered against a local billing API |
-| Analytics | Cookieless aggregate counters (signups, sessions, pricing views, checkout funnel, payments); DNT/GPC honoured; revenue reported from orders, not client events | `src/lib/analytics.ts`, migration 0018 |
+| Analytics | Cookieless aggregate counters (signups, sessions, pricing views, checkout funnel, payments); DNT/GPC honoured; revenue reported from orders, not client events | `src/lib/analytics.ts`, migration 0019 |
 | Legal | Draft Terms, Privacy, Refund, Contact pages with `[TO FILL]` blanks (noindex) | `src/app/(site)/{terms,privacy,refund-policy,contact}` |
 | SEO | Twitter cards, canonical/OG, sitemap = only pages with enough approved content, noindex on thin hubs/chapters, honest hub copy | `SEO_LAUNCH_CHECKLIST.md` |
 | Content tools | `pxw content` validate / import / coverage: CSV/JSON/JSONL; source + licence required per row; checks duplicates (file + DB), answers, options, LaTeX structure, chapter mapping, approved source; imports land as DRAFT with provenance in audit_log; coverage by exam × year × chapter | `workers/tests/test_content_*.py` (117 tests) |
@@ -43,7 +43,7 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 | Credential | For |
 |---|---|
 | Razorpay **test** key id, key secret, webhook secret | Payments on staging |
-| GCS HMAC key + `PXW_DATABASE_URL` (optional) | Scraper ingest job |
+| `GCP_SA_KEY` + `PXW_DATABASE_URL` (optional) | Scraper ingest job |
 | `REVALIDATE_SECRET` / `WEB_REVALIDATE_SECRET` pair | Cache refresh on publish |
 
 ## Needs legal
@@ -53,11 +53,11 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 - Written permission or a legal opinion before ingesting or publishing NTA / JEE Advanced papers.
 - GST: whether prices include GST and invoice requirements.
 
-## For Owner B (from the backend review; their branch was not touched)
+## For Owner B
 
-1. **Urgent:** `ownerBkamain` (public repo) contains a committed `.env.local` with a `VERCEL_OIDC_TOKEN`, plus `.vercel/` and `supabase/.temp/`. Remove them from git and check nothing longer-lived leaked.
-2. Cloud Run: `--no-cpu-throttling` so background work (cache revalidation) after the response completes.
-3. Start-up: ship compiled JS instead of running `tsx` at runtime, to shorten cold starts.
-4. Rate limiting is per instance (max 3), so the effective limit is up to 3× the configured value. Fine for launch; revisit for payment endpoints.
-5. Add the Vercel origins to `CORS_ALLOWED_ORIGINS`; set the new billing env vars (`PRODUCTION_SETUP.md` §2).
-6. Migrations 0017/0018 are numbered after their 0016; `packages/db/test/migrator.test.ts` will need both lists merged.
+Done by Owner B after the review (merged into this branch from `ownerBkamain`): leaked `.env.local`/`.vercel`/`supabase/.temp` untracked and ignored, background work finishes before responding, precompiled API bundle, shared Postgres rate limits (`0017_shared_rate_limits`), GCS store for the workers.
+
+Still open:
+1. The removed `.env.local` is still in the public git **history**. The Vercel OIDC token in it is short-lived, but rotate or confirm expiry.
+2. Redeploy the API from the merged code with the billing env (`PRODUCTION_SETUP.md` §2), and add the Vercel origins to `CORS_ALLOWED_ORIGINS`.
+3. Vercel env vars for API mode (`PRODUCTION_SETUP.md` §3).

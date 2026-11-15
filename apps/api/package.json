@@ -12,23 +12,29 @@
     "dev": "tsx watch src/node.ts",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "token": "tsx scripts/dev-token.ts",
-    "deploy:dry": "wrangler deploy --dry-run --outdir dist -c wrangler.toml"
+    "deploy:dry": "wrangler deploy --dry-run --outdir dist -c wrangler.toml",
+    "start": "node --enable-source-maps dist/server.mjs",
+    "build": "node scripts/build.mjs",
+    "start:ts": "tsx src/server.ts"
   },
   "dependencies": {
-    "hono": "4.13.14",
-    "@hono/zod-openapi": "1.6.3",
-    "zod": "4.6.7",
-    "@hono/node-server": "2.1.5",
+    "@google-cloud/storage": "7.22.0",
+    "@hono/node-server": "2.1.8",
     "@hono/swagger-ui": "0.6.2",
-    "jose": "6.2.14",
+    "@hono/zod-openapi": "1.6.3",
     "@projectx/contracts": "*",
-    "@projectx/shared": "*",
+    "@projectx/database-types": "*",
     "@projectx/db": "*",
     "@projectx/edge": "*",
-    "@projectx/database-types": "*"
+    "@projectx/shared": "*",
+    "hono": "4.13.18",
+    "jose": "6.2.14",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261030.1",
     "wrangler": "4.156.0",
-    "@cloudflare/workers-types": "5.20261030.1"
+    "tsx": "4.23.15",
+    "esbuild": "0.28.2"
   }
 }

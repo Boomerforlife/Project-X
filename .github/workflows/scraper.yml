@@ -76,7 +76,8 @@ jobs:
           retention-days: 14
 
   # Optional: download + register newly discovered papers into the private source-docs bucket and the
-  # ingestion queue. Off unless the repo variable PXW_INGEST_ENABLED is "true" and the secrets exist.
+  # ingestion queue. Off unless the repo variable PXW_INGEST_ENABLED is "true" and the secrets exist
+  # (GCP_SA_KEY: JSON key of a service account with objectAdmin on the three buckets).
   # Sources that are not licence-approved in the database are refused (exit 3) and nothing is downloaded.
   ingest:
     needs: discover
@@ -90,6 +91,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
       - run: pip install -e workers
       - uses: actions/download-artifact@v4
         with:
@@ -100,8 +104,9 @@ jobs:
           PXW_JOB_STORE: postgres
           STORAGE_DRIVER: gcs
           DATABASE_URL: ${{ secrets.PXW_DATABASE_URL }}
-          GCS_HMAC_ACCESS_ID: ${{ secrets.GCS_HMAC_ACCESS_ID }}
-          GCS_HMAC_SECRET: ${{ secrets.GCS_HMAC_SECRET }}
+          GCS_PROJECT: ${{ vars.GCS_PROJECT }}
           GCS_BUCKET_SOURCE_DOCS: ${{ vars.GCS_BUCKET_SOURCE_DOCS }}
+          GCS_BUCKET_PUBLIC_ASSETS: ${{ vars.GCS_BUCKET_PUBLIC_ASSETS }}
+          GCS_BUCKET_USER_UPLOADS: ${{ vars.GCS_BUCKET_USER_UPLOADS }}
           PXW_USER_AGENT: "ProjectXIngest/1.0 (educational PYQ index)"
         run: pxw ingest fetch --manifest .local/work/manifest.json

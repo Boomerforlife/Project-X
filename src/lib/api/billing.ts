@@ -24,7 +24,7 @@ async function authed<S extends z.ZodType>(path: string, opts: { schema: S; meth
 }
 
 /**
- * Mock-data builds only: the same price list the server seeds (supabase/migrations/0017_billing.sql), so the demo
+ * Mock-data builds only: the same price list the server seeds (supabase/migrations/0018_billing.sql), so the demo
  * pricing page renders. `payments_enabled: false` keeps every checkout button disabled in mock mode.
  */
 export const DEMO_PLANS: BillingPlans = {
