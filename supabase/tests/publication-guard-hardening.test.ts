@@ -170,3 +170,31 @@ describe('LOW fixes', () => {
     });
   });
 });
+
+describe('0021: AI-checked questions are practice-only', () => {
+  const asAiChecked = (id: string, extra = '') =>
+    asSuperuser(db, `update questions set origin = 'AI_GENERATED', verification_status = 'AUTOMATED_CHECKS_PASSED'${extra} where id = $1`, [id]);
+
+  it('refuses to publish an AI-checked question that could be indexed or listed in the sitemap', async () => {
+    const m = await makeQuestion(db, { stage: 'READY' });
+    await asAiChecked(m.id, `, indexability = 'AUTO', sitemap_include = false`);
+    await expectPgError(asSuperuser(db, `update questions set publication_status = 'PUBLISHED' where id = $1`, [m.id]), { message: GUARD });
+    await asAiChecked(m.id, `, indexability = 'NOINDEX', sitemap_include = true`);
+    await expectPgError(asSuperuser(db, `update questions set publication_status = 'PUBLISHED' where id = $1`, [m.id]), { message: GUARD });
+  });
+
+  it('publishes when NOINDEX and out of the sitemap, and blocks later flipping it to indexable', async () => {
+    const m = await makeQuestion(db, { stage: 'READY' });
+    await asAiChecked(m.id, `, indexability = 'NOINDEX', sitemap_include = false`);
+    await asSuperuser(db, `update questions set publication_status = 'PUBLISHED' where id = $1`, [m.id]);
+    expect(await status(m.id)).toBe('PUBLISHED');
+    await expectPgError(asSuperuser(db, `update questions set indexability = 'AUTO' where id = $1`, [m.id]), { message: GUARD });
+  });
+
+  it('a human-verified AI question may still be indexed', async () => {
+    const m = await makeQuestion(db, { stage: 'READY' });
+    await asSuperuser(db, `update questions set origin = 'AI_GENERATED', verification_status = 'HUMAN_VERIFIED', indexability = 'AUTO' where id = $1`, [m.id]);
+    await asSuperuser(db, `update questions set publication_status = 'PUBLISHED' where id = $1`, [m.id]);
+    expect(await status(m.id)).toBe('PUBLISHED');
+  });
+});

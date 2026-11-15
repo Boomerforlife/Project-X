@@ -29,6 +29,7 @@ import { createRazorpayClient, type RazorpayClient } from './razorpay';
 import * as billing from './service';
 
 type App = OpenAPIHono<AppEnv>;
+const WEBHOOK_MAX_BYTES = 256 * 1024;
 
 const clients = new WeakMap<AppDeps, RazorpayClient | null>();
 /** One Razorpay client per app instance (tests inject `deps.razorpay`). */
@@ -73,8 +74,11 @@ export function registerBilling(app: App, g: Guards): void {
 
   // Webhook: plain route so the raw bytes are read before any JSON parsing (signature covers the exact body).
   app.post('/billing/webhooks/razorpay', async (c) => {
+    // Refuse an oversized body from its declared length before reading it into memory; re-check after reading.
+    const declared = Number(c.req.header('Content-Length') ?? '0');
+    if (declared > WEBHOOK_MAX_BYTES) throw new ApiError('PAYLOAD_TOO_LARGE', 'Webhook body too large');
     const raw = new Uint8Array(await c.req.raw.arrayBuffer());
-    if (raw.byteLength > 256 * 1024) throw new ApiError('PAYLOAD_TOO_LARGE', 'Webhook body too large');
+    if (raw.byteLength > WEBHOOK_MAX_BYTES) throw new ApiError('PAYLOAD_TOO_LARGE', 'Webhook body too large');
     const r = await billing.handleWebhook(billingDeps(c as Ctx), raw, c.req.header('X-Razorpay-Signature'), c.req.header('X-Razorpay-Event-Id'));
     return send(c as Ctx, 200, r);
   });
