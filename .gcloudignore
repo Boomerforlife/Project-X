@@ -5,5 +5,5 @@ node_modules
 .local
 .vercel
 workers/.venv
-src
+/src
 .env*

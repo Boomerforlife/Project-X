@@ -13,3 +13,9 @@ Deploy: `infra/gcp/deploy-api-staging.sh <tag> <comma-separated web origins>`.
 Verify: `<service url>/api/v1/health` returns `{"data":{"status":"ok",...,"db":"ok"}}`.
 Auth: Supabase signs logins with asymmetric keys (JWKS verified live), so `AUTH_MODE=jwks`; no JWT secret is needed.
 Python workers: later as Cloud Run Jobs using `workers/` (GCS store for `pxw` still to be written).
+
+## Staging status (2026-11-15)
+Live: `https://projectx-api-989800061583.asia-south1.run.app` (Cloud Run, revision from image `staging-2`).
+Checked: `/api/v1/health` -> db ok; `/api/v1/taxonomy/exams` returns JEE Main from the Supabase project; `/users/me` and `/admin/*` return 401 without a token.
+Gotcha fixed: `.gcloudignore` uses gitignore semantics, so a bare `src` also excluded `apps/api/src`; the root web app dir must be written `/src`.
+Database URL = Supabase transaction pooler (port 6543) held in Secret Manager `database-url`.
