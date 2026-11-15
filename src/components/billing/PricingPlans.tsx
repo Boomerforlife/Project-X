@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BillingMe, BillingPlan, BillingPlans } from "@projectx/contracts";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -23,8 +23,6 @@ const BADGE: Record<NonNullable<BillingPlan["badge"]>, string> = {
   BEST_VALUE: "Best value",
   LAUNCH: "Launch offer",
 };
-
-const newId = () => crypto.randomUUID();
 
 function useBillingMe(): { me: BillingMe | null; signedIn: boolean; ready: boolean } {
   const { status } = useAuthStatus();
@@ -152,7 +150,8 @@ export function PlanButton({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [requestId] = useState(newId);
+  // Created on first click (not during render: prerendering forbids random values). Reused for retries of this checkout.
+  const requestId = useRef<string | null>(null);
 
   if (ready && !signedIn) {
     return (
@@ -167,7 +166,8 @@ export function PlanButton({
     setError(null);
     track("checkout_start", { plan: plan.code });
     try {
-      const order = await createOrder({ client_request_id: requestId, plan_code: plan.code });
+      requestId.current ??= crypto.randomUUID();
+      const order = await createOrder({ client_request_id: requestId.current, plan_code: plan.code });
       const r = await openCheckout(order, { description: `${plan.name} · ${plan.duration_days} days` });
       if (r === "submitted") {
         track("checkout_submitted", { plan: plan.code });
