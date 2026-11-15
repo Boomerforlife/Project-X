@@ -184,6 +184,18 @@ def cmd_fetch(args: argparse.Namespace, settings: Settings) -> int:
     return EXIT_ERROR if failures else EXIT_OK
 
 
+def cmd_discover(args: argparse.Namespace, settings: Settings) -> int:
+    """Crawl allow-listed official index pages for PDF links. Needs no database and downloads nothing."""
+    from pxw.fetch.discover import run as discover_run
+
+    only = [s.strip() for s in args.only.split(",") if s.strip()] or None
+    summary = discover_run(Path(args.sources), Path(args.catalog),
+                           Path(args.manifest_out) if args.manifest_out else None, only=only)
+    emit(summary)
+    pages = sum(v["pages"] for v in summary["sources"].values())  # type: ignore[union-attr]
+    return EXIT_ERROR if pages == 0 else EXIT_OK
+
+
 def cmd_jobs_run(args: argparse.Namespace, settings: Settings) -> int:
     from pxw.jobs.runner import JobRunner
     from pxw.pipeline.handlers import make_handlers
@@ -327,6 +339,13 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--min-interval", type=float, default=5.0, help="seconds between requests to one host")
     f.add_argument("--user-agent", default=None)
     f.set_defaults(fn=cmd_fetch)
+
+    dv = ing_sub.add_parser("discover", help="index official paper/answer-key PDF links into a catalogue (no downloads)")
+    dv.add_argument("--sources", default="workers/scraper/sources.json")
+    dv.add_argument("--catalog", default="workers/scraper/catalog.json")
+    dv.add_argument("--manifest-out", default=None, help="also write a `pxw ingest fetch` manifest")
+    dv.add_argument("--only", default="", help="comma-separated source codes")
+    dv.set_defaults(fn=cmd_discover)
 
     j = sub.add_parser("jobs", help="job runner")
     j_sub = j.add_subparsers(dest="jobs_cmd", required=True)
