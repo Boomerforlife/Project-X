@@ -57,3 +57,4 @@ export function createLocalStorage(rootDir: string, bucket: BucketName): ObjectS
 }
 
 export * from './index';
+export { createGcsStorage, type GcsBucketLike, type GcsFileLike } from './gcs';
