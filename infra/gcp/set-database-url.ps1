@@ -1,6 +1,8 @@
 # Run this yourself in PowerShell (the value never goes into chat, git or shell history).
 # Paste the Supabase "Transaction pooler" connection string, with your real DB password filled in.
-$ErrorActionPreference = 'Stop'
+# 'Continue' on purpose: gcloud prints harmless messages to stderr (e.g. NOT_FOUND on the existence check).
+# Real failures are caught by Check() via the exit code.
+$ErrorActionPreference = 'Continue'
 $P = 'projectx-staging-a7k2'
 $SA = "projectx-api@$P.iam.gserviceaccount.com"
 
@@ -15,8 +17,8 @@ try {
   [IO.File]::WriteAllText($tmpPath, $plain.Trim())
   $dataFile = "--data-file=$tmpPath"
 
-  gcloud secrets describe database-url --project=$P *> $null
-  if ($LASTEXITCODE -eq 0) {
+  $existing = gcloud secrets list --project=$P --filter="name~database-url" --format="value(name)" 2>$null
+  if ($existing) {
     gcloud secrets versions add database-url $dataFile --project=$P
     Check 'add secret version'
   } else {
