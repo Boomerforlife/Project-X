@@ -16,13 +16,13 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 | SEO | Twitter cards, canonical/OG, sitemap = only pages with enough approved content, noindex on thin hubs/chapters, honest hub copy | `SEO_LAUNCH_CHECKLIST.md` |
 | Content tools | `pxw content` validate / import / coverage: CSV/JSON/JSONL; source + licence required per row; checks duplicates (file + DB), answers, options, LaTeX structure, chapter mapping, approved source; imports land as DRAFT with provenance in audit_log; coverage by exam × year × chapter | `workers/tests/test_content_*.py` (117 tests) |
 | Scraper | Branch `scraper`: discovery crawler for official PDFs (NTA JEE Main + NEET, JEE Advanced archive), 240 PDFs catalogued, GitHub Actions run green, GCS storage for workers | `workers/scraper/`, Actions run on `scraper` |
-| Quality | typecheck (web + all packages), ESLint, tests: web 75, api 65, db 246, contracts 10, shared 36, edge 40, ai 124, workers 127+; `next build` OK | see PR |
+| Quality | typecheck (web + all packages), ESLint, tests: web 75, api 65, db 246, contracts 10, shared 36, edge 40, ai 124, workers 244 (+ruff); `next build` OK | see PR |
 
 ## Blocked (cannot finish until something else exists)
 
 | Item | Blocked by |
 |---|---|
-| Sign-up → practice → results → bookmarks → mistakes end to end on the live stack | Supabase publishable key in the web env **and** questions in the DB (live DB has 0 questions) |
+| Practice → results → mistakes end to end on the live stack (sign-up, profile, bookmarks, streak and progress already pass live) | Questions in the DB (live DB has 0 questions) |
 | Real PYQ content | Licence decision for NTA / JEE Advanced papers (sources unapproved by design) |
 | Live `/billing/*` and `/analytics/events` | API redeploy from the merged branch (Owner B) |
 | Scraper daily schedule | Workflow file must be on `main` (merge the PR) |
@@ -30,7 +30,7 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 
 ## Needs you (decisions or actions only you can take)
 
-1. Send the Supabase **publishable key** and add the Vercel and localhost redirect URLs in Supabase Auth.
+1. Add the Vercel and localhost redirect URLs in Supabase Auth (URL configuration), and delete the two `e2e-test-*@tabby-e2e.dev` test users.
 2. Re-login gcloud on this machine (`gcloud auth login`). The stored token has expired.
 3. Decide the refund window and eligibility (the refund page has a blank for it).
 4. Pick the production domain.
@@ -43,7 +43,6 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 | Credential | For |
 |---|---|
 | Razorpay **test** key id, key secret, webhook secret | Payments on staging |
-| Supabase publishable key | Web sign-in |
 | GCS HMAC key + `PXW_DATABASE_URL` (optional) | Scraper ingest job |
 | `REVALIDATE_SECRET` / `WEB_REVALIDATE_SECRET` pair | Cache refresh on publish |
 

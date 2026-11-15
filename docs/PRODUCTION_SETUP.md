@@ -14,7 +14,8 @@ Secrets never go in git, chat, or any `NEXT_PUBLIC_*` variable.
 | Web (local, API mode) → live API: 24 public + private routes | all render (HTTP 200); chapter lists come from the live DB |
 | CORS from `http://localhost:3000` | allowed (preflight 204) |
 | Web billing UI → API billing (local API with billing on) | pricing renders server prices; checkout opens only with real test keys |
-| Sign-in, practice session, results, bookmarks, mistakes against live API | **not run**: needs `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and questions in the DB (the DB has 0 questions) |
+| Live auth E2E (2026-11-16): Supabase sign-up + password sign-in → API verifies the token → `/users/me`, PATCH profile, PUT exam preferences, bookmarks, mistakes, streak, progress | all 200 (two test accounts `e2e-test-*@tabby-e2e.dev` created; delete them in Auth → Users) |
+| Practice session / results against live API | `POST /practice/sessions` → 422 `NO_QUESTIONS`: correct, the live DB has 0 questions. Re-run once content is imported |
 | Live API has `/billing/*`, `/analytics/*` | **no**: needs a redeploy from this branch after merge (step 2.4) |
 
 Local dev on the Windows workstation: start `next dev` from **PowerShell**. From Git Bash, Turbopack's CSS worker dies with `0xc0000142`.
@@ -80,7 +81,7 @@ Do **not** set `DEV_TEST_JWT_SECRET` on Vercel. The `deploy:web*` scripts in `pa
 | Credential | Where it lives | Who |
 |---|---|---|
 | Supabase DB password / pooler URI | Secret Manager `database-url` | Owner B |
-| Supabase publishable key | Vercel env | Owner B (from user) |
+| Supabase publishable key | Vercel env (+ local `.env.local`, git-ignored) | Owner B |
 | Signing / IP-hash / revalidate secrets (≥ 32 chars) | Secret Manager + Vercel (`REVALIDATE_SECRET`) | Owner B |
 | Razorpay test key id / secret / webhook secret | Cloud Run env / Secret Manager | User → Owner B |
 | GCS HMAC key (optional ingest) | GitHub secrets | Owner B |
