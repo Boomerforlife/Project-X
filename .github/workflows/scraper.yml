@@ -46,6 +46,7 @@ jobs:
         env:
           PYTHONPATH: workers/src
         run: |
+          mkdir -p .local/work
           python -m pxw.fetch.discover \
             --sources workers/scraper/sources.json \
             --catalog workers/scraper/catalog.json \
