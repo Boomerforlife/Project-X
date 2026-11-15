@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.next
+.local
+.vercel
+.git
+.open-next
+.wrangler
+workers
+docs
+infra
+supabase/.temp
+.env*
+!.env.example

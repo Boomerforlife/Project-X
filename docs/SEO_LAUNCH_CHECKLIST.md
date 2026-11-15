@@ -20,7 +20,8 @@ Until both hold, every page is `noindex` and `sitemap.xml` is empty. Turn it on 
 
 ## Before launch (needs content or a decision)
 
-- [ ] **Content:** at least one chapter per subject with ≥ 5 published, solved questions. Today the live DB has **0 questions**, so the correct result is an empty sitemap.
+- [ ] **Content:** the live DB now has 433 published AI-checked practice questions. They are practice-only (NOINDEX, no public question page), but they make chapter/subject hubs indexable (≥ 5 published per chapter), so review those hub pages before turning indexing on. Individually indexable question pages need editorial or licensed, human-verified questions.
+- [ ] Known: unknown chapter/question slugs render not-found with `noindex` but HTTP 200 (streaming). Acceptable; fix later by resolving the slug before the page streams.
 - [ ] Production domain chosen; `NEXT_PUBLIC_SITE_URL` set (canonicals and sitemap URLs use it).
 - [ ] Replace `[TO FILL]` blanks in Terms/Privacy/Refund/Contact; legal sign-off; then remove `noindex: true` from those four pages.
 - [ ] Verify on staging: `curl -s https://<staging>/robots.txt`, `/sitemap.xml`; view-source on a chapter page for canonical, robots and JSON-LD. Validate JSON-LD with the Rich Results Test.

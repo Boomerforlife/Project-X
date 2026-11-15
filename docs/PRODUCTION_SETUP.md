@@ -1,7 +1,7 @@
 # Production setup
 
 Every dashboard step and credential needed to run Tabby in production, by service. Owner noted per step.
-Stack (fixed): **Vercel** (web, Next.js) → **Google Cloud Run** (API, `projectx-api`, asia-south1) → **Supabase** (Postgres + Auth, `gardheietftxyforposh`, ap-south-1). Payments: **Razorpay** (test mode only at launch). Scraper: **GitHub Actions**.
+Stack (fixed, free tier): **Google Cloud Run** for the web (`projectx-web`, Next.js standalone) and the API (`projectx-api`), asia-south1 → → **Supabase** (Postgres + Auth, `gardheietftxyforposh`, ap-south-1). Payments: **Razorpay** (test mode only at launch). Scraper: **GitHub Actions**.
 
 Secrets never go in git, chat, or any `NEXT_PUBLIC_*` variable.
 
@@ -15,7 +15,7 @@ Secrets never go in git, chat, or any `NEXT_PUBLIC_*` variable.
 | CORS from `http://localhost:3000` | allowed (preflight 204) |
 | Web billing UI → API billing (local API with billing on) | pricing renders server prices; checkout opens only with real test keys |
 | Live auth E2E (2026-11-16): Supabase sign-up + password sign-in → API verifies the token → `/users/me`, PATCH profile, PUT exam preferences, bookmarks, mistakes, streak, progress | all 200 (two test accounts `e2e-test-*@tabby-e2e.dev` created; delete them in Auth → Users) |
-| Practice session / results against live API | `POST /practice/sessions` → 422 `NO_QUESTIONS`: correct, the live DB has 0 questions. Re-run once content is imported |
+| Practice against the live API (2026-11-16, after loading 433 questions) | sign-up → chapter session (5 questions) → graded attempts with solutions → mistakes (4) → bookmark → complete → streak/progress: all pass |
 | Live API has `/billing/*`, `/analytics/*` | **no**: needs a redeploy from this branch after merge (step 2.4) |
 
 Local dev on the Windows workstation: start `next dev` from **PowerShell**. From Git Bash, Turbopack's CSS worker dies with `0xc0000142`.
@@ -25,10 +25,10 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
 1. **Migrations.** `0001`–`0017` are applied (0016/0017 by Owner B). Ours: `0018_billing`, `0019_analytics`.
    `supabase link --project-ref gardheietftxyforposh` then `supabase db push` (the CLI uses a temporary login role; no DB password needed).
    Check: `select count(*) from billing_plans` = 4.
-2. **Auth → URL configuration.** Site URL = the production web origin. Redirect URLs: `https://<prod domain>/**`, `https://<project>-*.vercel.app/**` (previews), `http://localhost:3000/**`.
+2. **Auth → URL configuration.** Site URL = the production web origin. Redirect URLs: `https://<prod domain>/**`, `https://projectx-web-*.run.app/**`, `http://localhost:3000/**`.
 3. **Auth → providers.** Email on; decide on email confirmation (on is safer). Custom SMTP before launch (Supabase's default sender is rate-limited).
 4. **JWT signing keys.** Asymmetric keys (the API verifies through JWKS, `AUTH_MODE=jwks`). Nothing to copy.
-5. **API keys.** Copy the **publishable** key (`sb_publishable_…`) for Vercel. Never use the secret/service-role key in the web app.
+5. **API keys.** Copy the **publishable** key (`sb_publishable_…`) for the web build. Never use the secret/service-role key in the web app.
 6. **First admin.** After the admin signs up: `insert into user_roles (user_id, role) values ('<auth user id>', 'ADMIN');`
 7. **Backups.** Enable PITR or daily backups on the paid plan before taking payments (orders are financial records).
 
@@ -45,23 +45,14 @@ Project `projectx-staging-a7k2`, service `projectx-api`. Runbook: `docs/DEPLOYME
 5. **Cold starts.** Scales to zero; the first request after idle takes a few seconds. The image runs TypeScript through `tsx` at start-up; shipping compiled JS shortens that. `--min-instances=1` removes it (small cost).
 6. Budget alert ≈ ₹450 stays the safety net.
 
-## 3. Vercel web app (owner: Owner B)
+## 3. Web app on Cloud Run (owner: Owner B)
 
-Build: `npm run build:web` (see `vercel.json`). Env vars, set for **Production** and **Preview** separately. `NEXT_PUBLIC_*` values are inlined at build time, so redeploy after any change.
-
-| Variable | Value |
-|---|---|
-| `NEXT_PUBLIC_DATA_SOURCE` | `api` |
-| `NEXT_PUBLIC_API_BASE_URL` / `API_BASE_URL` | `https://projectx-api-989800061583.asia-south1.run.app/api/v1` (or the custom API domain) |
-| `NEXT_PUBLIC_AUTH_MODE` | `supabase` (never `dev` in production) |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://gardheietftxyforposh.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | from Supabase step 1.5 |
-| `NEXT_PUBLIC_SITE_URL` | `https://<prod domain>` |
-| `NEXT_PUBLIC_ALLOW_INDEXING` | `false` until the SEO checklist passes, then `true` (Production only) |
-| `NEXT_PUBLIC_FEATURE_PAPERS` / `_LEADERBOARD` | `off` |
-| `REVALIDATE_SECRET` | secret, equal to the API's `WEB_REVALIDATE_SECRET` |
-
-Do **not** set `DEV_TEST_JWT_SECRET` on Vercel. The `deploy:web*` scripts in `package.json` target Cloudflare/OpenNext from the earlier plan and are not used on Vercel.
+Hosting decision (2026-11-16): Cloud Run, not Vercel (Vercel Hobby forbids commercial use; Pro is about $20/month).
+Full runbook: **`docs/DEPLOY_WEB_CLOUD_RUN.md`** (`Dockerfile.web`, `cloudbuild.web.yaml`, build-time `NEXT_PUBLIC_*` substitutions,
+`REVALIDATE_SECRET` from Secret Manager). Build-time values: `NEXT_PUBLIC_DATA_SOURCE=api`, `NEXT_PUBLIC_API_BASE_URL`,
+`NEXT_PUBLIC_AUTH_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SITE_URL`,
+`NEXT_PUBLIC_ALLOW_INDEXING=false` (true only at launch). Never set `DEV_TEST_JWT_SECRET` or `NEXT_PUBLIC_AUTH_MODE=dev` in a deployed build.
+`vercel.json` and the Cloudflare `deploy:web*` scripts remain from earlier plans and are unused.
 
 ## 4. Razorpay (owner: the user, test mode)
 
@@ -81,8 +72,8 @@ Do **not** set `DEV_TEST_JWT_SECRET` on Vercel. The `deploy:web*` scripts in `pa
 | Credential | Where it lives | Who |
 |---|---|---|
 | Supabase DB password / pooler URI | Secret Manager `database-url` | Owner B |
-| Supabase publishable key | Vercel env (+ local `.env.local`, git-ignored) | Owner B |
-| Signing / IP-hash / revalidate secrets (≥ 32 chars) | Secret Manager + Vercel (`REVALIDATE_SECRET`) | Owner B |
+| Supabase publishable key | Cloud Build substitution for the web image (+ local `.env.local`, git-ignored) | Owner B |
+| Signing / IP-hash / revalidate secrets (≥ 32 chars) | Secret Manager (API + web `REVALIDATE_SECRET`) | Owner B |
 | Razorpay test key id / secret / webhook secret | Cloud Run env / Secret Manager | User → Owner B |
 | GCP service-account key (optional ingest) | GitHub secret `GCP_SA_KEY` | Owner B |
 | gcloud login on this workstation | `gcloud auth login` (expired here) | User |

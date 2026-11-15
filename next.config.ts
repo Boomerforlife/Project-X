@@ -65,6 +65,8 @@ const nextConfig: NextConfig = {
   // Public URLs use trailing slashes (CLAUDE.md §5); the other form 308-redirects.
   trailingSlash: true,
   poweredByHeader: false,
+  // Self-contained server for the Cloud Run container (Dockerfile.web); ignored by Vercel.
+  output: "standalone",
   transpilePackages: ["@projectx/contracts"],
   turbopack: {
     rules: {
