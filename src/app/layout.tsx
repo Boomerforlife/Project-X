@@ -3,8 +3,8 @@ import { Suspense } from "react";
 import { Inter, Silkscreen, Space_Grotesk } from "next/font/google";
 import "katex/dist/katex.min.css";
 import "./globals.css";
-import { Kitty } from "@/components/brand/Kitty";
 import { AppReady, NavProgress } from "@/components/layout/AppChrome";
+import { LoadingScreen } from "@/components/states/Loading";
 import { THEME_SCRIPT } from "@/components/theme/Theme";
 import { Toaster } from "@/components/ui/Toast";
 import { DATA_SOURCE, INDEXABLE, SITE } from "@/lib/site";
@@ -72,19 +72,14 @@ function MockRibbon() {
 /** Skip the splash after the first load in a tab, and always in the CBT (no mascot there). */
 const SPLASH_SCRIPT = `(function(){try{if(sessionStorage.getItem("tabby-splashed")||location.pathname.indexOf("/cbt")===0)document.documentElement.classList.add("no-splash");}catch(e){}})();`;
 
-/** Branded first-load state: visible only until the app hydrates (see AppReady). */
+/**
+ * Branded first-load state: visible only until the app hydrates (see AppReady),
+ * never padded with an artificial delay.
+ */
 function Splash() {
   return (
     <div id="splash" aria-hidden>
-      <div className="flex flex-col items-center">
-        <Kitty animated className="h-20 w-auto text-fg" />
-        <div className="splash-bar mt-6 flex gap-1.5">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <span key={i} className="size-2 bg-fg" />
-          ))}
-        </div>
-        <p className="mt-4 font-display text-sm font-medium tracking-tight text-fg-muted">{SITE.name}</p>
-      </div>
+      <LoadingScreen fullscreen={false} rotate={false} />
     </div>
   );
 }

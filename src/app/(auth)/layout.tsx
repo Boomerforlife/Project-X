@@ -7,7 +7,7 @@ export const metadata = PRIVATE_METADATA;
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
+      <header data-chrome className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
         <Wordmark />
         <ThemeToggle />
       </header>

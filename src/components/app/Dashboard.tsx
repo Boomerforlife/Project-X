@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { Heatmap, TrendBars } from "@/components/charts/Charts";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -207,8 +208,8 @@ function TodayPanel({ s, user }: { s: DemoState; user: DemoUser }) {
   });
   return (
     <aside aria-label="Today" className="relative self-end pt-16 lg:pt-20">
-      {/* The kitty quietly sits on the panel; it sleeps once the goal is met. */}
-      <Kitty pose={pct >= 1 ? "sleep" : "sit"} cosmetic={user.cosmetic} animated className="absolute right-8 top-0 h-[4.6rem] w-auto text-fg lg:h-[5.6rem]" />
+      {/* The kitty quietly sits on the panel and gives one small hop once today's streak or goal is reached. */}
+      <TabbyMascot state={td.answered >= STREAK_MIN_QUESTIONS || pct >= 1 ? "success" : "idle"} cosmetic={user.cosmetic} className="absolute right-8 top-0 h-[4.6rem] w-auto text-fg lg:h-[5.6rem]" />
       <div className="surface relative p-6">
         <div className="flex items-center gap-6">
           <Ring value={pct} size={124} stroke={9} colorVar={pct >= 1 ? "var(--ok)" : "var(--fg)"} label={`${td.answered} of ${user.dailyGoal} questions today`}>
@@ -374,7 +375,7 @@ function Performance({ s, user, onStart }: { s: DemoState; user: DemoUser; onSta
         </div>
         {recent.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-10 text-center">
-            <Kitty pose="sleep" className="h-12 w-auto text-fg-subtle" />
+            <TabbyMascot state="idle" className="h-12 text-fg-subtle" />
             <p className="mt-3 text-sm text-fg-muted">Finished sessions and papers will show up here.</p>
           </div>
         ) : (

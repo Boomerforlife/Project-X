@@ -1,4 +1,4 @@
-import { Kitty } from "@/components/brand/Kitty";
+import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { pageMetadata } from "@/lib/seo";
@@ -25,7 +25,7 @@ export default function StudyPlansPage() {
       />
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
         <EmptyState
-          kitty={<Kitty pose="sit" className="h-16 w-auto text-fg-subtle" />}
+          kitty={<TabbyMascot state="curious" className="h-16 text-fg-subtle" />}
           title="Plans are being written"
           body="We'd rather publish a few plans that work than many that don't. Until they're ready, chapter-wise practice is the best place to start."
         >
