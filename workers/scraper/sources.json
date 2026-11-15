@@ -1,0 +1,34 @@
+{
+  "_comment": "Official exam-body pages only. Discovery stores public URLs + metadata; it never downloads. Downloading/ingesting stays behind the licence gate (sources.reuse_permitted + approved_at in the database). Add a source here only if you could defend its use in writing: see docs/CONTENT_SOURCES.md.",
+  "user_agent": "ProjectXIngest/1.0 (educational PYQ index)",
+  "min_interval_s": 5,
+  "sources": [
+    {
+      "source": "NTA",
+      "exam": "jee-main",
+      "allowed_hosts": ["jeemain.nta.nic.in", "cdnbbsr.s3waas.gov.in"],
+      "seeds": ["https://jeemain.nta.nic.in/"],
+      "follow": ["jeemain[.]nta[.]nic[.]in/[0-9]{4}-archive/?$", "jeemain[.]nta[.]nic[.]in/.*(question-paper|answer-key)"],
+      "max_pages": 12,
+      "max_depth": 2
+    },
+    {
+      "source": "NTA",
+      "exam": "neet-ug",
+      "allowed_hosts": ["neet.nta.nic.in", "cdnbbsr.s3waas.gov.in"],
+      "seeds": ["https://neet.nta.nic.in/"],
+      "follow": ["neet[.]nta[.]nic[.]in/archive/?$", "neet[.]nta[.]nic[.]in/.*(question-paper|answer-key)"],
+      "max_pages": 12,
+      "max_depth": 2
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "exam": "jee-advanced",
+      "allowed_hosts": ["jeeadv.ac.in"],
+      "seeds": ["https://jeeadv.ac.in/archive.html"],
+      "follow": [],
+      "max_pages": 3,
+      "max_depth": 0
+    }
+  ]
+}

@@ -29,6 +29,11 @@ class Settings(BaseModel):
     r2_bucket_source_docs: str = "projectx-source-docs"
     r2_bucket_public_assets: str = "projectx-public-assets"
     r2_bucket_user_uploads: str = "projectx-user-uploads"
+    gcs_hmac_access_id: str | None = None
+    gcs_hmac_secret: str | None = None
+    gcs_bucket_source_docs: str | None = None
+    gcs_bucket_public_assets: str | None = None
+    gcs_bucket_user_uploads: str | None = None
     log_level: str = "info"
 
     @classmethod
@@ -58,5 +63,10 @@ class Settings(BaseModel):
             r2_bucket_source_docs=g("R2_BUCKET_SOURCE_DOCS", "projectx-source-docs") or "projectx-source-docs",
             r2_bucket_public_assets=g("R2_BUCKET_PUBLIC_ASSETS", "projectx-public-assets") or "projectx-public-assets",
             r2_bucket_user_uploads=g("R2_BUCKET_USER_UPLOADS", "projectx-user-uploads") or "projectx-user-uploads",
+            gcs_hmac_access_id=g("GCS_HMAC_ACCESS_ID"),
+            gcs_hmac_secret=g("GCS_HMAC_SECRET"),
+            gcs_bucket_source_docs=g("GCS_BUCKET_SOURCE_DOCS"),
+            gcs_bucket_public_assets=g("GCS_BUCKET_PUBLIC_ASSETS"),
+            gcs_bucket_user_uploads=g("GCS_BUCKET_USER_UPLOADS"),
             log_level=(g("LOG_LEVEL", "info") or "info").lower(),
         )

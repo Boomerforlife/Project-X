@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pxw.config import ConfigError, Settings
 from pxw.storage.base import ObjectStore
+from pxw.storage.gcs import GcsObjectStore
 from pxw.storage.local import LocalObjectStore
 from pxw.storage.r2 import R2ObjectStore
 
@@ -25,4 +26,13 @@ def make_object_store(settings: Settings, driver: str | None = None) -> ObjectSt
                 "USER_UPLOADS": settings.r2_bucket_user_uploads,
             },
         )
-    raise ConfigError(f"unknown storage driver {d!r} (expected local|r2)")
+    if d == "gcs":
+        if not (settings.gcs_hmac_access_id and settings.gcs_hmac_secret and settings.gcs_bucket_source_docs):
+            raise ConfigError("GCS storage needs GCS_HMAC_ACCESS_ID, GCS_HMAC_SECRET and GCS_BUCKET_SOURCE_DOCS")
+        names = {"SOURCE_DOCS": settings.gcs_bucket_source_docs}
+        if settings.gcs_bucket_public_assets:
+            names["PUBLIC_ASSETS"] = settings.gcs_bucket_public_assets
+        if settings.gcs_bucket_user_uploads:
+            names["USER_UPLOADS"] = settings.gcs_bucket_user_uploads
+        return GcsObjectStore(settings.gcs_hmac_access_id, settings.gcs_hmac_secret, names)
+    raise ConfigError(f"unknown storage driver {d!r} (expected local|r2|gcs)")
