@@ -174,7 +174,8 @@ export function toQuestion(q: PublicQuestion): Question {
     source: sourceOf(q, exam),
     verification: { status: verificationFromApi(q.verification.status) },
     hasSolution: true,
-    publicPage: true,
+    // AI-checked (not human-verified) items are practice-only: no public question page (same rule as the card adapters).
+    publicPage: q.attribution.origin !== "AI_GENERATED",
     indexable: q.indexable && q.seo.robots === "index,follow",
   };
 }

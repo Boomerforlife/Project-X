@@ -197,6 +197,20 @@ describe('billing (SQL)', () => {
     expect(ord.data.status).toBe('CREATED');
   });
 
+  it('5b. a paid webhook without an amount is treated as a mismatch and grants nothing', async () => {
+    const u = await newUser();
+    const o = (await order(u, 'plus_monthly')).body.data;
+    const w = await webhook({ event: 'payment.captured', payload: { payment: { entity: { id: `pay_noamt_${++evSeq}`, order_id: o.razorpay_order_id, currency: 'INR' } } } });
+    expect((await j(w)).data.outcome).toBe('amount_mismatch');
+    expect((await me(u)).tier).toBe('FREE');
+  });
+
+  it('5c. an oversized webhook body is refused before processing', async () => {
+    const big = JSON.stringify({ event: 'order.paid', pad: 'x'.repeat(300 * 1024) });
+    const r = await h.req('/billing/webhooks/razorpay', { method: 'POST', body: big, headers: { 'Content-Type': 'application/json', 'X-Razorpay-Signature': 'a'.repeat(64) } });
+    expect(r.status).toBe(413);
+  });
+
   it('6. stacking: monthly then quarterly extends from current access end', async () => {
     const u = await newUser();
     await buy(u, 'plus_monthly');

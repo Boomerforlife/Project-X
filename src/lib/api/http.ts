@@ -22,7 +22,9 @@ export type ApiResult<S extends z.ZodType> = {
   status: number;
 };
 
-const MAX_RETRY_WAIT_SEC = 5;
+// The browser must stay snappy; the server (SSR and the build's prerender) can afford to wait out a rate-limit window.
+const MAX_RETRY_WAIT_SEC = { browser: 5, server: 30 } as const;
+const DEFAULT_RETRIES = { browser: 2, server: 5 } as const;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function baseFor(base: "server" | "browser" | undefined): string {
@@ -102,7 +104,8 @@ async function once<S extends z.ZodType>(path: string, o: ApiFetchOptions<S>): P
 
 export async function apiFetch<S extends z.ZodType>(path: string, opts: ApiFetchOptions<S>): Promise<ApiResult<S>> {
   const isGet = (opts.method ?? "GET") === "GET";
-  const maxRetry = isGet ? (opts.retry ?? 2) : 0;
+  const side = typeof window === "undefined" ? "server" : "browser";
+  const maxRetry = isGet ? (opts.retry ?? DEFAULT_RETRIES[side]) : 0;
   let attempt = 0;
   for (;;) {
     try {
@@ -111,7 +114,7 @@ export async function apiFetch<S extends z.ZodType>(path: string, opts: ApiFetch
       const retriable =
         e instanceof ApiError && (e.code === "NETWORK" || e.status === 429 || e.status === 503) && attempt < maxRetry;
       if (!retriable) throw e;
-      const waitSec = Math.min((e as ApiError).retryAfterSec ?? 0.25 * 2 ** attempt, MAX_RETRY_WAIT_SEC);
+      const waitSec = Math.min((e as ApiError).retryAfterSec ?? 0.25 * 2 ** attempt, MAX_RETRY_WAIT_SEC[side]);
       attempt++;
       await sleep(waitSec * 1000);
     }

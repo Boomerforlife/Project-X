@@ -45,13 +45,15 @@ jobs:
       - name: Discover
         env:
           PYTHONPATH: workers/src
+          # Passed through the environment, never pasted into the script, so the input can't inject shell commands.
+          ONLY: ${{ github.event.inputs.only }}
         run: |
           mkdir -p .local/work
           python -m pxw.fetch.discover \
             --sources workers/scraper/sources.json \
             --catalog workers/scraper/catalog.json \
             --manifest-out .local/work/manifest.json \
-            --only "${{ github.event.inputs.only }}" | tee .local/summary.json
+            --only "$ONLY" | tee .local/summary.json
           {
             echo "### PYQ discovery";
             echo '```json'; cat .local/summary.json; echo '```';

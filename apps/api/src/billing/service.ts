@@ -566,7 +566,8 @@ async function markPaid(
   const o = await one<OrderRow>(tx, `select ${ORDER_COLS} from public.billing_orders where razorpay_order_id=$1 for update`, [rzpOrderId]);
   if (!o) return 'unknown_order';
   if (o.status === 'PAID' || o.status === 'REFUNDED') return 'already_paid';
-  if ((payment.amount !== undefined && Number(payment.amount) !== Number(o.amount_paise)) || (payment.currency && payment.currency !== 'INR')) {
+  // A paid event must state the amount and currency; a missing value is treated as a mismatch, never as a pass.
+  if (payment.amount === undefined || payment.amount === null || Number(payment.amount) !== Number(o.amount_paise) || (payment.currency ?? 'INR') !== 'INR') {
     log.error('billing webhook amount mismatch', { order_id: o.id, expected: o.amount_paise, got: payment.amount, currency: payment.currency });
     return 'amount_mismatch';
   }
