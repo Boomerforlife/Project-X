@@ -1,22 +1,39 @@
+# dependencies
 node_modules/
+.pnp
+.pnp.*
+
+# build output
 .local/
 dist/
+/build
+/.next/
+.next/
+/out/
+.open-next/
 .wrangler/
-.dev.vars
+*.tsbuildinfo
+next-env.d.ts
+coverage/
+
+# env and secrets (keep only checked-in examples)
 .env
+.env*
+!.env.example
+.dev.vars
+.dev.vars*
+!.dev.vars.example
+*.pem
+
+# python
 workers/.venv/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
-*.log
-coverage/
 *.egg-info/
 
-/.next/
-/out/
-*.tsbuildinfo
-next-env.d.ts
+# misc
+*.log
+.DS_Store
+.vercel
 .playwright-mcp/
-.open-next/
-.next/
-next-env.d.ts
