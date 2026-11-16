@@ -7,6 +7,7 @@ substitutions:
   _SUPABASE_URL: https://gardheietftxyforposh.supabase.co
   _SUPABASE_PUBLISHABLE_KEY: ""
   _SITE_URL: ""
+  _AUTH_GOOGLE: "off"
 steps:
   - name: gcr.io/cloud-builders/docker
     env: ["DOCKER_BUILDKIT=1"]
@@ -20,6 +21,7 @@ steps:
       - --build-arg=NEXT_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}
       - --build-arg=NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${_SUPABASE_PUBLISHABLE_KEY}
       - --build-arg=NEXT_PUBLIC_SITE_URL=${_SITE_URL}
+      - --build-arg=NEXT_PUBLIC_AUTH_GOOGLE=${_AUTH_GOOGLE}
       - .
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/web:${_TAG}

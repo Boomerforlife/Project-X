@@ -18,6 +18,9 @@ export const AUTH_MODE: AuthMode =
 
 export const SUPABASE_CONFIG = { url: SUPABASE_URL, key: SUPABASE_KEY } as const;
 
+/** "Continue with Google" shows only once the Google provider is configured in Supabase (build-time flag). */
+export const AUTH_GOOGLE = AUTH_MODE === "supabase" && process.env.NEXT_PUBLIC_AUTH_GOOGLE === "on";
+
 export const DEV_USERS = [
   { id: "dev1", label: "Dev One" },
   { id: "dev2", label: "Dev Two" },

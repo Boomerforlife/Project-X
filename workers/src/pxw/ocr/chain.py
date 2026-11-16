@@ -20,10 +20,12 @@ def build_engines(names: list[str], *, mock: MockOcrEngine | None = None) -> lis
             engines.append(PaddleOcrEngine())
         elif key == "tesseract":
             engines.append(TesseractOcrEngine())
+        elif key == "none":
+            continue  # explicit: no OCR (images are shown as-is; OCR can enrich later)
         elif key == "mock":
             engines.append(mock or MockOcrEngine())
         elif key:
-            raise ValueError(f"unknown OCR engine {n!r} (rapidocr|paddle|tesseract|mock)")
+            raise ValueError(f"unknown OCR engine {n!r} (rapidocr|paddle|tesseract|mock|none)")
     return engines
 
 

@@ -92,6 +92,18 @@ export async function emailSignIn(email: string, password: string): Promise<Auth
   return { ok: true };
 }
 
+/**
+ * Google sign-in through Supabase OAuth. The browser leaves for Google, then comes back to the login page with the
+ * session in the URL (detectSessionInUrl), which forwards to `next`. `next` must already be a same-site path.
+ */
+export async function googleSignIn(next: string): Promise<AuthResult> {
+  if (AUTH_MODE !== "supabase") return { ok: false, message: "Google sign-in is not configured in this build." };
+  const back = `${location.origin}/login/?oauth=1&next=${encodeURIComponent(next)}`;
+  const { error } = await supabase().auth.signInWithOAuth({ provider: "google", options: { redirectTo: back } });
+  if (error) return { ok: false, message: error.message };
+  return { ok: true };
+}
+
 export async function authSignOut() {
   dev = null;
   try {
