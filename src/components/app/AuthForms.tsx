@@ -3,15 +3,15 @@
 import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Kitty } from "@/components/brand/Kitty";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import {  } from "@/components/ui/Primitives";
 import { DemoBadge } from "@/components/app/ModeBadge";
 import { demoLogin, useDemo } from "@/lib/demo/store";
-import { AUTH_MODE, DEV_USERS } from "@/lib/auth/config";
-import { devSignIn, emailSignIn, emailSignUp } from "@/lib/auth/session";
+import { AUTH_GOOGLE, AUTH_MODE, DEV_USERS } from "@/lib/auth/config";
+import { devSignIn, emailSignIn, emailSignUp, googleSignIn } from "@/lib/auth/session";
 import { DATA_SOURCE } from "@/lib/site";
 import { useSearchParams } from "next/navigation";
 
@@ -58,6 +58,12 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false);
   const signedIn = Boolean(s?.user);
+  const backFromGoogle = useSearchParams().get("oauth") === "1";
+
+  // Returning from Google: once the session is picked up from the URL, continue to where the student was going.
+  useEffect(() => {
+    if (backFromGoogle && signedIn) router.replace(next);
+  }, [backFromGoogle, signedIn, next, router]);
 
   const done = (r: Awaited<ReturnType<typeof emailSignIn>>) => {
     setBusy(false);
@@ -107,6 +113,29 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
               </Button>
             ))}
           </div>
+        </div>
+      )}
+
+      {AUTH_GOOGLE && (
+        <div className="mt-8">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="w-full"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              const r = await googleSignIn(next);
+              if (!r.ok) {
+                setBusy(false);
+                setError(r.message);
+              }
+            }}
+          >
+            Continue with Google
+          </Button>
+          <p className="mt-6 text-center text-xs uppercase tracking-wide text-fg-muted">or use email</p>
         </div>
       )}
 

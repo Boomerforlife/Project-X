@@ -18,6 +18,9 @@ from pxw.db.repo import IngestionRepo
 from pxw.dedupe.dedupe import run_dedupe
 from pxw.extraction.figures import capture_figures
 from pxw.extraction.layout_profiles import detect_profile, get_profile
+from pxw.extraction.nta_cbt_image import LAYOUT_NAME as NTA_IMAGE_LAYOUT
+from pxw.extraction.nta_cbt_image import extract_nta_cbt_image
+from pxw.extraction.nta_cbt_image import looks_like as looks_like_nta_image
 from pxw.extraction.pdf import OCR_DPI, extract_pages, open_pdf, order_lines, render_page_png
 from pxw.extraction.segment import segment_lines, strip_headers_footers
 from pxw.jobs.runner import JobContext
@@ -172,6 +175,11 @@ def run_document(
         },
         **kw,
     )
+    # NTA computer-based-test papers keep the question content in images: crop questions/options directly.
+    if layout == NTA_IMAGE_LAYOUT or (layout == "auto" and looks_like_nta_image(pdf_path)):
+        return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
+                              exam_id=exam_id, auto_promote=auto_promote)
+
     engines = [e.name for e in ctx.ocr.engines]
     ocr, ocr_h, _ = run_cached_stage(
         doc_dir,
@@ -253,6 +261,73 @@ def run_document(
     if ctx.repo is None:
         return result
 
+    persisted, promoted = persist_and_promote(
+        doc, ctx, doc_dir, finals, decisions, exam_id=exam_id, auto_promote=auto_promote, after=after,
+        page_count=fetch["page_count"],
+    )
+    result["persisted"] = persisted
+    result["promoted"] = promoted
+    result["stages"] = [r.to_dict() for r in reports]
+    return result
+
+
+def _ocr_text(chain: OcrChain) -> Callable[[bytes], tuple[str, float | None, str | None]]:
+    def run(png: bytes) -> tuple[str, float | None, str | None]:
+        r = chain.recognize(png)
+        if r.engine == "none":
+            return "", None, None
+        return " ".join(line.text for line in r.lines).strip(), r.mean_confidence, r.engine
+
+    return run
+
+
+def _run_nta_image(
+    doc: DocumentInput,
+    ctx: PipelineContext,
+    pdf_path: Path,
+    doc_dir: Path,
+    fetch: dict[str, Any],
+    extract_h: str,
+    reports: list[StageReport],
+    after: Callable[[StageReport], None],
+    kw: dict[str, Any],
+    *,
+    exam_id: str | None,
+    auto_promote: bool,
+) -> dict[str, Any]:
+    engines = [e.name for e in ctx.ocr.engines]
+    nta, _, _ = run_cached_stage(
+        doc_dir,
+        "nta_image",
+        input_key("nta_image", extract_h, doc.document_id, engines),
+        lambda: extract_nta_cbt_image(pdf_path, doc.document_id, doc_dir / "crops", ocr=_ocr_text(ctx.ocr)),
+        lambda p: {**p["stats"], "layout": p["layout"]},
+        valid=lambda p: all((doc_dir / "crops" / a["r2_key"].rsplit("/", 1)[-1]).is_file() for q in p["questions"] for a in q["assets"]),
+        **kw,
+    )
+    normalized: list[dict[str, Any]] = nta["questions"]
+    t0 = time.monotonic()
+    decisions = run_dedupe(normalized, ctx.repo, doc.document_id if ctx.repo else None)
+    finals = [apply_decision(q, d) for q, d in zip(normalized, decisions, strict=True)]
+    after(StageReport("dedupe", False, int((time.monotonic() - t0) * 1000), {
+        "duplicates": sum(d["status"] == "DUPLICATE" for d in decisions),
+        "possible": sum(bool(d["warnings"]) for d in decisions),
+    }))
+    result: dict[str, Any] = {
+        "document_id": doc.document_id,
+        "sha256": doc.sha256,
+        "layout": nta["layout"],
+        "page_count": fetch["page_count"],
+        "questions": len(finals),
+        "ocr_pages": 0,
+        "ocr_warnings": [],
+        "stages": [r.to_dict() for r in reports],
+        "_questions": finals,
+        "_decisions": decisions,
+        "_doc_dir": str(doc_dir),
+    }
+    if ctx.repo is None:
+        return result
     persisted, promoted = persist_and_promote(
         doc, ctx, doc_dir, finals, decisions, exam_id=exam_id, auto_promote=auto_promote, after=after,
         page_count=fetch["page_count"],

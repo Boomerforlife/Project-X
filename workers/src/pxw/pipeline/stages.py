@@ -21,6 +21,7 @@ STAGE_VERSIONS: dict[str, int] = {
     "extract": 1,
     "ocr": 1,
     "segment": 1,
+    "nta_image": 2,
     "figures": 1,
     "normalize": 1,
 }

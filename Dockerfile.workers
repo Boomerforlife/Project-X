@@ -1,0 +1,13 @@
+# Python ingestion workers (pxw) for Cloud Run Jobs. Build context = repo root (see cloudbuild.workers.yaml).
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+COPY workers/pyproject.toml workers/pyproject.toml
+COPY workers/src workers/src
+RUN pip install "./workers[gcs]"
+COPY workers/manifests workers/manifests
+# OCR is optional enrichment (questions are shown as the original crops); enable later with OCR_ENGINES=rapidocr.
+ENV OCR_ENGINES=none PXW_WORK_DIR=/tmp/pxw
+RUN useradd --create-home pxw
+USER pxw
+ENTRYPOINT ["pxw"]

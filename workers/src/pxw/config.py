@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-PIPELINE_VERSION = "v1"
+PIPELINE_VERSION = "v2"  # v2: NTA image layout with OCR text (2026-11-17)
 
 
 class ConfigError(Exception):
