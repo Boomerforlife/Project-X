@@ -42,6 +42,7 @@ def parse_nta_final_key(pdf_path: str | Path) -> list[KeyRow]:
     import pymupdf
 
     rows: list[KeyRow] = []
+    last_cols: list[tuple[float, float]] = []
     with pymupdf.open(str(pdf_path)) as doc:
         for page in doc:
             text = page.get_text("text")
@@ -61,30 +62,37 @@ def parse_nta_final_key(pdf_path: str | Path) -> list[KeyRow]:
                         subjects.append((ln["bbox"][1], m.group(1).upper()))
             subjects.sort()
             words = page.get_text("words")  # x0, y0, x1, y1, word, block, line, wordno
-            cells = [
-                w for w in words if QID.match(w[4]) or NUMBER.match(w[4]) or MULTI_ID.match(w[4]) or DROPPED.match(w[4])
-            ]
-            # Group into rows by vertical centre.
-            cells.sort(key=lambda w: ((w[1] + w[3]) / 2, w[0]))
-            row: list[Any] = []
+            # Column layout from the headers: "QUESTION ID" starts each id column, "CORRECT OPTION ID" each answer column.
+            # Every answer is read from its own column, whatever it contains (an id, a number, or words such as
+            # "Any non-negative Integer"), so one unusual cell can never shift the pairs that follow it.
+            qcols = sorted(w[0] for w in words if w[4].upper() == "QUESTION")
+            acols = sorted(w[0] for w in words if w[4].upper() == "CORRECT")
+            if qcols and len(qcols) == len(acols):
+                cols = list(zip(qcols, acols, strict=True))
+            elif last_cols:
+                cols = last_cols
+            else:
+                continue
+            last_cols = cols
+            header_bottom = max((w[3] for w in words if w[4].upper() in {"QUESTION", "CORRECT"}), default=0.0)
+            body = sorted((w for w in words if w[1] >= header_bottom - 1), key=lambda w: ((w[1] + w[3]) / 2, w[0]))
             grouped: list[list[Any]] = []
-            for w in cells:
+            for w in body:
                 cy = (w[1] + w[3]) / 2
-                if row and abs(cy - (row[0][1] + row[0][3]) / 2) > 3:
-                    grouped.append(row)
-                    row = []
-                row.append(w)
-            if row:
-                grouped.append(row)
+                if grouped and abs(cy - (grouped[-1][0][1] + grouped[-1][0][3]) / 2) <= 3:
+                    grouped[-1].append(w)
+                else:
+                    grouped.append([w])
             for r in grouped:
-                r.sort(key=lambda w: w[0])
-                for i in range(0, len(r) - 1, 2):
-                    qid, ans = r[i][4], r[i + 1][4]
-                    if not QID.match(qid):
+                for k, (qx, ax) in enumerate(cols):
+                    nxt = cols[k + 1][0] if k + 1 < len(cols) else float("inf")
+                    qid_words = [w for w in r if qx - 15 <= w[0] < ax - 5 and QID.match(w[4])]
+                    ans_words = sorted((w for w in r if ax - 15 <= w[0] < nxt - 15), key=lambda w: w[0])
+                    if len(qid_words) != 1 or not ans_words:
                         continue
-                    y = (r[i][1] + r[i][3]) / 2
+                    y = (qid_words[0][1] + qid_words[0][3]) / 2
                     subj = next((s for sy, s in reversed(subjects) if sy <= y), None)
-                    rows.append(KeyRow(date, shift, subj, qid, ans))
+                    rows.append(KeyRow(date, shift, subj, qid_words[0][4], " ".join(w[4] for w in ans_words)))
     return rows
 
 
@@ -98,8 +106,10 @@ def normalize_answer(raw: str, option_ids: set[str] | None) -> dict[str, Any]:
         if all(p in option_ids for p in parts):
             return {"kind": "EXTERNAL_OPTION_IDS", "ids": parts}
         return {"kind": "DROPPED"}
-    if len(parts) == 1 and NUMBER.match(parts[0]):
-        return {"kind": "NUMERIC", "accepted_ranges": [{"min": parts[0], "max": parts[0]}]}
+    values = [p for p in parts if p.lower() not in {"or", "and"}]
+    if values and all(NUMBER.match(v) for v in values):
+        # "41 or 42": every listed value is accepted.
+        return {"kind": "NUMERIC", "accepted_ranges": [{"min": v, "max": v} for v in values]}
     return {"kind": "DROPPED"}  # unreadable: never guess an answer
 
 
