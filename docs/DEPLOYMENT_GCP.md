@@ -63,3 +63,14 @@ official NTA final key linked to 673 (2 in review: one dropped by NTA, one where
 Not yet publishable: no chapter and no approved solution (needs the classify/solve step) - see the PR description.
 Availability (checked on NTA's sites 2026-11-17): question papers are only online for JEE Main 2026 Session 2;
 final keys exist for 2025 S1/S2 and 2026 S1/S2 without their papers; NEET has keys but no papers except 2020 scans.
+
+JEE Advanced 2016-2025 (manifest `jee-advanced-2016-2025.manifest.json`, layout `jee_adv_crop`, 20 English papers
+from jeeadv.ac.in/past_qps): 1,059 questions extracted, 1,053 promoted as DRAFT (each question cropped with its
+options as printed; 2016-2019 are scans read by OCR). Answers the board printed in its own booklet (2016, 2017,
+2025) are linked as OFFICIAL keys - 302 so far - and are cut out of the crops. Held for review: 4 where OCR missed the
+next question's marker (`POSSIBLE_MERGED_QUESTIONS`), 3 near-duplicates of earlier questions. Of the booklets with
+printed answers, 4 answers list alternative option sets (kept in review, never guessed) and 6 questions had no printed
+answer read (5 in the 2017 scans, 1 in 2025 Paper 2); those have no answer yet. 2020/2021 booklets print no subject names: the subject of each block is
+decided from its own wording (checked by eye) or the block is flagged `SUBJECT_UNKNOWN`.
+To re-extract a paper: delete its unused DRAFT rows (guarded: no attempts, never published), then enqueue
+`app_private.enqueue_pipeline_job('PROCESS_DOCUMENT', 'PROCESS_DOCUMENT:<doc id>:<new suffix>', ...)` and run step 2.

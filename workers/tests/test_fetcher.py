@@ -37,6 +37,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, "text/html", b"<html></html>")
         if self.path == "/fake.pdf":
             return self._send(200, "application/pdf", b"not really a pdf")
+        if self.path == "/leading-newline.pdf":
+            return self._send(200, "application/pdf", b"\n" + PDF)
         if self.path == "/big.pdf":
             return self._send(200, "application/pdf", PDF + b"0" * 5000)
         if self.path == "/hop-ok":
@@ -120,6 +122,12 @@ def test_rejects_wrong_content_type_and_fake_pdf_and_oversize(server):
         make_fetcher().fetch_pdf(server + "/fake.pdf", [HOST])
     with pytest.raises(FetchError, match="larger than"):
         make_fetcher(max_bytes=len(PDF)).fetch_pdf(server + "/big.pdf", [HOST])
+
+
+def test_accepts_pdf_header_after_leading_whitespace(server):
+    # Real case: jeeadv.ac.in/past_qps/2017_1.pdf begins with a newline before %PDF; readers accept that.
+    res = make_fetcher().fetch_pdf(server + "/leading-newline.pdf", [HOST])
+    assert res.data == b"\n" + PDF
 
 
 def test_rate_limit_sleeps_between_hits(server):

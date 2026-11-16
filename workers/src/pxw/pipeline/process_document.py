@@ -17,6 +17,8 @@ from pxw.common.models import AssetIn, Source, SourceQuestionIn, Warning
 from pxw.db.repo import IngestionRepo
 from pxw.dedupe.dedupe import run_dedupe
 from pxw.extraction.figures import capture_figures
+from pxw.extraction.jee_adv_crop import LAYOUT_NAME as JEE_ADV_LAYOUT
+from pxw.extraction.jee_adv_crop import extract_jee_adv
 from pxw.extraction.layout_profiles import detect_profile, get_profile
 from pxw.extraction.nta_cbt_image import LAYOUT_NAME as NTA_IMAGE_LAYOUT
 from pxw.extraction.nta_cbt_image import extract_nta_cbt_image
@@ -179,6 +181,12 @@ def run_document(
     if layout == NTA_IMAGE_LAYOUT or (layout == "auto" and looks_like_nta_image(pdf_path)):
         return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
                               exam_id=exam_id, auto_promote=auto_promote)
+    # JEE Advanced archive booklets (text-layer or scanned): crop each question with its options as printed.
+    if layout == JEE_ADV_LAYOUT:
+        return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
+                              exam_id=exam_id, auto_promote=auto_promote, stage="jee_adv",
+                              extractor=lambda: extract_jee_adv(pdf_path, doc.document_id, doc_dir / "crops",
+                                                                ocr_page=_ocr_lines(ctx.ocr)))
 
     engines = [e.name for e in ctx.ocr.engines]
     ocr, ocr_h, _ = run_cached_stage(
@@ -271,6 +279,15 @@ def run_document(
     return result
 
 
+def _ocr_lines(chain: OcrChain) -> Callable[[bytes], list[tuple[str, tuple[float, float, float, float]]]]:
+    """Whole-page OCR as (text, pixel bbox) lines; empty when no engine is configured."""
+    def run(png: bytes) -> list[tuple[str, tuple[float, float, float, float]]]:
+        r = chain.recognize(png)
+        return [] if r.engine == "none" else [(ln.text, tuple(ln.bbox)) for ln in r.lines]  # type: ignore[misc]
+
+    return run
+
+
 def _ocr_text(chain: OcrChain) -> Callable[[bytes], tuple[str, float | None, str | None]]:
     def run(png: bytes) -> tuple[str, float | None, str | None]:
         r = chain.recognize(png)
@@ -294,20 +311,24 @@ def _run_nta_image(
     *,
     exam_id: str | None,
     auto_promote: bool,
+    stage: str = "nta_image",
+    extractor: Callable[[], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """Layouts whose questions are stored as page crops (NTA CBT papers, JEE Advanced booklets)."""
     engines = [e.name for e in ctx.ocr.engines]
     nta, _, _ = run_cached_stage(
         doc_dir,
-        "nta_image",
-        input_key("nta_image", extract_h, doc.document_id, engines),
-        lambda: extract_nta_cbt_image(pdf_path, doc.document_id, doc_dir / "crops", ocr=_ocr_text(ctx.ocr)),
+        stage,
+        input_key(stage, extract_h, doc.document_id, engines),
+        extractor or (lambda: extract_nta_cbt_image(pdf_path, doc.document_id, doc_dir / "crops", ocr=_ocr_text(ctx.ocr))),
         lambda p: {**p["stats"], "layout": p["layout"]},
         valid=lambda p: all((doc_dir / "crops" / a["r2_key"].rsplit("/", 1)[-1]).is_file() for q in p["questions"] for a in q["assets"]),
         **kw,
     )
     normalized: list[dict[str, Any]] = nta["questions"]
     t0 = time.monotonic()
-    decisions = run_dedupe(normalized, ctx.repo, doc.document_id if ctx.repo else None)
+    decisions = run_dedupe(normalized, ctx.repo, doc.document_id if ctx.repo else None,
+                           check_batch=stage != "jee_adv")
     finals = [apply_decision(q, d) for q, d in zip(normalized, decisions, strict=True)]
     after(StageReport("dedupe", False, int((time.monotonic() - t0) * 1000), {
         "duplicates": sum(d["status"] == "DUPLICATE" for d in decisions),
@@ -334,8 +355,37 @@ def _run_nta_image(
     )
     result["persisted"] = persisted
     result["promoted"] = promoted
+    if nta.get("printed_answers"):
+        result["printed_answers"] = _link_printed_answers(doc, ctx, finals, nta["printed_answers"])
     result["stages"] = [r.to_dict() for r in reports]
     return result
+
+
+def _link_printed_answers(
+    doc: DocumentInput, ctx: PipelineContext, finals: list[dict[str, Any]], printed: dict[str, str]
+) -> dict[str, Any]:
+    """Answers the board printed in its own booklet become official keys, linked by our external question ids.
+    The source document of these keys is the question paper itself."""
+    from pxw.answer_keys.printed import normalize_printed_answer
+    from pxw.common.models import OfficialKeyIn
+
+    assert ctx.repo is not None
+    m = ctx.repo.document_question_map(doc.document_id)
+    if m is None:
+        return {"status": "document has no paper"}
+    paper_id, qmap = m
+    types = {q.get("external_question_id"): q.get("question_type_guess") for q in finals}
+    ins = []
+    for ext_id, raw in printed.items():
+        if ext_id not in qmap:
+            continue  # question not promoted (duplicate, dropped, or not extracted)
+        norm = normalize_printed_answer(raw, types.get(ext_id))
+        ins.append(OfficialKeyIn(paper_id=paper_id, source_document_id=doc.document_id, external_question_id=ext_id,
+                                 raw_answer=raw, normalized_answer=norm, is_dropped=norm["kind"] == "DROPPED"))
+    stored = ctx.repo.upsert_official_keys(ins) if ins else 0
+    linked = ctx.repo.link_keys(paper_id)
+    return {"printed": len(printed), "matched": len(ins), "stored": stored, "linked": linked,
+            "dropped": sum(1 for x in ins if x.is_dropped)}
 
 
 def persist_and_promote(

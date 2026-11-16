@@ -28,6 +28,9 @@ class Warning(StrEnum):
     DUPLICATE_EXTERNAL_ID = "DUPLICATE_EXTERNAL_ID"
     POSSIBLE_DUPLICATE_IN_BATCH = "POSSIBLE_DUPLICATE_IN_BATCH"
     POSSIBLE_DUPLICATE = "POSSIBLE_DUPLICATE"
+    QUESTION_TYPE_UNKNOWN = "QUESTION_TYPE_UNKNOWN"  # section instructions not read; type is a guess
+    SUBJECT_UNKNOWN = "SUBJECT_UNKNOWN"  # no heading and no clear subject from the wording
+    POSSIBLE_MERGED_QUESTIONS = "POSSIBLE_MERGED_QUESTIONS"  # next question's marker was not read; crop may hold two
 
 
 # --- NormalizedQuestion -------------------------------------------------------------------------

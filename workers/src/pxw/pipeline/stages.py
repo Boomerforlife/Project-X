@@ -22,6 +22,7 @@ STAGE_VERSIONS: dict[str, int] = {
     "ocr": 1,
     "segment": 1,
     "nta_image": 2,
+    "jee_adv": 1,
     "figures": 1,
     "normalize": 1,
 }

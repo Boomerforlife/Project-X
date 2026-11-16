@@ -313,8 +313,16 @@ class PgIngestionRepo:
         return run(self.url, fn)
 
     def paper_question_map(self, paper_slug: str) -> tuple[str, dict[str, list[str]]] | None:
+        return self._question_map("select id from exam_papers where slug = %s", paper_slug)
+
+    def document_question_map(self, document_id: str) -> tuple[str, dict[str, list[str]]] | None:
+        return self._question_map(
+            "select paper_id as id from source_documents where id = %s::uuid and paper_id is not null", document_id
+        )
+
+    def _question_map(self, paper_sql: str, arg: str) -> tuple[str, dict[str, list[str]]] | None:
         def fn(cur: Any) -> tuple[str, dict[str, list[str]]] | None:
-            cur.execute("select id from exam_papers where slug = %s", (paper_slug,))
+            cur.execute(paper_sql, (arg,))
             p = cur.fetchone()
             if not p:
                 return None
