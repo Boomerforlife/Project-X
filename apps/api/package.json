@@ -26,6 +26,7 @@
     "@projectx/database-types": "*",
     "@projectx/db": "*",
     "@projectx/edge": "*",
+    "@projectx/plans": "*",
     "@projectx/shared": "*",
     "hono": "4.13.18",
     "jose": "6.2.14",

@@ -13,3 +13,4 @@ export * from './dto/admin';
 export * from './dto/billing';
 export * from './routes/requests';
 export * from './dto/problems';
+export * from './dto/plans';
