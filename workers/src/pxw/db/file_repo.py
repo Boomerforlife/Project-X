@@ -213,6 +213,9 @@ class FileIngestionRepo:
     def paper_question_map(self, paper_slug: str) -> tuple[str, dict[str, list[str]]] | None:
         return None  # official keys by external id need the Postgres repo
 
+    def document_question_map(self, document_id: str) -> tuple[str, dict[str, list[str]]] | None:
+        return None  # official keys by external id need the Postgres repo
+
     def list_source_questions(self, document_id: str, status: str | None = None) -> list[SourceQuestionRec]:
         st = self._load()
         out = []

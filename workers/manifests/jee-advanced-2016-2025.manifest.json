@@ -1,0 +1,230 @@
+{
+  "_comment": "JEE Advanced 2016-2025 question papers (English), official JAB archive at jeeadv.ac.in/past_qps. Booklets from 2023 on print the board answer under each question; 2016-2018 print an answers box. Owner licence decision recorded 2026-11-17.",
+  "allowed_hosts": {
+    "JEE_ADVANCED_JAB": [
+      "jeeadv.ac.in"
+    ]
+  },
+  "entries": [
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2016_1.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2016-paper-1",
+      "paper_title": "JEE Advanced 2016 Paper 1",
+      "year": 2016,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2016_2.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2016-paper-2",
+      "paper_title": "JEE Advanced 2016 Paper 2",
+      "year": 2016,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2017_1.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2017-paper-1",
+      "paper_title": "JEE Advanced 2017 Paper 1",
+      "year": 2017,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2017_2.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2017-paper-2",
+      "paper_title": "JEE Advanced 2017 Paper 2",
+      "year": 2017,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2018_1.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2018-paper-1",
+      "paper_title": "JEE Advanced 2018 Paper 1",
+      "year": 2018,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2018_2.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2018-paper-2",
+      "paper_title": "JEE Advanced 2018 Paper 2",
+      "year": 2018,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2019_1_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2019-paper-1",
+      "paper_title": "JEE Advanced 2019 Paper 1",
+      "year": 2019,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2019_2_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2019-paper-2",
+      "paper_title": "JEE Advanced 2019 Paper 2",
+      "year": 2019,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2020_1_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2020-paper-1",
+      "paper_title": "JEE Advanced 2020 Paper 1",
+      "year": 2020,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2020_2_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2020-paper-2",
+      "paper_title": "JEE Advanced 2020 Paper 2",
+      "year": 2020,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2021_1_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2021-paper-1",
+      "paper_title": "JEE Advanced 2021 Paper 1",
+      "year": 2021,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2021_2_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2021-paper-2",
+      "paper_title": "JEE Advanced 2021 Paper 2",
+      "year": 2021,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2022_1_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2022-paper-1",
+      "paper_title": "JEE Advanced 2022 Paper 1",
+      "year": 2022,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2022_2_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2022-paper-2",
+      "paper_title": "JEE Advanced 2022 Paper 2",
+      "year": 2022,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2023_1_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2023-paper-1",
+      "paper_title": "JEE Advanced 2023 Paper 1",
+      "year": 2023,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2023_2_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2023-paper-2",
+      "paper_title": "JEE Advanced 2023 Paper 2",
+      "year": 2023,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2024_1_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2024-paper-1",
+      "paper_title": "JEE Advanced 2024 Paper 1",
+      "year": 2024,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2024_2_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2024-paper-2",
+      "paper_title": "JEE Advanced 2024 Paper 2",
+      "year": 2024,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2025_1_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2025-paper-1",
+      "paper_title": "JEE Advanced 2025 Paper 1",
+      "year": 2025,
+      "exam": "jee-advanced",
+      "paper_code": "P1",
+      "layout": "jee_adv_crop"
+    },
+    {
+      "source": "JEE_ADVANCED_JAB",
+      "url": "https://jeeadv.ac.in/past_qps/2025_2_English.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-advanced-2025-paper-2",
+      "paper_title": "JEE Advanced 2025 Paper 2",
+      "year": 2025,
+      "exam": "jee-advanced",
+      "paper_code": "P2",
+      "layout": "jee_adv_crop"
+    }
+  ]
+}

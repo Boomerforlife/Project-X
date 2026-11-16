@@ -53,3 +53,7 @@ class IngestionRepo(Protocol):
     def paper_question_map(self, paper_slug: str) -> tuple[str, dict[str, list[str]]] | None:
         """(paper_id, {external_question_id: [external option ids]}) for promoted questions of a paper, or None."""
         ...
+
+    def document_question_map(self, document_id: str) -> tuple[str, dict[str, list[str]]] | None:
+        """Same as paper_question_map, for the paper a source document belongs to (None if it has no paper)."""
+        ...
