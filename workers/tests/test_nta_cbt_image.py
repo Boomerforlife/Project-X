@@ -113,3 +113,14 @@ def test_non_nta_pdf_is_not_detected(tmp_path: Path) -> None:
     doc.new_page().insert_text((40, 60), "1. A plain numbered question about motion")
     doc.save(str(tmp_path / "plain.pdf"))
     assert not looks_like(tmp_path / "plain.pdf")
+
+
+def test_without_ocr_different_questions_never_share_searchable_text(tmp_path: Path) -> None:
+    """Regression: a generic 'Question N (image)' text made dedupe flag every question as a duplicate."""
+    pdf = tmp_path / "nta.pdf"
+    _synthetic_nta_pdf(pdf)
+    r = extract_nta_cbt_image(pdf, "00000000-0000-4000-8000-0000000000ac", tmp_path / "crops", ocr=None)
+    texts = [q["normalized_text"] for q in r["questions"]]
+    assert len(set(texts)) == len(texts)
+    assert all("image " in t for t in texts)
+    assert len({q["question_text"] for q in r["questions"]}) == len(texts)

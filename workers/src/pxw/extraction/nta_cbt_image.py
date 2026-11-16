@@ -305,7 +305,7 @@ def extract_nta_cbt_image(
                         continue
                     # Options are short; OCR only the stem (it is search/alt text, students see the crop).
                     c = add_crop(o.page, _union(o.rects), f"q{q.number}-opt{label}", run_ocr=False)
-                    opt_texts.append((label, c["text"] or f"option {label}"))
+                    opt_texts.append((label, c["text"] or f"image {c['asset']['sha256'][:24]}"))
                     options.append(
                         {
                             "label": label,
@@ -330,7 +330,9 @@ def extract_nta_cbt_image(
                 warnings.append("EMPTY_OPTION")
             # The hash must separate questions even when OCR is weak, so it includes the crop fingerprints.
             fingerprint = " ".join(a["sha256"][:16] for a in assets)
-            normalized = build_normalized_text(stem_text or f"question {q.number}", opt_texts)
+            # Without OCR text, use the crop fingerprints so unrelated questions never look alike to dedupe or grouping.
+            stem_sha = next((a["sha256"] for a in assets if "-stem" in a["asset_ref"]), "")
+            normalized = build_normalized_text(stem_text or f"image {stem_sha}", opt_texts)
             out.append(
                 {
                     "schema_version": 1,
@@ -343,7 +345,7 @@ def extract_nta_cbt_image(
                     "assets": assets,
                     "page_start": q.header_page + 1,
                     "page_end": max([a["page"] for a in assets] or [q.header_page + 1]),
-                    "question_text": stem_text or f"Question {q.number} (image)",
+                    "question_text": stem_text or f"Question {q.number} (image {stem_sha[:12]})",
                     "normalized_text": normalized,
                     "content_hash": content_hash(normalized + " || " + fingerprint),
                     "extraction": {

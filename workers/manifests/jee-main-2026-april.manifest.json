@@ -1,0 +1,127 @@
+{
+  "_comment": "JEE Main 2026 April session question papers, official NTA links from the scraper catalogue. Owner licence decision recorded 2026-11-17.",
+  "allowed_hosts": {
+    "NTA": [
+      "cdnbbsr.s3waas.gov.in"
+    ]
+  },
+  "entries": [
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/202604092096865379.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-02-shift-1",
+      "paper_title": "JEE Main 2026 (2 Apr 2026, Shift 1)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 1,
+      "exam_date": "2026-04-02",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/20260409481957146.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-02-shift-2",
+      "paper_title": "JEE Main 2026 (2 Apr 2026, Shift 2)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 2,
+      "exam_date": "2026-04-02",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/202604091916616339.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-04-shift-1",
+      "paper_title": "JEE Main 2026 (4 Apr 2026, Shift 1)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 1,
+      "exam_date": "2026-04-04",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/20260409432593766.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-04-shift-2",
+      "paper_title": "JEE Main 2026 (4 Apr 2026, Shift 2)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 2,
+      "exam_date": "2026-04-04",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/20260409828731207.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-05-shift-1",
+      "paper_title": "JEE Main 2026 (5 Apr 2026, Shift 1)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 1,
+      "exam_date": "2026-04-05",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/20260409829414602.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-05-shift-2",
+      "paper_title": "JEE Main 2026 (5 Apr 2026, Shift 2)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 2,
+      "exam_date": "2026-04-05",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/202604092007095665.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-06-shift-1",
+      "paper_title": "JEE Main 2026 (6 Apr 2026, Shift 1)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 1,
+      "exam_date": "2026-04-06",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/20260409725707538.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-06-shift-2",
+      "paper_title": "JEE Main 2026 (6 Apr 2026, Shift 2)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 2,
+      "exam_date": "2026-04-06",
+      "layout": "nta_cbt_image"
+    },
+    {
+      "source": "NTA",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2026/04/20260409932754345.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "jee-main-2026-04-08-shift-2",
+      "paper_title": "JEE Main 2026 (8 Apr 2026, Shift 2)",
+      "year": 2026,
+      "exam": "jee-main",
+      "session": "April",
+      "shift": 2,
+      "exam_date": "2026-04-08",
+      "layout": "nta_cbt_image"
+    }
+  ]
+}

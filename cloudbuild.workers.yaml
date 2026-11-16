@@ -1,0 +1,10 @@
+# Builds the ingestion workers image with Dockerfile.workers (ignore file: .gcloudignore.workers).
+substitutions:
+  _REGION: asia-south1
+  _REPO: projectx
+  _TAG: workers-1
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "Dockerfile.workers", "-t", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/workers:${_TAG}", "."]
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/workers:${_TAG}
