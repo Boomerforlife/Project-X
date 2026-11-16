@@ -455,6 +455,19 @@ describe('promote_source_question / link_official_answer_keys / find_near_duplic
     expect(q2.answer_key_source).toBe('HUMAN');
   });
 
+  it('0025: a re-import that drops a key clears the stale OFFICIAL answer and asks for review', async () => {
+    const before = await one<{ answer_key_source: string | null }>(db, `select answer_key_source from questions where source_question_id = $1`, [sqIds.q3]);
+    expect(before.answer_key_source).toBe('OFFICIAL');
+    await asSuperuser(db, `update official_answer_keys set normalized_answer = '{"kind":"DROPPED"}', is_dropped = true, raw_answer = 'Dropped' where paper_id = $1 and question_number = '3'`, [paperId]);
+    await asSuperuser(db, `select app_private.link_official_answer_keys($1)`, [paperId]);
+    const after = await one<{ answer_key: unknown; answer_key_source: string | null; verification_status: string }>(
+      db, `select answer_key, answer_key_source, verification_status from questions where source_question_id = $1`, [sqIds.q3]);
+    expect(after).toEqual({ answer_key: null, answer_key_source: null, verification_status: 'HUMAN_REVIEW_REQUIRED' });
+    // A HUMAN answer is still never touched (q2 was set to HUMAN in the previous test).
+    const q2 = await one<{ answer_key_source: string }>(db, `select answer_key_source from questions where source_question_id = $1`, [sqIds.q2]);
+    expect(q2.answer_key_source).toBe('HUMAN');
+  });
+
   it('official_answer_keys needs a question identifier and is unique per paper/number', async () => {
     await expectPgError(
       asSuperuser(db, `insert into official_answer_keys (source_document_id, paper_id, raw_answer, normalized_answer) values ($1, $2, 'x', '{}')`, [docId, paperId]),
