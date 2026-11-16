@@ -50,3 +50,16 @@ Hosting decision: commercial use (Razorpay) rules out Vercel Hobby, so the websi
   and server-side fetches now wait out 429s. `Dockerfile.web` no longer fails when there is no `public/` folder.
 * Network note: if `gcloud builds submit` keeps crashing with ConnectionResetError, use the regional endpoint
   `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://asia-south1-cloudbuild.googleapis.com/` with `--async`.
+
+## Question ingestion (Cloud Run Job `pxw-ingest`, 2026-11-17)
+Runs inside GCP (the job reaches Supabase and the buckets; a laptop may not reach the database port).
+Build: `gcloud builds submit . --config cloudbuild.workers.yaml --ignore-file .gcloudignore.workers --substitutions _TAG=workers-N`
+(use `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://asia-south1-cloudbuild.googleapis.com/` and `--async` if the global endpoint drops).
+1. Papers: `infra/gcp/ingest-job.sh workers-N ingest fetch --manifest workers/manifests/<file>.manifest.json --auto-promote`
+2. Extract: `TASKS=3 infra/gcp/ingest-job.sh workers-N jobs run --once --max-jobs 3` (OCR on; NTA image layout auto-detected)
+3. Official keys: `infra/gcp/ingest-job.sh workers-N keys nta-final --url <NTA final key PDF> --year <yyyy>`
+Done so far: JEE Main 2026 Session 2 (April), 9 shifts, 675 questions as DRAFT with images in `…-source-docs`;
+official NTA final key linked to 673 (2 in review: one dropped by NTA, one where any integer was accepted).
+Not yet publishable: no chapter and no approved solution (needs the classify/solve step) - see the PR description.
+Availability (checked on NTA's sites 2026-11-17): question papers are only online for JEE Main 2026 Session 2;
+final keys exist for 2025 S1/S2 and 2026 S1/S2 without their papers; NEET has keys but no papers except 2020 scans.
