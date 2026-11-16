@@ -83,7 +83,9 @@ class PgIngestionRepo:
             row = cur.fetchone()
             if row is not None:
                 if doc.paper_id and row["paper_id"] is None:
-                    cur.execute("update source_documents set paper_id = %s::uuid where id = %s", (doc.paper_id, row["id"]))
+                    cur.execute(
+                        "update source_documents set paper_id = %s::uuid where id = %s", (doc.paper_id, row["id"])
+                    )
                 return str(row["id"]), False
             cur.execute("select id from sources where code = %s", (doc.source_code,))
             src = cur.fetchone()
@@ -307,6 +309,25 @@ class PgIngestionRepo:
                 (source_question_id, exam_id, subject_code),
             )
             return str(cur.fetchone()["id"])
+
+        return run(self.url, fn)
+
+    def paper_question_map(self, paper_slug: str) -> tuple[str, dict[str, list[str]]] | None:
+        def fn(cur: Any) -> tuple[str, dict[str, list[str]]] | None:
+            cur.execute("select id from exam_papers where slug = %s", (paper_slug,))
+            p = cur.fetchone()
+            if not p:
+                return None
+            cur.execute(
+                "select sq.external_question_id as qid, "
+                "coalesce(array_agg(o.external_option_id order by o.sort_order) "
+                "filter (where o.external_option_id is not null), '{}') as opts "
+                "from questions q join source_questions sq on sq.id = q.source_question_id "
+                "left join question_options o on o.question_id = q.id "
+                "where q.paper_id = %s and sq.external_question_id is not null group by sq.external_question_id",
+                (p["id"],),
+            )
+            return str(p["id"]), {r["qid"]: list(r["opts"]) for r in cur.fetchall()}
 
         return run(self.url, fn)
 

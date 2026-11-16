@@ -163,8 +163,10 @@ def cmd_fetch(args: argparse.Namespace, settings: Settings) -> int:
         for e in manifest.entries:
             emit({"event": "plan", "source": e.source, "url": e.url, "paper_slug": e.paper_slug, "year": e.year})
         return EXIT_OK
-    fetcher = Fetcher(user_agent=args.user_agent or os.environ.get("PXW_USER_AGENT") or DEFAULT_USER_AGENT,
-                      min_interval_s=args.min_interval)
+    fetcher = Fetcher(
+        user_agent=args.user_agent or os.environ.get("PXW_USER_AGENT") or DEFAULT_USER_AGENT,
+        min_interval_s=args.min_interval,
+    )
     failures = 0
     for e in manifest.entries:
         try:
@@ -176,9 +178,21 @@ def cmd_fetch(args: argparse.Namespace, settings: Settings) -> int:
         pdf = save_download(res, settings.work_dir / "downloads", e.url)
         emit({"event": "fetched", "url": e.url, "sha256": res.sha256, "bytes": len(res.data)})
         reg = argparse.Namespace(
-            job_store=args.job_store, storage=args.storage, source=e.source, file=str(pdf), kind=e.kind,
-            paper_slug=e.paper_slug, paper_title=e.paper_title, year=e.year, exam_date=e.exam_date, shift=e.shift,
-            session=e.session, paper_code=e.paper_code, layout=e.layout, auto_promote=args.auto_promote, exam=e.exam,
+            job_store=args.job_store,
+            storage=args.storage,
+            source=e.source,
+            file=str(pdf),
+            kind=e.kind,
+            paper_slug=e.paper_slug,
+            paper_title=e.paper_title,
+            year=e.year,
+            exam_date=e.exam_date,
+            shift=e.shift,
+            session=e.session,
+            paper_code=e.paper_code,
+            layout=e.layout,
+            auto_promote=args.auto_promote,
+            exam=e.exam,
         )
         cmd_register(reg, settings)
     return EXIT_ERROR if failures else EXIT_OK
@@ -189,11 +203,81 @@ def cmd_discover(args: argparse.Namespace, settings: Settings) -> int:
     from pxw.fetch.discover import run as discover_run
 
     only = [s.strip() for s in args.only.split(",") if s.strip()] or None
-    summary = discover_run(Path(args.sources), Path(args.catalog),
-                           Path(args.manifest_out) if args.manifest_out else None, only=only)
+    summary = discover_run(
+        Path(args.sources), Path(args.catalog), Path(args.manifest_out) if args.manifest_out else None, only=only
+    )
     emit(summary)
     pages = sum(v["pages"] for v in summary["sources"].values())  # type: ignore[union-attr]
     return EXIT_ERROR if pages == 0 else EXIT_OK
+
+
+def cmd_keys_nta_final(args: argparse.Namespace, settings: Settings) -> int:
+    """Fetch an official NTA final answer key, store it, and link answers to our questions by NTA question/option ids."""
+    from pxw.answer_keys.nta_final import normalize_answer, paper_slug, parse_nta_final_key
+    from pxw.common.models import OfficialKeyIn
+    from pxw.fetch.fetcher import DEFAULT_USER_AGENT, Fetcher, save_download
+
+    rt = _build_runtime(args, settings)
+    source = rt.repo.get_source(args.source)  # SourceNotApproved -> exit 3, before any network
+    fetcher = Fetcher(
+        user_agent=os.environ.get("PXW_USER_AGENT") or DEFAULT_USER_AGENT, min_interval_s=args.min_interval
+    )
+    res = fetcher.fetch_pdf(args.url, [h.strip() for h in args.allowed_host.split(",") if h.strip()])
+    pdf = save_download(res, settings.work_dir / "downloads", args.url)
+    key = keys.source_document(source.code, args.year, res.sha256, "pdf")
+    if not rt.objects.exists("SOURCE_DOCS", key):
+        rt.objects.put("SOURCE_DOCS", key, res.data, "application/pdf")
+    doc_id, created = rt.repo.register_document(
+        SourceDocumentIn(
+            source_code=source.code,
+            paper_id=None,
+            kind="ANSWER_KEY",
+            r2_key=key,
+            original_filename=args.url.rsplit("/", 1)[-1],
+            mime_type="application/pdf",
+            bytes=len(res.data),
+            sha256=res.sha256,
+            page_count=None,
+        )
+    )
+    rows = parse_nta_final_key(pdf)
+    by_slug: dict[str, list] = {}
+    for r in rows:
+        by_slug.setdefault(paper_slug(args.exam, r.exam_date, r.shift), []).append(r)
+    summary: dict[str, Any] = {"document_id": doc_id, "created": created, "key_rows": len(rows), "papers": {}}
+    for slug, krows in sorted(by_slug.items()):
+        m = rt.repo.paper_question_map(slug)
+        if m is None:
+            summary["papers"][slug] = {"status": "paper not ingested"}
+            continue
+        paper_id, qmap = m
+        ins = []
+        for r in krows:
+            if r.external_question_id not in qmap:
+                continue  # the key covers both paper versions of a shift; keep only questions we have
+            opts = set(qmap[r.external_question_id]) or None
+            norm = normalize_answer(r.raw_answer, opts)
+            ins.append(
+                OfficialKeyIn(
+                    paper_id=paper_id,
+                    source_document_id=doc_id,
+                    external_question_id=r.external_question_id,
+                    raw_answer=r.raw_answer,
+                    normalized_answer=norm,
+                    is_dropped=norm["kind"] == "DROPPED",
+                )
+            )
+        n = rt.repo.upsert_official_keys(ins) if ins else 0
+        linked = rt.repo.link_keys(paper_id)
+        summary["papers"][slug] = {
+            "questions": len(qmap),
+            "keys_matched": len(ins),
+            "stored": n,
+            "linked": linked,
+            "dropped": sum(1 for x in ins if x.is_dropped),
+        }
+    emit(summary)
+    return EXIT_OK
 
 
 def cmd_jobs_run(args: argparse.Namespace, settings: Settings) -> int:
@@ -340,12 +424,25 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--user-agent", default=None)
     f.set_defaults(fn=cmd_fetch)
 
-    dv = ing_sub.add_parser("discover", help="index official paper/answer-key PDF links into a catalogue (no downloads)")
+    dv = ing_sub.add_parser(
+        "discover", help="index official paper/answer-key PDF links into a catalogue (no downloads)"
+    )
     dv.add_argument("--sources", default="workers/scraper/sources.json")
     dv.add_argument("--catalog", default="workers/scraper/catalog.json")
     dv.add_argument("--manifest-out", default=None, help="also write a `pxw ingest fetch` manifest")
     dv.add_argument("--only", default="", help="comma-separated source codes")
     dv.set_defaults(fn=cmd_discover)
+
+    kp = sub.add_parser("keys", help="official answer keys")
+    k_sub = kp.add_subparsers(dest="keys_cmd", required=True)
+    kn = k_sub.add_parser("nta-final", help="fetch an NTA final answer key PDF and link it by question/option ids")
+    kn.add_argument("--url", required=True)
+    kn.add_argument("--allowed-host", default="cdnbbsr.s3waas.gov.in")
+    kn.add_argument("--source", default="NTA")
+    kn.add_argument("--exam", default="jee-main")
+    kn.add_argument("--year", type=int, required=True)
+    kn.add_argument("--min-interval", type=float, default=5.0)
+    kn.set_defaults(fn=cmd_keys_nta_final)
 
     j = sub.add_parser("jobs", help="job runner")
     j_sub = j.add_subparsers(dest="jobs_cmd", required=True)

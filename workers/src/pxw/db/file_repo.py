@@ -26,7 +26,12 @@ _NS = uuid.UUID("6f1b6a64-3c0e-4f7e-9d0b-0a5c3b1d2e11")
 
 # Mirrors seed 0005 semantics: official bodies start NOT approved; the editorial source is approved.
 _DEFAULT_SOURCES = {
-    "NTA": {"name": "National Testing Agency", "kind": "OFFICIAL_EXAM_BODY", "reuse_permitted": False, "approved_at": None},
+    "NTA": {
+        "name": "National Testing Agency",
+        "kind": "OFFICIAL_EXAM_BODY",
+        "reuse_permitted": False,
+        "approved_at": None,
+    },
     "PROJECTX_EDITORIAL": {
         "name": "ProjectX Editorial",
         "kind": "EDITORIAL_TEAM",
@@ -204,6 +209,9 @@ class FileIngestionRepo:
             n += 1
         self._save(st)
         return n
+
+    def paper_question_map(self, paper_slug: str) -> tuple[str, dict[str, list[str]]] | None:
+        return None  # official keys by external id need the Postgres repo
 
     def list_source_questions(self, document_id: str, status: str | None = None) -> list[SourceQuestionRec]:
         st = self._load()
