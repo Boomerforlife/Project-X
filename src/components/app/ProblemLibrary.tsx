@@ -312,21 +312,34 @@ function DiffBars({ d }: { d: Difficulty }) {
 type ListProps = { filters: Omit<LibFilters, "offset" | "limit">; s: DemoState; opening: number | null; onOpen: (p: LibProblem) => void };
 
 /** First page on mount / filter change / state change (status is fresh after every answer); more pages on demand. */
-function usePaged(filters: Omit<LibFilters, "offset" | "limit">, s: DemoState, limit = 50) {
+/** Upper bound for "load everything" (chapter view): 30 pages of 100. */
+const MAX_ALL_PAGES = 30;
+
+function usePaged(filters: Omit<LibFilters, "offset" | "limit">, s: DemoState, limit = 50, all = false) {
   const key = JSON.stringify(filters);
   const [page, setPage] = useState<{ items: LibProblem[] | null; total: number; error: boolean }>({ items: null, total: 0, error: false });
   const [more, setMore] = useState(false);
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
     let live = true;
-    listProblems({ ...(JSON.parse(key) as LibFilters), offset: 0, limit }, s).then(
+    (async () => {
+      const f = JSON.parse(key) as LibFilters;
+      let r = await listProblems({ ...f, offset: 0, limit }, s);
+      const items = [...r.items];
+      // Chapter view groups the whole set, so keep reading pages until every problem is in.
+      for (let i = 1; all && items.length < r.total && i < MAX_ALL_PAGES && r.items.length > 0; i++) {
+        r = await listProblems({ ...f, offset: items.length, limit }, s);
+        items.push(...r.items);
+      }
+      return { items, total: r.total };
+    })().then(
       (r) => live && setPage({ items: r.items, total: r.total, error: false }),
       () => live && setPage((p) => ({ ...p, error: true })),
     );
     return () => {
       live = false;
     };
-  }, [key, s, limit, nonce]);
+  }, [key, s, limit, all, nonce]);
   const loadMore = () => {
     const offset = page.items?.length ?? 0;
     setMore(true);
@@ -372,11 +385,11 @@ function FlatList({ filters, s, opening, onOpen, filtered, onClear }: ListProps 
 }
 
 /**
- * One request for the filtered list (100 per page), grouped here by chapter in syllabus order. Per-chapter requests would
- * multiply calls against the API's rate limit; per-chapter totals from the server (contract item C4) can replace this later.
+ * The whole filtered set, read 100 at a time in sequence and grouped here by chapter in syllabus order. Sequential pages keep
+ * calls well under the API's rate limit; per-chapter totals from the server (contract item C4) can replace this later.
  */
 function ChapterGroups({ exam, filters, s, opening, onOpen, filtered, onClear }: ListProps & { exam: ExamId; filtered: boolean; onClear: () => void }) {
-  const { items, total, error, more, loadMore, retry } = usePaged(filters, s, 100);
+  const { items, total, error, more, loadMore, retry } = usePaged(filters, s, 100, true);
   const groups = useMemo(() => {
     if (!items) return [];
     const subjects = filters.subject ? [filters.subject] : EXAMS[exam].subjects;

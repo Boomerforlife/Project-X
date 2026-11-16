@@ -243,6 +243,36 @@ SolutionVersionFull = { id, version, final_answer: AnswerKey, summary, steps, fo
 
 Document registration/upload is done by the Python CLI (`pxw ingest register`, INGESTION_PIPELINE §5), not by the API.
 
+### 3.8 Problem set (Owner B, migrations 0022/0023; contracts `dto/problems.ts`)
+A *problem* is a family of questions that differ only in their numbers (template variants); a one-off question is a family of
+one. Signed-out responses are publicly cacheable; anything with a viewer is PRIVATE.
+
+| Method & path | Access | Request | Response `data` |
+|---|---|---|---|
+| GET `/problems` | optional | `exam`, `subject?`, `chapter?`, `difficulty?` (repeatable), `status?` (`SOLVED`/`ATTEMPTED`/`TODO`, needs sign-in), `premium?`, `q?`, `sort` (`number`/`acceptance`/`difficulty`), `order`, `offset`, `limit` ≤ 100 | `{ items: Problem[], total, offset, limit }` |
+| GET `/problems/summary` | optional | `exam` | `{ problems: {EASY,MEDIUM,HARD,total}, solved?, attempted?, plus, free_variants_per_problem }` |
+| GET `/problems/daily` | public | `exam` | `{ date, problem }` (FREE problems only, same for everyone, IST day) |
+| GET `/problems/:number` | optional | — | `ProblemDetail` (variants tried / free variants left) |
+| GET `/problems/:number/next` | user | — | `PracticeQuestion` (untried variant first; no answer). Free users get `FREE_VARIANTS_PER_PROBLEM` variants; PREMIUM problems → 403 `PREMIUM_REQUIRED` |
+
+Web: `/practice/` (problem library) reads these; answers go through `POST /practice/attempts` as usual.
+
+### 3.9 Diagnostic + study plans (Owner A, migration 0024; contracts `dto/plans.ts`; algorithm `packages/plans`)
+Design: `docs/superpowers/specs/2026-11-17-problem-library-and-study-plans-design.md`. All routes are `user`, PRIVATE.
+The algorithm is pure and deterministic; the server gathers evidence only from attempts it graded itself.
+
+| Method & path | Access | Request | Response `data` |
+|---|---|---|---|
+| POST `/plans/diagnostic` | user (free) | `{ client_request_id, exam, subjects?: slug[], chapters?: slug[], length: 15\|30\|45 }` | `{ session, questions, requested_mix, actual_mix, short_by }`; 201 / 200 replay; 422 `NO_QUESTIONS` |
+| GET `/plans/diagnostic/:sessionId/report` | user | — | `{ session_id, completed, actual_mix, subjects[], focus[≤3], chapters: ChapterResult[] \| null, plus }` (`chapters` is null without Plus) |
+| POST `/plans` | **Plus** | `{ client_request_id, diagnostic_session_id, daily_minutes: 30\|60\|90\|120, days: 7\|14 }` | `StudyPlan`; archives the active plan for the exam; 403 `PREMIUM_REQUIRED` |
+| GET `/plans/current` | user | `exam` | `StudyPlan`, re-planned for today (past days and started items kept); 404 when none; `locked: true` (read-only, nothing re-planned) when Plus has lapsed |
+| POST `/plans/:id/items/:key/start` | **Plus** | — | `{ item, session \| null }`; creates or replays the item's practice session (idempotent per item); PROBLEMS / REVIEW_DIAGNOSTIC only record a start |
+
+Diagnostic sessions are ordinary `practice_sessions` (`mode MIXED`, `ui_mode test`, `filters.diagnostic = true` plus scope and
+mix), so answers use `POST /practice/attempts` and the normal complete endpoint. Students never see a readiness percentage,
+rank or predicted score: only bands (`unmeasured`/`weak`/`shaky`/`strong`) and counts.
+
 ## 4. Implementation notes binding on W2
 * Routes are `createRoute` definitions in `apps/api/src/routes/**`; request/response schemas imported from `@projectx/contracts`.
 * Mapper functions `toPublicQuestion`, `toPracticeQuestion`, `toAttemptResult`, `toAdminQuestion` live in `apps/api/src/mappers/` and

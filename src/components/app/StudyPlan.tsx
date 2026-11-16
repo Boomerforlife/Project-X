@@ -57,10 +57,16 @@ function PlanRoot({ s }: { s: S }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
   const [nonce, setNonce] = useState(0);
   const reload = useCallback(() => setNonce((n) => n + 1), []);
+  // Reload only when attempts start or finish, not on every local state tick (each reload is an API call).
+  const attempts = Object.values(s.attempts);
+  const progressKey = `${s.user.exam}|${attempts.length}|${attempts.filter((a) => a.status === "submitted").length}`;
 
   useEffect(() => {
     let live = true;
     (async (): Promise<Phase> => {
+      // Sessions hydrate in a burst after sign-in; wait for it to settle so one load serves them all.
+      await new Promise((r) => setTimeout(r, 400));
+      if (!live) return { kind: "loading" };
       const plan = await getPlan(s);
       if (plan) return { kind: "plan", plan, report: await getReport(s).catch(() => null) };
       const diag = currentDiagnostic();
@@ -85,7 +91,9 @@ function PlanRoot({ s }: { s: S }) {
     return () => {
       live = false;
     };
-  }, [s, nonce]);
+    // `s` is read for the latest attempts; `progressKey` decides when that is worth a reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progressKey, nonce]);
 
   const startOver = () => {
     resetDemoPlan();

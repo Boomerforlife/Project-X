@@ -36,7 +36,7 @@ import { apiFetch } from "@/lib/api/http";
 import { examToApi } from "@/lib/api/adapters/ids";
 import { catalog } from "@/lib/data/catalog";
 import { outcomeFor } from "@/lib/demo/scoring";
-import { pickQuestions, startPractice } from "@/lib/demo/store";
+import { adoptSession, pickQuestions, startPractice } from "@/lib/demo/store";
 import type { Attempt, DemoState } from "@/lib/demo/types";
 import { mockFamiliesForPlans, mockOutcomes } from "@/lib/problems";
 import { registry } from "@/lib/session/registry";
@@ -355,7 +355,8 @@ export async function startDiagnostic(setup: Setup, s: DemoState): Promise<{ att
         .filter((x): x is string => Boolean(x)),
     };
     const r = await authed("/plans/diagnostic", DiagnosticCreatedSchema, "POST", body);
-    const meta = { attemptId: r.session.id ?? "", requestedMix: upperMix(r.requested_mix), actualMix: upperMix(r.actual_mix), shortBy: r.short_by };
+    adoptSession(r, "Diagnostic");
+    const meta = { attemptId: r.session.id, requestedMix: upperMix(r.requested_mix), actualMix: upperMix(r.actual_mix), shortBy: r.short_by };
     rememberDiagnostic(meta);
     return { attemptId: meta.attemptId, meta };
   }
@@ -509,7 +510,8 @@ export async function startItem(plan: PlanView, item: ItemView, s: DemoState): P
   if (API) {
     const r = await authed(`/plans/${enc(plan.id)}/items/${enc(item.key)}/start`, PlanItemStartedSchema, "POST");
     if (item.kind === "REVIEW_DIAGNOSTIC") return `/results/?id=${plan.diagnosticAttemptId}`;
-    return r.session ? `/practice/session/?id=${r.session.session.id}` : null;
+    if (!r.session) return null;
+    return `/practice/session/?id=${adoptSession(r.session, planItemTitle(item))}`;
   }
   const m = readMock();
   if (!m?.plan) throw new Error("No plan");
@@ -554,6 +556,14 @@ export async function startItem(plan: PlanView, item: ItemView, s: DemoState): P
   if (!attemptId) throw new Error("Nothing to start");
   markStarted(item.key, attemptId);
   return `/practice/session/?id=${attemptId}`;
+}
+
+function planItemTitle(item: ItemView): string {
+  const ch = item.chapterName ?? "";
+  if (item.kind === "CHECKPOINT") return "Checkpoint";
+  if (item.kind === "TIMED") return `Timed drill · ${ch}`;
+  if (item.kind === "MISTAKES") return `Mistakes · ${ch}`;
+  return `Plan practice · ${ch}`;
 }
 
 function markStarted(key: string, attemptId: string | null) {

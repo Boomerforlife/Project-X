@@ -235,7 +235,7 @@ describe('plan', () => {
     improved.estimates[0] = est('p1', 'strong', 0.9);
     const next = replan(first, improved, 3);
     expect(next.slice(0, 3)).toEqual(first.slice(0, 3));
-    expect(next[3]!.items[0]).toEqual(first[3]!.items[0]);
+    expect(next[3]!.items).toContainEqual(first[3]!.items[0]);
     expect(new Set(next[3]!.items.map((i) => i.key)).size).toBe(next[3]!.items.length);
     expect(next).toHaveLength(14);
   });

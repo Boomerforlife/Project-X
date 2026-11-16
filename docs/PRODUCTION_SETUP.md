@@ -22,11 +22,23 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
 
 ## 1. Supabase (owner: Owner B, with the user for the dashboard)
 
-1. **Migrations.** `0001`–`0017` are applied (0016/0017 by Owner B). Ours: `0018_billing`, `0019_analytics`.
+1. **Migrations.** Apply everything in `supabase/migrations/` up to `0024_study_plans` (0022/0023 problem families by Owner B,
+   0024 study plans by Owner A, additive: one new table, RLS on, no grants to anon/authenticated).
    `supabase link --project-ref gardheietftxyforposh` then `supabase db push` (the CLI uses a temporary login role; no DB password needed).
-   Check: `select count(*) from billing_plans` = 4.
+   Checks: `select count(*) from billing_plans` = 4; `select count(*) from study_plans` runs (0 rows).
 2. **Auth → URL configuration.** Site URL = the production web origin. Redirect URLs: `https://<prod domain>/**`, `https://projectx-web-*.run.app/**`, `http://localhost:3000/**`.
+   The `/**` patterns already cover the OAuth return page `/auth/callback/`.
 3. **Auth → providers.** Email on; decide on email confirmation (on is safer). Custom SMTP before launch (Supabase's default sender is rate-limited).
+   **Google** (the web shows "Continue with Google" automatically once this is on; it reads `/auth/v1/settings`):
+   1. Google Cloud Console → APIs & Services → OAuth consent screen: External, app name "Tabby", support email, the production
+      domain under authorised domains; scopes `email`, `profile`, `openid` only. Publish it (testing mode limits sign-in to test users).
+   2. Credentials → Create credentials → OAuth client ID → *Web application*.
+      Authorised JavaScript origins: the production web origin (and `http://localhost:3000` for local testing).
+      Authorised redirect URI: **`https://gardheietftxyforposh.supabase.co/auth/v1/callback`** (Supabase's, not the web app's).
+   3. Supabase → Authentication → Sign In / Providers → Google: enable, paste the client ID and client secret, save.
+   4. Check: `curl -s https://gardheietftxyforposh.supabase.co/auth/v1/settings -H "apikey: <publishable key>"` shows
+      `"google": true`; the login page shows the Google button; signing in lands on `/auth/callback/` and then the dashboard
+      (new accounts go through onboarding; the profile name is filled from the Google account if empty).
 4. **JWT signing keys.** Asymmetric keys (the API verifies through JWKS, `AUTH_MODE=jwks`). Nothing to copy.
 5. **API keys.** Copy the **publishable** key (`sb_publishable_…`) for the web build. Never use the secret/service-role key in the web app.
 6. **First admin.** After the admin signs up: `insert into user_roles (user_id, role) values ('<auth user id>', 'ADMIN');`
@@ -41,7 +53,9 @@ Project `projectx-staging-a7k2`, service `projectx-api`. Runbook: `docs/DEPLOYME
    `CORS_ALLOWED_ORIGINS=https://<prod domain>,https://<preview domain>`, `WEB_REVALIDATE_URL=https://<prod domain>/api/revalidate/`,
    `WEB_BASE_URL=https://<prod domain>` (parent payment links), `RAZORPAY_KEY_ID=rzp_test_…`, `FREE_FULL_PAPERS_PER_MONTH=2`. Leave `BILLING_ALLOW_LIVE` unset (live keys are refused).
 3. **CPU allocation.** Deploy with `--no-cpu-throttling` (or move webhook side effects before the response). The API finishes background work (cache revalidation) after replying, and throttled CPU can stall it.
-4. **Redeploy from the merged branch** so `/billing/*` and `/analytics/events` exist. Check: `GET /api/v1/billing/plans` returns 4 plans and `payments_enabled: true`.
+4. **Redeploy from `main`** so `/billing/*`, `/analytics/events`, `/problems/*` and `/plans/*` exist (apply migration 0024 first).
+   Checks: `GET /api/v1/billing/plans` returns 4 plans and `payments_enabled: true`; `POST /api/v1/plans/diagnostic` without a
+   token returns 401 (not 404).
 5. **Cold starts.** Scales to zero; the first request after idle takes a few seconds. The image runs TypeScript through `tsx` at start-up; shipping compiled JS shortens that. `--min-instances=1` removes it (small cost).
 6. Budget alert ≈ ₹450 stays the safety net.
 

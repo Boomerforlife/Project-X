@@ -165,6 +165,9 @@ export function replan(previous: readonly PlanDay[], input: PlanInput, todayInde
       lastSeen.set(c.info.subjectId, d);
     }
     const light = !items.some((it) => it.chapterId) && !has('CHECKPOINT');
+    // Stable order after a re-plan: the diagnostic review and checkpoint lead the day, whatever was started first.
+    const rank = (it: PlanItem) => (it.kind === 'REVIEW_DIAGNOSTIC' ? 0 : it.kind === 'CHECKPOINT' ? 1 : 2);
+    items.sort((a, b) => rank(a) - rank(b));
     days.push({ index: d, date: addDays(input.startDate, d), items, light });
   }
   return days;
