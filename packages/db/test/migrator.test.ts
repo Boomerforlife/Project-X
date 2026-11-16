@@ -7,12 +7,12 @@ import { openPglite, wrapPglite } from '../src/pglite';
 import type { PgliteDb } from '../src/pglite';
 
 describe('listMigrations', () => {
-  it('lists 0001..0024 in order with sha256 checksums', async () => {
+  it('lists 0001..0025 in order with sha256 checksums', async () => {
     const files = await listMigrations();
     expect(files.map((f) => f.name)).toEqual([
       '0001_extensions_helpers.sql', '0002_enums.sql', '0003_taxonomy.sql', '0004_provenance.sql', '0005_questions.sql',
       '0006_solutions.sql', '0007_pipeline.sql', '0008_verification.sql', '0009_users.sql', '0010_practice.sql',
-      '0011_doubts_uploads.sql', '0012_rls_and_grants.sql', '0013_publication_guard.sql', '0014_publication_guard_hardening.sql', '0015_profile_class_level_session_ui.sql', '0016_pin_helper_search_path.sql', '0017_shared_rate_limits.sql', '0018_billing.sql', '0019_analytics.sql', '0020_publish_ai_checked.sql', '0021_ai_checked_practice_only.sql', '0022_problem_families.sql', '0023_problem_title_cleanup.sql', '0025_link_keys_clears_stale_official.sql',
+      '0011_doubts_uploads.sql', '0012_rls_and_grants.sql', '0013_publication_guard.sql', '0014_publication_guard_hardening.sql', '0015_profile_class_level_session_ui.sql', '0016_pin_helper_search_path.sql', '0017_shared_rate_limits.sql', '0018_billing.sql', '0019_analytics.sql', '0020_publish_ai_checked.sql', '0021_ai_checked_practice_only.sql', '0022_problem_families.sql', '0023_problem_title_cleanup.sql', '0024_study_plans.sql', '0025_link_keys_clears_stale_official.sql',
     ]);
     for (const f of files) expect(f.sha256).toMatch(/^[0-9a-f]{64}$/);
   });

@@ -104,6 +104,15 @@ export async function googleSignIn(next: string): Promise<AuthResult> {
   return { ok: true };
 }
 
+/** Name the provider gave us (Google: full_name / name), used to fill a profile that has none yet. */
+export async function providerDisplayName(): Promise<string | null> {
+  if (AUTH_MODE !== "supabase") return null;
+  const { data } = await supabase().auth.getSession();
+  const meta = (data.session?.user.user_metadata ?? {}) as { full_name?: string; name?: string };
+  const n = (meta.full_name || meta.name || "").trim();
+  return n ? n.slice(0, 60) : null;
+}
+
 export async function authSignOut() {
   dev = null;
   try {

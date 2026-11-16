@@ -159,7 +159,7 @@ function Dashboard({ s, user }: { s: DemoState; user: DemoUser }) {
                   <Icon name="monitor" className="size-4" /> Full paper in CBT
                 </Link>
               )}
-              <Link href="/practice/#chapters" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-fg-soft hover:bg-surface-2 hover:text-fg">
+              <Link href="/practice/#library" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-fg-soft hover:bg-surface-2 hover:text-fg">
                 <Icon name="layers" className="size-4" /> Choose a chapter
               </Link>
             </div>

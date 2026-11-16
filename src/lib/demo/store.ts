@@ -113,4 +113,6 @@ export function usePending(attemptId: string, qid: string): boolean {
 export const ensureAttempt: (id: string) => Promise<Attempt | null> = API ? remote.ensureAttempt : () => Promise.resolve(null);
 export const retryLoad: () => void = API ? remote.retryLoad : () => undefined;
 export const startSingleBySlug = remote.startSingleBySlug;
+/** API mode: register a server-created session (diagnostic, checkpoint, plan item) under a proper title. */
+export const adoptSession = remote.adoptSession;
 export const reportQuestion: (questionId: string, reason: string, text: string) => Promise<void> = remote.reportQuestion;

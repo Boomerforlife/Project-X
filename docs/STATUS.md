@@ -1,5 +1,9 @@
 # ProjectX status, 2026-11-15
 
+> **Superseded for current status (2026-11-17):** see `docs/LAUNCH_READINESS.md` (what is done, blocked and pending),
+> `docs/PRODUCTION_SETUP.md` (deploy and Supabase steps, including Google sign-in) and `docs/API_CONTRACTS.md` §3.8–3.9
+> (problem set and study plans). Hosting is Cloud Run for both API and web; the Cloudflare notes below are historical.
+
 Branch `integration/web-api` (local only; NOT pushed). Backend milestones M0-M5 (Owner B) and the web/API integration
 (INTEGRATION_PLAN phases) are built and verified **locally on PGlite with mocks**. Nothing has been applied to or run against
 a real Supabase or Cloudflare account.

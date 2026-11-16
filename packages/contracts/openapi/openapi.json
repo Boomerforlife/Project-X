@@ -5534,6 +5534,556 @@
             ]
           }
         ]
+      },
+      "DiagnosticCreated": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/SessionSummary"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeQuestion"
+            }
+          },
+          "requested_mix": {
+            "$ref": "#/components/schemas/DifficultyMix"
+          },
+          "actual_mix": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DifficultyMix"
+              },
+              {
+                "description": "What the bank could supply; a missing tier moves to the nearest one and is stated here."
+              }
+            ]
+          },
+          "short_by": {
+            "type": "integer",
+            "description": "Questions fewer than requested because the bank is too small."
+          }
+        },
+        "required": [
+          "session",
+          "questions",
+          "requested_mix",
+          "actual_mix",
+          "short_by"
+        ]
+      },
+      "DifficultyMix": {
+        "type": "object",
+        "properties": {
+          "EASY": {
+            "type": "integer"
+          },
+          "MEDIUM": {
+            "type": "integer"
+          },
+          "HARD": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "EASY",
+          "MEDIUM",
+          "HARD"
+        ]
+      },
+      "CreateDiagnosticBody": {
+        "type": "object",
+        "properties": {
+          "client_request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "exam": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Slug"
+            },
+            "maxItems": 4
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Slug"
+            },
+            "maxItems": 200
+          },
+          "length": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  15
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  30
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  45
+                ]
+              }
+            ],
+            "default": 30
+          }
+        },
+        "required": [
+          "client_request_id"
+        ]
+      },
+      "DiagnosticReport": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "actual_mix": {
+            "$ref": "#/components/schemas/DifficultyMix"
+          },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "$ref": "#/components/schemas/Slug"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "name"
+                  ]
+                },
+                "correct": {
+                  "type": "integer"
+                },
+                "answered": {
+                  "type": "integer"
+                },
+                "skipped": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "subject",
+                "correct",
+                "answered",
+                "skipped"
+              ]
+            }
+          },
+          "focus": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChapterResult"
+            },
+            "maxItems": 3
+          },
+          "chapters": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ChapterResult"
+            },
+            "description": "Plus only; null for free users."
+          },
+          "plus": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "session_id",
+          "completed",
+          "actual_mix",
+          "subjects",
+          "focus",
+          "chapters",
+          "plus"
+        ]
+      },
+      "ChapterResult": {
+        "type": "object",
+        "properties": {
+          "chapter": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "$ref": "#/components/schemas/Slug"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "subject": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "$ref": "#/components/schemas/Slug"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "band": {
+            "$ref": "#/components/schemas/PlanBand"
+          },
+          "correct": {
+            "type": "integer"
+          },
+          "answered": {
+            "type": "integer"
+          },
+          "slow": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "chapter",
+          "subject",
+          "band",
+          "correct",
+          "answered",
+          "slow"
+        ]
+      },
+      "PlanBand": {
+        "type": "string",
+        "enum": [
+          "unmeasured",
+          "weak",
+          "shaky",
+          "strong"
+        ]
+      },
+      "StudyPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "exam": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ]
+          },
+          "starts_on": {
+            "$ref": "#/components/schemas/DateString"
+          },
+          "days": {
+            "type": "integer"
+          },
+          "daily_minutes": {
+            "type": "integer"
+          },
+          "diagnostic_session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "today_index": {
+            "type": "integer"
+          },
+          "plan_days": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "date": {
+                  "$ref": "#/components/schemas/DateString"
+                },
+                "light": {
+                  "type": "boolean"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlanItem"
+                  }
+                }
+              },
+              "required": [
+                "index",
+                "date",
+                "light",
+                "items"
+              ]
+            }
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "Plus lapsed: shown read-only."
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "exam",
+          "status",
+          "starts_on",
+          "days",
+          "daily_minutes",
+          "diagnostic_session_id",
+          "today_index",
+          "plan_days",
+          "locked",
+          "created_at"
+        ]
+      },
+      "PlanItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlanItemKind"
+          },
+          "chapter": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "slug": {
+                "$ref": "#/components/schemas/Slug"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "subject": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "slug": {
+                "$ref": "#/components/schemas/Slug"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/Difficulty"
+          },
+          "size": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "problems": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Problem numbers (GET /problems/{number})."
+          },
+          "time_limit_sec": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "started_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "completed_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "chapter",
+          "subject",
+          "difficulty",
+          "size",
+          "problems",
+          "time_limit_sec",
+          "minutes",
+          "session_id",
+          "started_at",
+          "completed_at"
+        ]
+      },
+      "PlanItemKind": {
+        "type": "string",
+        "enum": [
+          "REVIEW_DIAGNOSTIC",
+          "PRACTICE",
+          "PROBLEMS",
+          "MISTAKES",
+          "TIMED",
+          "CHECKPOINT",
+          "READ"
+        ]
+      },
+      "CreatePlanBody": {
+        "type": "object",
+        "properties": {
+          "client_request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "diagnostic_session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daily_minutes": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  30
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  60
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  90
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  120
+                ]
+              }
+            ],
+            "default": 60
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  7
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  14
+                ]
+              }
+            ],
+            "default": 14
+          }
+        },
+        "required": [
+          "client_request_id",
+          "diagnostic_session_id"
+        ]
+      },
+      "PlanItemStarted": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/PlanItem"
+          },
+          "session": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "session": {
+                "$ref": "#/components/schemas/SessionSummary"
+              },
+              "questions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PracticeQuestion"
+                }
+              }
+            },
+            "required": [
+              "session",
+              "questions"
+            ]
+          }
+        },
+        "required": [
+          "item",
+          "session"
+        ]
       }
     },
     "parameters": {}
@@ -15777,6 +16327,642 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/PracticeQuestion"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans/diagnostic": {
+      "post": {
+        "summary": "Start (or replay) a diagnostic: mixed difficulty, spread across chapters",
+        "tags": [
+          "plans"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDiagnosticBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay (meta.replayed = true)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DiagnosticCreated"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DiagnosticCreated"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans/diagnostic/{id}/report": {
+      "get": {
+        "summary": "Diagnostic report: per-subject summary and focus chapters (full breakdown on Plus)",
+        "tags": [
+          "plans"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DiagnosticReport"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans": {
+      "post": {
+        "summary": "Build a study plan from a submitted diagnostic (Plus)",
+        "description": "Archives any active plan for the same exam. 403 PREMIUM_REQUIRED without Plus.",
+        "tags": [
+          "plans"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlanBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay (meta.replayed = true)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/StudyPlan"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/StudyPlan"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans/current": {
+      "get": {
+        "summary": "My active plan, re-planned for today",
+        "description": "Days before today and started items are kept; the rest is regenerated from your answers since. Without Plus the plan is returned read-only (locked).",
+        "tags": [
+          "plans"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "default": "jee-main"
+            },
+            "required": false,
+            "name": "exam",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/StudyPlan"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans/{id}/items/{key}/start": {
+      "post": {
+        "summary": "Start a plan item (creates or reuses its practice session) (Plus)",
+        "tags": [
+          "plans"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^d\\d{1,2}-\\d{1,2}$"
+            },
+            "required": true,
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PlanItemStarted"
                     },
                     "meta": {
                       "$ref": "#/components/schemas/Meta"

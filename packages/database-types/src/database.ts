@@ -1655,6 +1655,60 @@ export type Database = {
         };
         Relationships: [];
       };
+      study_plans: {
+        Row: {
+          id: string
+          user_id: string
+          exam_id: string
+          client_request_id: string
+          status: string
+          diagnostic_session_id: string
+          chapter_ids: string[]
+          starts_on: string
+          days: number
+          daily_minutes: number
+          seed: string
+          plan_days: Json
+          item_sessions: Json
+          created_at: string
+          updated_at: string
+        };
+        Insert: {
+          id?: string
+          user_id: string
+          exam_id: string
+          client_request_id: string
+          status?: string
+          diagnostic_session_id: string
+          chapter_ids: string[]
+          starts_on: string
+          days: number
+          daily_minutes: number
+          seed: string
+          plan_days: Json
+          item_sessions?: Json
+          created_at?: string
+          updated_at?: string
+        };
+        Update: {
+          id?: string
+          user_id?: string
+          exam_id?: string
+          client_request_id?: string
+          status?: string
+          diagnostic_session_id?: string
+          chapter_ids?: string[]
+          starts_on?: string
+          days?: number
+          daily_minutes?: number
+          seed?: string
+          plan_days?: Json
+          item_sessions?: Json
+          created_at?: string
+          updated_at?: string
+        };
+        Relationships: [];
+      };
       subjects: {
         Row: {
           id: string

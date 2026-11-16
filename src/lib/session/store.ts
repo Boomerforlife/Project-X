@@ -458,6 +458,21 @@ export async function startPractice(opts: StartOpts): Promise<string> {
   }
 }
 
+/**
+ * Adopt a session the server created for another feature (diagnostic, checkpoint, plan item) so the player opens it with the
+ * right title and timer instead of a generic one. Same bookkeeping as `startPractice`.
+ */
+export function adoptSession(
+  created: { session: Omit<SessionDetail["session"], "completed_at">; questions: SessionDetail["items"][number]["question"][] },
+  title: string,
+): string {
+  const a = buildAttempt({ ...created.session, completed_at: null }, created.questions.map((question) => ({ question, attempt: null })));
+  const attempt: Attempt = { ...a, title, startedAt: created.session.started_at };
+  if (userId) writeDraft(userId, attempt.id, { v: 1, current: 0, elapsedSec: 0, savedAt: new Date().toISOString(), responses: {}, mode: attempt.mode === "cbt" ? "test" : attempt.mode, durationSec: attempt.durationSec, title });
+  patchState((s) => ({ ...s, attempts: { ...s.attempts, [attempt.id]: attempt } }));
+  return attempt.id;
+}
+
 /** One question, no server session: attempts are posted without `session_id`. */
 function startSingle(opts: StartOpts): string {
   const qid = opts.questionIds[0];
@@ -470,7 +485,7 @@ function startSingle(opts: StartOpts): string {
     exam: opts.exam,
     mode: "learning",
     kind: "practice",
-    title: "Single question",
+    title: opts.title || "Single question",
     scope: { source: "single" },
     questionIds: [qid],
     sections: sectionsFor(opts.exam, [qid]),

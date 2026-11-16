@@ -55,6 +55,18 @@ Next.js 16 (App Router, Cache Components) · TypeScript strict · Tailwind CSS v
 
 See `CLAUDE.md`, `docs/PERSON-1-PERSON-2-INTEGRATION.md`, and `docs/api-contract-draft.md` for frontend handoff and integration details.
 
+Main student surfaces: `/practice/` (quick start + the problem library on `/problems`), `/plan/` (diagnostic and study plan on
+`/plans`, Tabby Plus), `/tests/` + `/cbt/` (papers, demo-only until PYQ papers exist). Contracts: `docs/API_CONTRACTS.md` §3.8–3.9.
+
+Run the whole stack locally (API with an in-process database and sample questions, web against it, dev sign-in):
+```bash
+npm run dev:api                                   # :8787
+NEXT_PUBLIC_DATA_SOURCE=api NEXT_PUBLIC_API_BASE_URL=http://localhost:8787/api/v1 API_BASE_URL=http://localhost:8787/api/v1 \
+NEXT_PUBLIC_AUTH_MODE=dev DEV_TEST_JWT_SECRET=dev-test-secret-change-me-32-chars-min npm run dev:web
+```
+Plus features locally: grant the dev user Plus with an admin dev token via `POST /api/v1/admin/billing/entitlements`.
+Without the API variables the web runs in demo mode on fixtures (everything stays in the browser).
+
 ### Frontend Commands
 ```bash
 npm run dev:web        # http://localhost:3000

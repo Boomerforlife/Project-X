@@ -23,6 +23,7 @@ import { toast } from "@/components/ui/Toast";
 import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt } from "@/lib/demo/types";
 import { EXAMS } from "@/lib/exams";
+import { isDiagnosticAttempt } from "@/lib/plans";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 type Filter = "all" | "incorrect" | "correct" | "unattempted";
@@ -133,6 +134,11 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
           </Eyebrow>
           <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{a.title}</h1>
           {a.retryOf && <p className="mt-1 text-sm text-fg-muted">Retry attempt — your earlier attempt is kept unchanged.</p>}
+          {isDiagnosticAttempt(a.id) && (
+            <Link href="/plan/" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-line-strong px-3 py-2 text-sm font-medium hover:border-fg hover:bg-surface-2">
+              See your diagnostic report and plan →
+            </Link>
+          )}
         </div>
         <div className="flex items-end gap-5">
           {/* Celebrates finishing, not the score: no shame for a low mark. */}
