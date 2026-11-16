@@ -164,6 +164,7 @@ export async function createSession(
   deps: Pick<AppDeps, 'config' | 'logger' | 'clock'>,
   user: AuthUser,
   body: CreateSessionBody,
+  opts: { includePremium?: boolean } = {},
 ): Promise<{ created: boolean; data: { session: SessionSummary; questions: PracticeQuestion[] } }> {
   return store.service(async (r) => {
     const replay = async (s: SessionRow) => ({
@@ -205,6 +206,7 @@ export async function createSession(
       yearTo: f?.year_to,
       excludeCorrect: f?.exclude_correct ?? true,
       size: body.size,
+      includePremium: opts.includePremium ?? false,
     });
     if (ids.length === 0) {
       throw new ApiError('VALIDATION_ERROR', 'No eligible questions for this selection', { status: 422, details: { reason: 'NO_QUESTIONS' } });

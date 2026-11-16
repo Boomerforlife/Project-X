@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import * as billing from '../billing/service';
 import { billingDeps } from '../billing/routes';
+import { assertQuestionAccessible, stripPremiumSolutionExtras, viewerPlus } from '../problems/access';
 import {
   ActivityDaySchema,
   ActivityQuery,
@@ -68,7 +69,8 @@ export function registerPractice(app: App, g: Guards): void {
     const fullPaper = body.mode === 'PYQ_PAPER';
     // Free plan: monthly full-paper allowance (billing module; no-op while payments are disabled).
     if (fullPaper) await billing.assertFullPaperAllowed(billingDeps(c), requireUser(c).id, body.client_request_id);
-    const r = await practice.createSession(store(c), deps(c), requireUser(c), body);
+    const plus = await viewerPlus(c, requireUser(c).id);
+    const r = await practice.createSession(store(c), deps(c), requireUser(c), body, { includePremium: plus });
     if (fullPaper && r.created) await billing.recordFullPaper(billingDeps(c), requireUser(c).id, body.client_request_id);
     return send(c, r.created ? 201 : 200, r.data, r.created ? {} : { meta: { replayed: true } });
   });
@@ -79,7 +81,9 @@ export function registerPractice(app: App, g: Guards): void {
   })(g);
   app.openapi(get, async (c: Ctx) => {
     const p = valid(c, 'param', IdParam);
-    return send(c, 200, await practice.getSession(store(c), deps(c), requireUser(c).id, p.id));
+    const plus = await viewerPlus(c, requireUser(c).id);
+    const s = await practice.getSession(store(c), deps(c), requireUser(c).id, p.id);
+    return send(c, 200, plus ? s : { ...s, items: s.items.map((it) => (it.attempt ? { ...it, attempt: stripPremiumSolutionExtras(it.attempt, false) } : it)) });
   });
 
   const listSessions = defineRoute({
@@ -124,8 +128,11 @@ export function registerPractice(app: App, g: Guards): void {
   app.openapi(attempt, async (c: Ctx) => {
     const body = valid(c, 'json', SubmitAttemptBody);
     const key = c.req.header('Idempotency-Key');
+    const plus = await viewerPlus(c, requireUser(c).id);
+    await assertQuestionAccessible(c, body.question_id, plus);
     const r = await practice.submitAttempt(store(c), deps(c), requireUser(c), body, key);
-    return send(c, r.replayed ? 200 : 201, r.data, r.replayed ? { meta: { replayed: true } } : {});
+    const data = stripPremiumSolutionExtras(r.data, plus);
+    return send(c, r.replayed ? 200 : 201, data, r.replayed ? { meta: { replayed: true } } : {});
   });
 }
 

@@ -333,7 +333,8 @@ describe('auth matrix', () => {
         const url = path.replace(/\{[^}]+\}/g, id(1)).replace('/files/' + id(1), '/files/x');
         const init = { method: method.toUpperCase(), json: method === 'get' || method === 'delete' ? undefined : {} };
         const noTok = await req(url, init);
-        if (path === '/doubts') {
+        const OPTIONAL_AUTH = ['/doubts', '/problems', '/problems/summary', '/problems/{number}'];
+        if (OPTIONAL_AUTH.includes(path)) {
           expect(noTok.status, `${method} ${path}`).not.toBe(401); // optional auth
           continue;
         }

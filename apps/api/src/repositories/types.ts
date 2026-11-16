@@ -486,6 +486,8 @@ export interface SelectCriteria {
   yearTo?: number | undefined;
   excludeCorrect: boolean;
   size: number;
+  /** Include access_tier=PREMIUM questions (Plus users only). Default false. */
+  includePremium?: boolean | undefined;
 }
 
 export interface PracticeRepo {

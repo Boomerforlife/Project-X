@@ -1102,6 +1102,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      question_families: {
+        Row: {
+          id: string
+          number: number
+          exam_id: string
+          subject_id: string
+          chapter_id: string
+          title: string
+          signature: string
+          difficulty: Database['public']['Enums']['difficulty'] | null
+          access_tier: Database['public']['Enums']['access_tier']
+          attempts: number
+          attempters: number
+          solvers: number
+          created_at: string
+          updated_at: string
+        };
+        Insert: {
+          id?: string
+          number?: number
+          exam_id: string
+          subject_id: string
+          chapter_id: string
+          title: string
+          signature: string
+          difficulty?: Database['public']['Enums']['difficulty'] | null
+          access_tier?: Database['public']['Enums']['access_tier']
+          attempts?: number
+          attempters?: number
+          solvers?: number
+          created_at?: string
+          updated_at?: string
+        };
+        Update: {
+          id?: string
+          number?: number
+          exam_id?: string
+          subject_id?: string
+          chapter_id?: string
+          title?: string
+          signature?: string
+          difficulty?: Database['public']['Enums']['difficulty'] | null
+          access_tier?: Database['public']['Enums']['access_tier']
+          attempts?: number
+          attempters?: number
+          solvers?: number
+          created_at?: string
+          updated_at?: string
+        };
+        Relationships: [];
+      };
       question_options: {
         Row: {
           id: string
@@ -1183,6 +1234,7 @@ export type Database = {
           published_at: string | null
           first_published_at: string | null
           archived_at: string | null
+          family_id: string | null
         };
         Insert: {
           id?: string
@@ -1227,6 +1279,7 @@ export type Database = {
           published_at?: string | null
           first_published_at?: string | null
           archived_at?: string | null
+          family_id?: string | null
         };
         Update: {
           id?: string
@@ -1271,6 +1324,7 @@ export type Database = {
           published_at?: string | null
           first_published_at?: string | null
           archived_at?: string | null
+          family_id?: string | null
         };
         Relationships: [];
       };
@@ -1754,6 +1808,33 @@ export type Database = {
           target_year?: number | null
           created_at?: string
           updated_at?: string
+        };
+        Relationships: [];
+      };
+      user_family_status: {
+        Row: {
+          user_id: string
+          family_id: string
+          attempts: number
+          first_attempt_at: string
+          last_attempt_at: string
+          solved_at: string | null
+        };
+        Insert: {
+          user_id: string
+          family_id: string
+          attempts?: number
+          first_attempt_at: string
+          last_attempt_at: string
+          solved_at?: string | null
+        };
+        Update: {
+          user_id?: string
+          family_id?: string
+          attempts?: number
+          first_attempt_at?: string
+          last_attempt_at?: string
+          solved_at?: string | null
         };
         Relationships: [];
       };

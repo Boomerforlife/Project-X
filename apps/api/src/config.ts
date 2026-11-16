@@ -41,6 +41,8 @@ const EnvSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   BILLING_ALLOW_LIVE: bool.default(false),
   FREE_FULL_PAPERS_PER_MONTH: z.coerce.number().int().min(0).max(100).default(2),
+  // Problem set: distinct variants per problem a free user can open; Plus is unlimited.
+  FREE_VARIANTS_PER_PROBLEM: z.coerce.number().int().min(1).max(50).default(3),
   WEB_BASE_URL: z.string().url().optional(),
 });
 
