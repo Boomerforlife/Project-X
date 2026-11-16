@@ -1,4 +1,4 @@
--- 0024: re-linking official keys must not leave a stale official answer behind.
+-- 0025: re-linking official keys must not leave a stale official answer behind.
 -- Before: when an official key row was DROPPED (or could not be mapped to this question's options/type), the question
 -- was flagged for review but kept whatever OFFICIAL answer an earlier, possibly mis-parsed, key had written.
 -- Now those cases also clear an OFFICIAL answer_key (HUMAN answers are never touched, as before). Same function
