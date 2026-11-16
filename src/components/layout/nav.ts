@@ -12,6 +12,7 @@ export const PRIMARY_NAV = [
 export const APP_NAV = [
   { href: "/dashboard/", label: "Home", match: ["/dashboard"] },
   { href: "/practice/", label: "Practice", match: ["/practice"] },
+  { href: "/plan/", label: "Plan", match: ["/plan"] },
   { href: "/tests/", label: "Papers", match: ["/tests", "/results"] },
   { href: "/mistakes/", label: "Notebook", match: ["/mistakes", "/bookmarks", "/review"] },
   { href: "/progress/", label: "Progress", match: ["/progress", "/leaderboard"] },

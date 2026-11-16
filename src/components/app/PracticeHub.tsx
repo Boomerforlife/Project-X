@@ -7,7 +7,9 @@ import type { ExamId, SubjectId } from "@/contracts";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { PixelIcon } from "@/components/ui/PixelIcon";
 import { Card, Eyebrow, ListSkeleton, PageSkeleton, Ring, Segmented, Skeleton } from "@/components/ui/Primitives";
+import { ProblemLibrary } from "./ProblemLibrary";
 import { DemoBadge } from "@/components/app/ModeBadge";
 import { toast } from "@/components/ui/Toast";
 import { cn } from "@/lib/cn";
@@ -51,40 +53,21 @@ export function switchExam(id: ExamId) {
   toast(`Now preparing for ${EXAMS[id].name}`, { icon: "check", tone: "good" });
 }
 
-type Filter = "all" | "new" | "started" | "weak";
-
 function Hub({ s }: { s: S }) {
   const router = useRouter();
-  const params = useSearchParams();
   const exam = s.user.exam;
   const cfg = EXAMS[exam];
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"learning" | "test">("learning");
   const [count, setCount] = useState("10");
   const [quickSubject, setQuickSubject] = useState<SubjectId | "mixed">("mixed");
-  const initial = params.get("subject") as SubjectId | null;
-  const [subject, setSubject] = useState<SubjectId>(initial && cfg.subjects.includes(initial) ? initial : cfg.subjects[0]);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
   const [lastExam, setLastExam] = useState(exam);
   if (lastExam !== exam) {
     setLastExam(exam);
-    setSubject(cfg.subjects[0]);
     setQuickSubject("mixed");
   }
 
   const counts = useMemo(() => catalog.chapterCounts(exam), [exam]);
-  const stats = useMemo(() => new Map(chapterStats(s).map((c) => [`${c.subject}/${c.chapter}`, c])), [s]);
-  const mix = useMemo(() => {
-    const m = new Map<string, { easy: number; medium: number; hard: number }>();
-    for (const q of catalog.questions({ exam })) {
-      const k = `${q.subject}/${q.chapter}`;
-      const row = m.get(k) ?? { easy: 0, medium: 0, hard: 0 };
-      if (q.difficulty) row[q.difficulty]++;
-      m.set(k, row);
-    }
-    return m;
-  }, [exam]);
 
   const resumable = inProgress(s);
   const openMistakes = Object.values(s.mistakes).filter((m) => m.status === "open").map((m) => m.questionId);
@@ -110,24 +93,6 @@ function Hub({ s }: { s: S }) {
   };
   const fromList = (ids: string[], title: string, source: "mistakes" | "bookmarks") =>
     go(ids.length ? startPractice({ exam, mode: "learning", title, questionIds: ids.slice(0, 20), count: Math.min(20, ids.length), scope: { source } }) : null);
-
-  // Chapter browser
-  const all = catalog.chapters({ exam, subject });
-  const q = query.trim().toLowerCase();
-  const accOf = (slug: string) => {
-    const st = stats.get(`${subject}/${slug}`);
-    return st && st.answered ? st.correct / st.answered : null;
-  };
-  const shown = all.filter((c) => {
-    if (q && !c.name.toLowerCase().includes(q) && !c.topics.some((t) => t.name.toLowerCase().includes(q))) return false;
-    const acc = accOf(c.slug);
-    if (filter === "new") return acc === null;
-    if (filter === "started") return acc !== null;
-    if (filter === "weak") return acc !== null && acc < 0.6;
-    return true;
-  });
-  const groups = [...new Set(shown.map((c) => c.group ?? ""))];
-  const started = all.filter((c) => accOf(c.slug) !== null).length;
 
   // Recommendations: the weakest chapter, an untouched one, and a strong one to keep warm.
   const rec = recommendation(s);
@@ -158,7 +123,7 @@ function Hub({ s }: { s: S }) {
             Practice <DemoBadge />
           </Eyebrow>
           <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">What shall we practise?</h1>
-          <p className="mt-3 max-w-xl text-lg text-fg-muted">Start in one click, pick up a recommendation, or browse by chapter.</p>
+          <p className="mt-3 max-w-xl text-lg text-fg-muted">Start in one click, pick up a recommendation, or choose a problem from the library.</p>
         </div>
         <Segmented label="Exam" value={exam} onChange={switchExam} options={availableExams().map((e) => ({ id: e.id, label: e.name }))} />
       </div>
@@ -167,7 +132,7 @@ function Hub({ s }: { s: S }) {
       <section aria-labelledby="quick-h" className="surface relative mt-10 overflow-hidden p-6 sm:p-8">
         <div aria-hidden className="dot-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_100%_0%,black,transparent_55%)]" />
         <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div>
+          <div className="min-w-0">
             <h2 id="quick-h" className="text-2xl font-semibold">
               Quick practice
             </h2>
@@ -220,7 +185,7 @@ function Hub({ s }: { s: S }) {
           {resumable.slice(0, 1).map((a) => {
             const done = a.questionIds.filter((x) => (a.mode === "learning" ? a.responses[x]?.checked : isAnswered(a.responses[x]?.answer))).length;
             return (
-              <div key={a.id} className="surface-flat flex items-center gap-3 p-4">
+              <div key={a.id} className="surface-flat flex min-w-0 items-center gap-3 p-4">
                 <Ring value={done / a.questionIds.length} size={40} stroke={4} label={`${done} of ${a.questionIds.length}`}>
                   <Icon name="play" className="size-3.5" />
                 </Ring>
@@ -284,161 +249,22 @@ function Hub({ s }: { s: S }) {
         </section>
       )}
 
-      {/* Browse */}
-      <section id="chapters" aria-labelledby="chapters-h" className="mt-14 scroll-mt-20">
-        <h2 id="chapters-h" className="text-2xl font-semibold">
-          Browse chapters
-        </h2>
+      {/* Study plan entry: the diagnostic is free; the plan is Tabby Plus. */}
+      <Link
+        href="/study-plans/"
+        className="surface-flat group mt-14 flex items-center gap-4 p-4 transition-colors hover:border-line-strong sm:p-5"
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-surface-2">
+          <PixelIcon name="target" className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">Not sure where to start? Take a diagnostic</span>
+          <span className="block text-sm text-fg-muted">A short mixed test across your chapters, then a day-by-day plan built from your results.</span>
+        </span>
+        <Icon name="arrowRight" className="size-4 text-fg-subtle transition-transform group-hover:translate-x-0.5" />
+      </Link>
 
-        <div role="tablist" aria-label="Subject" className="no-scrollbar mt-5 flex gap-3 overflow-x-auto pb-1">
-          {cfg.subjects.map((id) => {
-            const style = SUBJECT_STYLE[id];
-            const list = catalog.chapters({ exam, subject: id });
-            const st = list.filter((c) => {
-              const x = stats.get(`${id}/${c.slug}`);
-              return x && x.answered;
-            }).length;
-            const active = id === subject;
-            return (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={active}
-                type="button"
-                onClick={() => setSubject(id)}
-                className={cn(
-                  "flex min-w-[11.5rem] flex-1 items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-colors",
-                  active ? "border-fg bg-surface-2" : "border-line hover:border-line-strong hover:bg-surface",
-                )}
-              >
-                <span aria-hidden className={cn("grid size-10 place-items-center rounded-xl bg-surface-3 font-display text-lg", style.text)}>
-                  {style.glyph}
-                </span>
-                <span className="min-w-0">
-                  <span className={cn("block font-semibold", active && style.text)}>{catalog.subject(id)!.name}</span>
-                  <span className="block text-sm text-fg-muted">
-                    {st}/{list.length} chapters started
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <label className="relative min-w-0 flex-1 basis-64">
-            <span className="sr-only">Search chapters and topics</span>
-            <svg aria-hidden viewBox="0 0 24 24" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-fg-muted" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Search ${catalog.subject(subject)!.name} chapters or topics`}
-              className="h-11 w-full rounded-xl border border-line-strong bg-surface pl-10 pr-3 outline-none transition-colors placeholder:text-fg-subtle focus:border-fg"
-            />
-          </label>
-          <Segmented
-            label="Filter chapters"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { id: "all", label: `All ${all.length}` },
-              { id: "new", label: `Not started ${all.length - started}` },
-              { id: "started", label: `Started ${started}` },
-              { id: "weak", label: "Needs work" },
-            ]}
-          />
-        </div>
-
-        {shown.length === 0 ? (
-          <div className="mt-6 flex flex-col items-center rounded-2xl border border-dashed border-line-strong px-6 py-14 text-center">
-            <TabbyMascot state="curious" className="h-14 text-fg-subtle" />
-            <p className="mt-4 font-medium">No chapters match</p>
-            <p className="mt-1 text-sm text-fg-muted">Try a different search or filter.</p>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-5"
-              onClick={() => {
-                setQuery("");
-                setFilter("all");
-              }}
-            >
-              Clear filters
-            </Button>
-          </div>
-        ) : (
-          groups.map((g) => (
-            <div key={g} className="mt-6">
-              {g && <h3 className="eyebrow mb-3">{g}</h3>}
-              <ul className="surface divide-y divide-line overflow-hidden p-0">
-                {shown
-                  .filter((c) => (c.group ?? "") === g)
-                  .map((c) => {
-                    const k = `${c.subject}/${c.slug}`;
-                    const n = counts.get(k) ?? 0;
-                    const st = stats.get(k);
-                    const acc = st && st.answered ? st.correct / st.answered : null;
-                    const d = mix.get(k);
-                    const style = SUBJECT_STYLE[c.subject];
-                    return (
-                      <li key={c.slug} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:flex-nowrap sm:px-5">
-                        <Ring value={acc ?? 0} size={44} stroke={4} colorVar={style.cssVar} label={acc === null ? "Not started" : `${Math.round(acc * 100)}% accuracy`}>
-                          <span className="text-xs font-semibold tabular-nums">{acc === null ? "–" : Math.round(acc * 100)}</span>
-                        </Ring>
-                        <div className="min-w-0 flex-1">
-                          <Link href={`/practice/new/?exam=${exam}&subject=${c.subject}&chapter=${c.slug}`} className="font-semibold hover:underline">
-                            {c.name}
-                          </Link>
-                          <p className="mt-0.5 truncate text-sm text-fg-muted">{c.topics.map((t) => t.name).join(" · ")}</p>
-                        </div>
-                        <div className="hidden w-36 shrink-0 md:block">
-                          {n > 0 && d ? <DifficultyMix mix={d} /> : <span className="text-sm text-fg-subtle">—</span>}
-                        </div>
-                        <div className="w-28 shrink-0 text-sm tabular-nums text-fg-muted sm:text-right">
-                          {n ? (
-                            <>
-                              {n} questions
-                              {st ? <span className="block text-xs">{st.answered} done</span> : c.grade ? <span className="block text-xs">Class {c.grade}</span> : null}
-                            </>
-                          ) : (
-                            "Coming soon"
-                          )}
-                        </div>
-                        <Button size="sm" variant={n ? "secondary" : "ghost"} disabled={!n || busy} onClick={() => go(quickPractice(exam, { subject: c.subject, chapter: c.slug }))} aria-label={`Practise ${c.name}`}>
-                          Practise
-                        </Button>
-                      </li>
-                    );
-                  })}
-              </ul>
-            </div>
-          ))
-        )}
-        <p className="mt-4 text-sm text-fg-muted">
-          Want timer, question count or difficulty options? Open a chapter by its name.
-        </p>
-      </section>
-    </div>
-  );
-}
-
-function DifficultyMix({ mix }: { mix: { easy: number; medium: number; hard: number } }) {
-  const total = mix.easy + mix.medium + mix.hard || 1;
-  const parts = [
-    ["Easy", mix.easy, "bg-fg/25"],
-    ["Medium", mix.medium, "bg-fg/55"],
-    ["Hard", mix.hard, "bg-fg"],
-  ] as const;
-  return (
-    <div title={`Easy ${mix.easy} · Medium ${mix.medium} · Hard ${mix.hard}`}>
-      <div className="flex h-1.5 gap-[2px] overflow-hidden rounded-full" role="img" aria-label={`Difficulty: ${mix.easy} easy, ${mix.medium} medium, ${mix.hard} hard`}>
-        {parts.map(([l, n, c]) => (n ? <span key={l} className={c} style={{ width: `${(n / total) * 100}%` }} /> : null))}
-      </div>
-      <p className="mt-1.5 text-xs text-fg-muted">{mix.hard ? `${mix.hard} hard` : "No hard ones"} · {mix.easy} easy</p>
+      <ProblemLibrary s={s} />
     </div>
   );
 }
@@ -547,7 +373,7 @@ function Launcher({ s }: { s: DemoState & { user: NonNullable<DemoState["user"]>
           <TabbyMascot state="idle" className="h-14 text-fg-subtle" />
           <p className="mt-4 font-medium">No questions here yet</p>
           <p className="mt-1 text-sm text-fg-muted">This chapter is still being added. Try another one.</p>
-          <ButtonLink href="/practice/#chapters" variant="secondary" size="sm" className="mt-5">
+          <ButtonLink href="/practice/#library" variant="secondary" size="sm" className="mt-5">
             All chapters
           </ButtonLink>
         </div>

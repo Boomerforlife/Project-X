@@ -67,7 +67,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Self-contained server for the Cloud Run container (Dockerfile.web); ignored by Vercel.
   output: "standalone",
-  transpilePackages: ["@projectx/contracts"],
+  transpilePackages: ["@projectx/contracts", "@projectx/plans"],
   turbopack: {
     rules: {
       "*.css": {

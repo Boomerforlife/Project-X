@@ -470,7 +470,7 @@ function startSingle(opts: StartOpts): string {
     exam: opts.exam,
     mode: "learning",
     kind: "practice",
-    title: "Single question",
+    title: opts.title || "Single question",
     scope: { source: "single" },
     questionIds: [qid],
     sections: sectionsFor(opts.exam, [qid]),
