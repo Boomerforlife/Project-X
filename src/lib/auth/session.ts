@@ -4,7 +4,7 @@
  * Browser auth session. Tokens are only ever handed to the API as Bearer
  * headers; no cookies, no server-side session (docs/INTEGRATION_PLAN.md 2.6).
  */
-import { AUTH_MODE, SUPABASE_CONFIG, type DevUserId } from "./config";
+import { AUTH_MODE, type DevUserId } from "./config";
 import { supabase } from "./supabase";
 
 const DEV_KEY = "projectx-dev-session-v1";
@@ -92,34 +92,19 @@ export async function emailSignIn(email: string, password: string): Promise<Auth
   return { ok: true };
 }
 
-export type OAuthProvider = "google";
-
 /**
- * Which social providers are switched on in Supabase. Read from the public auth settings endpoint, so the button only appears
- * once the provider is actually enabled (no dead button that lands on a Supabase error page). Cached per page load.
+ * Google sign-in through Supabase OAuth. The browser leaves for Google, then comes back to the login page with the
+ * session in the URL (detectSessionInUrl), which forwards to `next`. `next` must already be a same-site path.
  */
-let providersPromise: Promise<Record<OAuthProvider, boolean>> | null = null;
-export function enabledProviders(): Promise<Record<OAuthProvider, boolean>> {
-  if (AUTH_MODE !== "supabase") return Promise.resolve({ google: false });
-  providersPromise ??= fetch(`${SUPABASE_CONFIG.url.replace(/\/$/, "")}/auth/v1/settings`, { headers: { apikey: SUPABASE_CONFIG.key } })
-    .then((r) => (r.ok ? (r.json() as Promise<{ external?: Partial<Record<OAuthProvider, boolean>> }>) : {}))
-    .then((s) => ({ google: Boolean((s as { external?: Partial<Record<OAuthProvider, boolean>> }).external?.google) }))
-    .catch(() => ({ google: false }));
-  return providersPromise;
-}
-
-/** Redirects the browser to the provider. Comes back to /auth/callback/, which finishes sign-in and continues to `next`. */
-export async function oauthSignIn(provider: OAuthProvider, next: string): Promise<AuthResult> {
-  if (AUTH_MODE !== "supabase") return { ok: false, message: "Social sign-in is not configured in this build." };
-  const { error } = await supabase().auth.signInWithOAuth({
-    provider,
-    options: { redirectTo: `${location.origin}/auth/callback/?next=${encodeURIComponent(next)}` },
-  });
+export async function googleSignIn(next: string): Promise<AuthResult> {
+  if (AUTH_MODE !== "supabase") return { ok: false, message: "Google sign-in is not configured in this build." };
+  const back = `${location.origin}/login/?oauth=1&next=${encodeURIComponent(next)}`;
+  const { error } = await supabase().auth.signInWithOAuth({ provider: "google", options: { redirectTo: back } });
   if (error) return { ok: false, message: error.message };
   return { ok: true };
 }
 
-/** Name the provider gave us (Google: full_name / name), for a profile that has none yet. */
+/** Name the provider gave us (Google: full_name / name), used to fill a profile that has none yet. */
 export async function providerDisplayName(): Promise<string | null> {
   if (AUTH_MODE !== "supabase") return null;
   const { data } = await supabase().auth.getSession();

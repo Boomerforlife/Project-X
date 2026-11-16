@@ -19,7 +19,7 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 | Scraper | Branch `scraper`: discovery crawler for official PDFs (NTA JEE Main + NEET, JEE Advanced archive), 240 PDFs catalogued, GitHub Actions run green, GCS storage for workers | `workers/scraper/`, Actions run on `scraper` |
 | Problem library | `/practice/` lists Owner B's problem set (`/problems*`): chapter groups in syllabus order with solved progress, an All view, difficulty / status / text filters in the URL, today's problem, "pick one for me"; maths rendered with KaTeX; opening a problem starts a one-question Learning session graded by the server; works at 360 px | local API run: solve → row shows Solved; live API returns 94 problems (60 Easy, 34 Medium, 0 Hard) |
 | Study plans (Plus) | `packages/plans` algorithm (diagnostic assembly, per-chapter bands, spaced day-by-day plan, re-plan on read), API `/plans/*` + migration 0024, web `/plan/` (setup → diagnostic → report → plan). Diagnostic + top-3 report free; full report, plan and plan items Plus, enforced by the API | `packages/plans` 23 tests, `apps/api/test/plans.sql.test.ts` 7 tests, local end-to-end run (free path shows upsell; Plus path builds a plan and starts sessions) |
-| Google sign-in (code) | "Continue with Google" on login and signup (shown only when the provider is enabled in Supabase), return page `/auth/callback/`, profile name filled from Google | typecheck/lint; provider still off in Supabase (see Needs you) |
+| Google sign-in (code) | "Continue with Google" on login and signup through Supabase OAuth (Owner B), behind `NEXT_PUBLIC_AUTH_GOOGLE`; Google mark on the button and profile name filled from the Google account (Owner A) | typecheck/lint; provider still off in Supabase (see Needs you) |
 | Quality | typecheck (web + all packages), ESLint, tests: web 75, api 87, db 254, contracts 10, plans 23, shared 36, edge 40, ai 124, workers 244 (+ruff); `next build` OK | see commits on `main` |
 
 ## Blocked (cannot finish until something else exists)
@@ -39,7 +39,7 @@ Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST
 3. Decide the refund window and eligibility (the refund page has a blank for it).
 4. Pick the production domain.
 5. Content: replace or extend the AI-checked bank with editorial or licensed questions through `pxw content import`.
-6. Google sign-in: create the OAuth client in Google Cloud Console and switch the provider on in Supabase (`PRODUCTION_SETUP.md` §1.3). The button appears by itself afterwards.
+6. Google sign-in: create the OAuth client in Google Cloud Console and switch the provider on in Supabase (`PRODUCTION_SETUP.md` §1.3), then rebuild the web with `_AUTH_GOOGLE=on`.
 7. Decide whether `study_plan` goes into `billing_plans.features` (and the pricing copy) when the API with `/plans` is live.
 
 ## Needs credentials

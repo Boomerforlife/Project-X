@@ -1,0 +1,9 @@
+# Upload only what the workers image needs.
+*
+!Dockerfile.workers
+!workers/
+!workers/**
+workers/.venv/
+workers/**/__pycache__/
+workers/**/*.egg-info/
+workers/tests/

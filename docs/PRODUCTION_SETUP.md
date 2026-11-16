@@ -27,9 +27,10 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
    `supabase link --project-ref gardheietftxyforposh` then `supabase db push` (the CLI uses a temporary login role; no DB password needed).
    Checks: `select count(*) from billing_plans` = 4; `select count(*) from study_plans` runs (0 rows).
 2. **Auth → URL configuration.** Site URL = the production web origin. Redirect URLs: `https://<prod domain>/**`, `https://projectx-web-*.run.app/**`, `http://localhost:3000/**`.
-   The `/**` patterns already cover the OAuth return page `/auth/callback/`.
+   The `/**` patterns already cover the Google return URL (`/login/?oauth=1&next=…`).
 3. **Auth → providers.** Email on; decide on email confirmation (on is safer). Custom SMTP before launch (Supabase's default sender is rate-limited).
-   **Google** (the web shows "Continue with Google" automatically once this is on; it reads `/auth/v1/settings`):
+   **Google** (code by Owner B: the button is behind the build flag `NEXT_PUBLIC_AUTH_GOOGLE=on`, Cloud Build substitution
+   `_AUTH_GOOGLE=on`; turn the flag on only after the provider works, or the button lands on a Supabase error):
    1. Google Cloud Console → APIs & Services → OAuth consent screen: External, app name "Tabby", support email, the production
       domain under authorised domains; scopes `email`, `profile`, `openid` only. Publish it (testing mode limits sign-in to test users).
    2. Credentials → Create credentials → OAuth client ID → *Web application*.
@@ -37,8 +38,9 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
       Authorised redirect URI: **`https://gardheietftxyforposh.supabase.co/auth/v1/callback`** (Supabase's, not the web app's).
    3. Supabase → Authentication → Sign In / Providers → Google: enable, paste the client ID and client secret, save.
    4. Check: `curl -s https://gardheietftxyforposh.supabase.co/auth/v1/settings -H "apikey: <publishable key>"` shows
-      `"google": true`; the login page shows the Google button; signing in lands on `/auth/callback/` and then the dashboard
-      (new accounts go through onboarding; the profile name is filled from the Google account if empty).
+      `"google": true`. Then rebuild the web with `_AUTH_GOOGLE=on`: the login page shows the Google button; signing in
+      returns to `/login/?oauth=1` and continues to the dashboard (new accounts go through onboarding; the profile name is
+      filled from the Google account if empty).
 4. **JWT signing keys.** Asymmetric keys (the API verifies through JWKS, `AUTH_MODE=jwks`). Nothing to copy.
 5. **API keys.** Copy the **publishable** key (`sb_publishable_…`) for the web build. Never use the secret/service-role key in the web app.
 6. **First admin.** After the admin signs up: `insert into user_roles (user_id, role) values ('<auth user id>', 'ADMIN');`
