@@ -65,3 +65,12 @@ describe('0022: problem families', () => {
     await expect(db.withAnon((tx) => tx.query('select * from question_families'))).rejects.toThrow();
   });
 });
+
+describe('0023: problem titles', () => {
+  it('drop LaTeX spacing escapes and keep escaped symbols readable', async () => {
+    const r = await one<{ t: string }>(db, String.raw`select app_private.problem_title('A ball moves at $20\,\text{m s}^{-1}$ with 50\% loss. Find it.') as t`);
+    expect(r.t.includes(String.fromCharCode(92))).toBe(false); // no backslash left
+    expect(r.t).toContain('50%');
+    expect(r.t.startsWith('A ball moves at 20')).toBe(true);
+  });
+});
