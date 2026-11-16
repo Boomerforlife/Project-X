@@ -156,3 +156,14 @@ def test_glued_marker_and_missing_number_are_handled(tmp_path: Path) -> None:
 )
 def test_normalize_printed_answer(raw: str, qtype: str, want: dict) -> None:
     assert normalize_printed_answer(raw, qtype) == want
+
+
+def test_booklet_dedupe_skips_in_batch_subset_matches() -> None:
+    from pxw.dedupe.dedupe import run_dedupe
+
+    qs = [
+        {"question_number": "1", "normalized_text": "the value of is meter", "content_hash": "a"},
+        {"question_number": "2", "normalized_text": "the value of is meter per second", "content_hash": "b"},
+    ]
+    assert run_dedupe(qs, None)[1]["warnings"] == ["POSSIBLE_DUPLICATE_IN_BATCH"]  # default: flagged
+    assert run_dedupe(qs, None, check_batch=False)[1]["warnings"] == []

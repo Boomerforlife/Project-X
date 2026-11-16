@@ -20,6 +20,7 @@ def run_dedupe(
     *,
     db_threshold: float = NEAR_DB_THRESHOLD,
     batch_threshold: float = NEAR_BATCH_THRESHOLD,
+    check_batch: bool = True,
 ) -> list[dict[str, Any]]:
     """One decision dict per question (same order):
 
@@ -27,6 +28,8 @@ def run_dedupe(
     Exact DB duplicate -> DUPLICATE. Near duplicates (DB trigram >= 0.90, or in-batch token_set_ratio >= 95) stay
     NORMALIZED but get a warning so they are never auto-promoted. In-batch matches have no question id to point at,
     so only the similarity and a warning are recorded.
+    check_batch=False skips the in-batch check: for one printed booklet read as page crops, every question is a
+    distinct printed question, and short stems ("The value of b is ___") are word-subsets of each other.
     """
     decisions: list[dict[str, Any]] = []
     seen: list[tuple[str, str]] = []  # (question_number, normalized_text) of earlier questions in this batch
@@ -51,7 +54,7 @@ def run_dedupe(
                 if near:
                     d["possible_duplicate_of"], best_sim = near[0]
                     d["warnings"].append(Warning.POSSIBLE_DUPLICATE.value)
-            for _num, other in seen:
+            for _num, other in seen if check_batch else []:
                 sim = fuzz.token_set_ratio(text, other)
                 if sim >= batch_threshold and sim / 100.0 > best_sim:
                     best_sim = sim / 100.0

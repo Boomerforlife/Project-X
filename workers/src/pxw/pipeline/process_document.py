@@ -327,7 +327,8 @@ def _run_nta_image(
     )
     normalized: list[dict[str, Any]] = nta["questions"]
     t0 = time.monotonic()
-    decisions = run_dedupe(normalized, ctx.repo, doc.document_id if ctx.repo else None)
+    decisions = run_dedupe(normalized, ctx.repo, doc.document_id if ctx.repo else None,
+                           check_batch=stage != "jee_adv")
     finals = [apply_decision(q, d) for q, d in zip(normalized, decisions, strict=True)]
     after(StageReport("dedupe", False, int((time.monotonic() - t0) * 1000), {
         "duplicates": sum(d["status"] == "DUPLICATE" for d in decisions),
