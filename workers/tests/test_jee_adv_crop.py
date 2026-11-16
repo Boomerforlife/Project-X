@@ -140,6 +140,15 @@ def test_glued_marker_and_missing_number_are_handled(tmp_path: Path) -> None:
             "NUMERICAL",
             {"kind": "NUMERIC", "accepted_ranges": [{"min": "75", "max": "79"}, {"min": "94", "max": "95"}]},
         ),
+        ("(9)", "NUMERICAL", {"kind": "NUMERIC", "accepted_ranges": [{"min": "9", "max": "9"}]}),
+        (
+            "(8) OR (9)",
+            "NUMERICAL",
+            {"kind": "NUMERIC", "accepted_ranges": [{"min": "8", "max": "8"}, {"min": "9", "max": "9"}]},
+        ),
+        # Two alternative option sets cannot be one key: review, never guess.
+        ("(A) OR (A) and (C)", "MULTI_MCQ", {"kind": "DROPPED"}),
+        ("{(C)} or {(C) and (D)}", "MULTI_MCQ", {"kind": "DROPPED"}),
         ("C", "NUMERICAL", {"kind": "DROPPED"}),
         ("5", "SINGLE_MCQ", {"kind": "DROPPED"}),
         ("Bonus", "MULTI_MCQ", {"kind": "DROPPED"}),

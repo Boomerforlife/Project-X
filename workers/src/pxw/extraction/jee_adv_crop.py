@@ -13,6 +13,7 @@ separately as the board's own answers.
 from __future__ import annotations
 
 import io
+import itertools
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -72,8 +73,14 @@ class _Q:
     qtype: str | None
     page: int
     y: float
+    block: int = 0  # subject block: a heading, or a numbering restart at Q.1, starts a new one
     segments: list[tuple[int, float, float]] = field(default_factory=list)
     gap_after: bool = False  # next number in this subject is missing: its marker was not read, so it may be merged here
+    subject_inferred: bool = False  # no heading in the booklet; subject decided from the block's own wording
+
+    @property
+    def ext_id(self) -> str:
+        return f"{self.subject[:1]}{self.number}" if self.subject else f"X{self.block}-{self.number}"
 
 
 def _latin_ratio(text: str) -> float:
@@ -96,6 +103,8 @@ def page_lines(doc: Any, ocr_page: Callable[[bytes], list[tuple[str, tuple[float
                     lines.append(_Line(pno, y0, y1, x0, t))
         if len(text.strip()) > 200:
             methods.append("TEXT")
+            if ocr_page is not None:
+                lines += _banner_lines(page, pno, ocr_page)
         elif ocr_page is not None:
             # Scanned page, or a page whose content is one big image with a few stray text objects (2022 does this).
             # OCR the whole page; keep the stray text lines too unless OCR already covers that spot.
@@ -115,6 +124,63 @@ def page_lines(doc: Any, ocr_page: Callable[[bytes], list[tuple[str, tuple[float
         lines.sort(key=lambda ln: (ln.y0, ln.x0))
         out.append(lines)
     return out, methods
+
+
+def _banner_lines(page: Any, pno: int, ocr_page: Callable[[bytes], list[tuple[str, tuple[float, float, float, float]]]]) -> list[_Line]:
+    """2020 prints each section's instructions as a wide image on an otherwise text page. OCR such banners and keep
+    only the instruction lines (section heading, "This section contains", type sentence); figures are left alone."""
+    import pymupdf
+
+    out: list[_Line] = []
+    pw = float(page.rect.width)
+    for info in page.get_image_info():
+        r = pymupdf.Rect(info["bbox"]) & page.rect
+        if r.width < 0.6 * pw or r.height < 20 or r.height > 0.4 * float(page.rect.height):
+            continue
+        png = page.get_pixmap(clip=r, dpi=DPI_OCR, alpha=False).tobytes("png")
+        scale = 72.0 / DPI_OCR
+        for t, (x0, y0, _x1, y1) in ocr_page(png):
+            t = t.strip()
+            if t and (SECTION.match(t) or SECTION_START.match(t) or any(rx.search(t) for rx, _ in TYPE_RULES)):
+                out.append(_Line(pno, r.y0 + y0 * scale, r.y0 + y1 * scale, r.x0 + x0 * scale, t))
+    return out
+
+
+_SUBJECT_WORDS = {
+    "PHYSICS": r"velocity|acceleration|force|momentum|friction|spring|pendulum|lens|mirror|refractive|wavelength|"
+    r"frequency|charge|capacitor|resistance|current|magnetic|electric field|potential difference|photon|"
+    r"oscillat|gravitation|torque|kinetic energy|speed of light|radius of the|newton|joule|ampere|ohm|tesla",
+    "CHEMISTRY": r"\bmol\b|moles?\b|reaction|compound|aqueous|solution|acid|oxidation|\bions?\b|bond|organic|"
+    r"product|equilibrium|enthalpy|molecules?|salt|complex of|hybridi|isomer|\bpH\b|electrolys|catalyst|"
+    r"precipitate|alkane|alkene|benzene|titration|molar",
+    "MATHEMATICS": r"\blet\b|function|matrix|matrices|real numbers?|integers?|circle|ellipse|parabola|hyperbola|"
+    r"probability|sequence|determinant|derivative|integral|polynomial|triangle|roots?\b|\bf\(|\bx\)|"
+    r"sum of|lines?\b|plane\b|vectors?|tangent|differentiable|continuous|\bdx\b",
+}
+
+
+def _infer_subjects(qs: list[_Q], lines: list[list[_Line]]) -> None:
+    """For blocks with no subject heading, vote by subject vocabulary over the block's question text. A subject is
+    assigned only on a clear win, and never to two blocks; otherwise the block stays unknown (sent to review)."""
+    blocks: dict[int, list[_Q]] = {}
+    for q in qs:
+        if q.subject is None:
+            blocks.setdefault(q.block, []).append(q)
+    picks: dict[int, str] = {}
+    for b, members in blocks.items():
+        text = " ".join(
+            ln.text for q in members for pno, y0, y1 in q.segments for ln in lines[pno] if y0 <= ln.y0 < y1
+        )
+        scores = sorted(((len(re.findall(rx, text, re.IGNORECASE)), s) for s, rx in _SUBJECT_WORDS.items()), reverse=True)
+        (best, subj), (second, _) = scores[0], scores[1]
+        if best >= 12 and best >= 1.6 * second:
+            picks[b] = subj
+    taken = [s for s in picks.values()]
+    named = {q.subject for q in qs if q.subject}
+    for b, subj in picks.items():
+        if taken.count(subj) == 1 and subj not in named:
+            for q in blocks[b]:
+                q.subject, q.subject_inferred = subj, True
 
 
 def _english_page(lines: list[_Line]) -> bool:
@@ -137,13 +203,16 @@ def _ends_question(text: str) -> bool:
                 or (len(t) < 40 and SUBJECT.search(t.upper()) and not MARKER.match(t)))
 
 
-def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[tuple[str | None, int], str]]:
+def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[tuple[int, int], str]]:
+    """Questions in reading order, and printed answers keyed by (block, number)."""
     qs: list[_Q] = []
-    answers: dict[tuple[str | None, int], str] = {}
+    answers: dict[tuple[int, int], str] = {}
     subject: str | None = None
     qtype: str | None = None
     in_instructions = False
-    seen: set[tuple[str | None, int]] = set()
+    block = 0
+    heading_since_marker = False
+    seen: set[tuple[int, int]] = set()
     for pno, page in enumerate(doc):
         pl = lines[pno]
         if not pl or not _english_page(pl):
@@ -153,8 +222,10 @@ def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[
         for ln in pl:
             if len(ln.text) < 40:
                 m_sub = SUBJECT.search(ln.text.upper())
-                if m_sub:  # a short heading line such as "PART I : PHYSICS" or "Mathematics"
-                    subject = m_sub.group(1)
+                if m_sub and not MARKER.match(ln.text):  # a short heading such as "PART I : PHYSICS" or "Mathematics"
+                    if m_sub.group(1) != subject:
+                        subject, block = m_sub.group(1), block + 1
+                    heading_since_marker = True
             if SECTION.match(ln.text) or (SECTION_START.match(ln.text) and not in_instructions):
                 in_instructions, qtype = True, None
             if in_instructions and qtype is None:
@@ -166,11 +237,11 @@ def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[
                         break
             m_ans = ANSWER.search(ln.text)
             if m_ans:
-                answers[(subject, int(m_ans.group(1)))] = m_ans.group(2).strip()
+                answers[(block, int(m_ans.group(1)))] = m_ans.group(2).strip()
                 continue
             m_inl = ANSWER_INLINE.match(ln.text)
             if m_inl and qs:
-                answers.setdefault((qs[-1].subject, qs[-1].number), m_inl.group(1).strip())
+                answers.setdefault((qs[-1].block, qs[-1].number), m_inl.group(1).strip())
                 continue
             m = MARKER.match(ln.text)
             # No header/footer band here: questions can start at the very top of a scanned page, and running
@@ -178,12 +249,16 @@ def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[
             if m and ln.x0 < w * 0.18 and ln.y0 < (1 - BAND / 2) * h:
                 n = int(m.group(1))
                 in_instructions = False
-                if (subject, n) in seen:
+                if n == 1 and qs and qs[-1].block == block and qs[-1].number > 1 and not heading_since_marker:
+                    # Numbering restarts with no heading (2020/2021 print no subject names): a new, unnamed block.
+                    subject, block = None, block + 1
+                heading_since_marker = False
+                if (block, n) in seen:
                     continue  # repeated marker (e.g. continuation page); keep the first
-                seen.add((subject, n))
-                qs.append(_Q(len(qs) + 1, n, subject, qtype, pno, ln.y0))
-    for a, b in zip(qs, qs[1:], strict=False):
-        if a.subject == b.subject and b.number > a.number + 1:
+                seen.add((block, n))
+                qs.append(_Q(len(qs) + 1, n, subject, qtype, pno, ln.y0, block=block))
+    for a, b in itertools.pairwise(qs):
+        if a.block == b.block and b.number > a.number + 1:
             a.gap_after = True
     # Regions: from each marker to the next marker / section heading / stop line, flowing across pages.
     for i, q in enumerate(qs):
@@ -219,6 +294,7 @@ def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[
             # Continue below the next page's running header ("JEE (Advanced) 2019 ... Paper 1", "4/36").
             nh = float(doc[pno].rect.height)
             top = max([BAND * nh] + [ln.y1 + 2 for ln in lines[pno] if ln.y0 < 0.12 * nh and STOP.search(ln.text)])
+    _infer_subjects(qs, lines)
     return qs, answers
 
 
@@ -303,7 +379,7 @@ def extract_jee_adv(
                 for pno, y0, y1 in q.segments
                 for ln in lines[pno]
             ):
-                leaks.append(f"{(q.subject or 'X')[:1]}{q.number}")
+                leaks.append(q.ext_id)
                 continue
             assets: list[dict[str, Any]] = []
             content: list[dict[str, Any]] = []
@@ -337,7 +413,9 @@ def extract_jee_adv(
                 warnings.append(Warning.QUESTION_TYPE_UNKNOWN.value)
             if q.gap_after:
                 warnings.append(Warning.POSSIBLE_MERGED_QUESTIONS.value)
-            ext_id = f"{(q.subject or 'X')[:1]}{q.number}"
+            if q.subject is None:
+                warnings.append(Warning.SUBJECT_UNKNOWN.value)
+            ext_id = q.ext_id
             out.append({
                 "schema_version": 1,
                 "question_number": str(q.seq),
@@ -359,7 +437,7 @@ def extract_jee_adv(
                     "warnings": warnings,
                 },
             })
-    printed = {f"{(s or 'X')[:1]}{n}": a for (s, n), a in answers.items()}
+    printed = {q.ext_id: answers[(q.block, q.number)] for q in structure if (q.block, q.number) in answers}
     stats = {
         "questions": len(out),
         "by_subject": {

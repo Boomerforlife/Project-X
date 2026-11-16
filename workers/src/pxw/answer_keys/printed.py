@@ -11,8 +11,9 @@ import re
 from typing import Any
 
 NUMBER = r"[-+−]?\d+(?:\.\d+)?"
-RANGE = re.compile(rf"^\[?\s*({NUMBER})\s*(?:to|–|-{{1,2}}|—)\s*({NUMBER})\s*\]?$", re.IGNORECASE)
-SINGLE_NUMBER = re.compile(rf"^\[?\s*({NUMBER})\s*\]?$")
+# Numbers may be bracketed: "[2.2 to 2.3]" (2025) or "(9)" (2016-2017 integer answers).
+RANGE = re.compile(rf"^[\[(]?\s*({NUMBER})\s*(?:to|–|-{{1,2}}|—)\s*({NUMBER})\s*[\])]?$", re.IGNORECASE)
+SINGLE_NUMBER = re.compile(rf"^[\[(]?\s*({NUMBER})\s*[\])]?$")
 LETTERS = re.compile(r"^[\s(]*([A-D])[\s)]*$")
 DROPPED = re.compile(r"(drop|bonus|cancel|marks?\s+to\s+all|all\s+candidates)", re.IGNORECASE)
 
