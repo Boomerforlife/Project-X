@@ -125,7 +125,8 @@ function contentRepo(tx: Tx): ContentRepo {
     },
     listPractice: async (f, after, limit) => {
       const p = new Params();
-      const c = [pubWhere, `q.exam_id=${p.add(f.examId)}`, 'q.chapter_id is not null', 'q.subject_id is not null', 'q.answer_key is not null'];
+      // Public list: premium questions are never listed (their content is Plus-only).
+      const c = [pubWhere, `q.exam_id=${p.add(f.examId)}`, 'q.chapter_id is not null', 'q.subject_id is not null', 'q.answer_key is not null', `q.access_tier = 'FREE'`];
       if (f.subjectId) c.push(`q.subject_id=${p.add(f.subjectId)}`);
       if (f.chapterId) c.push(`q.chapter_id=${p.add(f.chapterId)}`);
       if (f.topicId) c.push(`q.topic_id=${p.add(f.topicId)}`);
@@ -161,6 +162,7 @@ function practiceRepo(tx: Tx): PracticeRepo {
       if (c.types) w.push(`q.question_type::text in ${textSet(p.next)}`, `${p.add(jsonList(c.types))}::jsonb is not null`);
       if (c.yearFrom) w.push(`q.year >= ${p.add(c.yearFrom)}`);
       if (c.yearTo) w.push(`q.year <= ${p.add(c.yearTo)}`);
+      if (!c.includePremium) w.push(`q.access_tier = 'FREE'`);
       if (c.excludeCorrect) w.push(`not exists (select 1 from public.attempts a where a.user_id=${p.add(c.userId)} and a.question_id=q.id and a.is_correct)`);
       const order = c.mode === 'PYQ_PAPER' ? `nullif(regexp_replace(q.question_number, '\\D', '', 'g'), '')::int nulls last, q.question_number, q.id` : 'random()';
       const r = await rows<{ id: string }>(tx, `select q.id from public.questions q where ${w.join(' and ')} order by ${order} limit ${p.add(c.size)}`, p.values);
