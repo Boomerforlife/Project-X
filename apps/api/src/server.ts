@@ -10,6 +10,7 @@ import { createMemoryRateLimiter, createNoopInvalidator, createWebhookInvalidato
 import { createGcsStorage, createLocalStorage } from '@projectx/edge/node';
 import { createApp } from './app';
 import { createAuthVerifier } from './auth/verifier';
+import { createSessionCheckingVerifier } from './auth/session-check';
 import { parseConfig } from './config';
 import { createConsoleLogger } from './deps';
 import { createPostgresRateLimiter } from './lib/pg-rate-limit';
@@ -61,7 +62,8 @@ const api = createApp({
   rateLimiter: createPostgresRateLimiter(db, createMemoryRateLimiter(), {
     onError: (err) => logger.warn('shared rate limiter unavailable; allowing request', { error: String(err) }),
   }),
-  auth: createAuthVerifier(config),
+  // Logout must take effect: tokens whose Supabase session is gone are refused (cached 30 s per session).
+  auth: createSessionCheckingVerifier(createAuthVerifier(config), db),
   clock: () => new Date(),
   logger,
   // Cloud Run throttles CPU once a response is sent, so "after the response" work could stall. Instead, each request
