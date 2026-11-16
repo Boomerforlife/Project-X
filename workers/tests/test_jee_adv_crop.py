@@ -104,6 +104,29 @@ def test_crops_written(booklet: tuple[dict, dict[str, float]], tmp_path: Path) -
     assert len({q["content_hash"] for q in r["questions"]}) == len(r["questions"])
 
 
+def test_glued_marker_and_missing_number_are_handled(tmp_path: Path) -> None:
+    """OCR often glues the number to the stem ("Q.2Which"); a marker it never read leaves a gap (2 -> 4), and the
+    question before the gap is flagged so it is reviewed, not auto-promoted as a possible two-in-one crop."""
+    doc = pymupdf.open()
+    p = doc.new_page(width=595, height=842)
+    for text, y in [
+        ("Chemistry", 60),
+        ("SECTION 1 (Maximum Marks: 12)", 90),
+        ("Each question has FOUR options. ONLY ONE of these four options is the correct answer.", 110),
+        ("Q.1  " + FILLER, 160),
+        ("Q.2Which of the following is true? " + FILLER, 260),
+        ("Q.4  " + FILLER, 420),
+        ("Q3, respectively, are the points named in the figure of the question.", 470),
+    ]:
+        p.insert_text((60, y), text, fontsize=10)
+    pdf = tmp_path / "gap.pdf"
+    doc.save(str(pdf))
+    r = extract_jee_adv(pdf, DOC_ID, tmp_path / "crops")
+    assert [q["external_question_id"] for q in r["questions"]] == ["C1", "C2", "C4"]
+    warn = {q["external_question_id"]: q["extraction"]["warnings"] for q in r["questions"]}
+    assert warn == {"C1": [], "C2": ["POSSIBLE_MERGED_QUESTIONS"], "C4": []}
+
+
 @pytest.mark.parametrize(
     ("raw", "qtype", "want"),
     [

@@ -26,8 +26,9 @@ from pxw.normalize.text import build_normalized_text, content_hash
 from pxw.storage import keys
 
 LAYOUT_NAME = "jee_adv_crop"
-# "Q.12 ..." / "Q 12" / "Q.12" alone. A stem line such as "Q3, respectively ..." (a point named Q3) is not a marker.
-MARKER = re.compile(r"^\s*Q\s*[.,:]?\s*(\d{1,2})(?=\s|$)")
+# "Q.12 ..." / "Q 12" / "Q.12" alone / OCR's "Q.11Which ...". A stem line such as "Q3, respectively ..." (a point
+# named Q3) is not a marker.
+MARKER = re.compile(r"^\s*Q\s*[.,:]?\s*(\d{1,2})(?=\s|$|[A-Z(])")
 SECTION_START = re.compile(r"^\s*This\s+section\s+contains\b", re.IGNORECASE)
 SUBJECT = re.compile(r"\b(PHYSICS|CHEMISTRY|MATHEMATICS)\b")
 # A section heading is "SECTION 1 (Maximum Marks: 24)", "SECTION – 2", "Section-A"; a stem line that merely begins
@@ -72,6 +73,7 @@ class _Q:
     page: int
     y: float
     segments: list[tuple[int, float, float]] = field(default_factory=list)
+    gap_after: bool = False  # next number in this subject is missing: its marker was not read, so it may be merged here
 
 
 def _latin_ratio(text: str) -> float:
@@ -128,6 +130,13 @@ def _english_page(lines: list[_Line]) -> bool:
     return len(re.findall(r"\b(the|of|is|and|to|in|be|let)\b", text, re.IGNORECASE)) >= 3
 
 
+def _ends_question(text: str) -> bool:
+    """Lines that end a question's region: rough-work/answer boxes, section headings, subject headings."""
+    t = text.strip()
+    return bool(STOP.search(t) or SECTION.match(t) or SECTION_START.match(t)
+                or (len(t) < 40 and SUBJECT.search(t.upper()) and not MARKER.match(t)))
+
+
 def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[tuple[str | None, int], str]]:
     qs: list[_Q] = []
     answers: dict[tuple[str | None, int], str] = {}
@@ -173,6 +182,9 @@ def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[
                     continue  # repeated marker (e.g. continuation page); keep the first
                 seen.add((subject, n))
                 qs.append(_Q(len(qs) + 1, n, subject, qtype, pno, ln.y0))
+    for a, b in zip(qs, qs[1:], strict=False):
+        if a.subject == b.subject and b.number > a.number + 1:
+            a.gap_after = True
     # Regions: from each marker to the next marker / section heading / stop line, flowing across pages.
     for i, q in enumerate(qs):
         nxt = qs[i + 1] if i + 1 < len(qs) else None
@@ -184,31 +196,76 @@ def parse_structure(doc: Any, lines: list[list[_Line]]) -> tuple[list[_Q], dict[
             if nxt and nxt.page == pno:
                 limit = min(limit, nxt.y - 2)
             for ln in lines[pno]:
-                if ln.y0 > top + 4 and ln.y0 < limit and (STOP.search(ln.text) or SECTION.match(ln.text)):
+                if ln.y0 > top + 4 and ln.y0 < limit and _ends_question(ln.text):
                     # Printed answer boxes have a border a few points above their text; stop clear of it.
                     limit = ln.y0 - (8 if ANY_ANSWER.search(ln.text) else 2)
                     break
-            if limit - top > 12:
+            # A part on a following page must hold some question text, not just a header or a blank rough-work page.
+            has_text = pno == q.page or any(
+                top <= ln.y0 < limit and not _ends_question(ln.text) and not STOP.search(ln.text) for ln in lines[pno]
+            )
+            if limit - top > 12 and has_text:
                 q.segments.append((pno, top, limit))
             if nxt and (nxt.page == pno or nxt.page < pno + 1):
                 break
             if nxt is None and pno >= len(doc) - 1:
                 break
-            stopped = any(ln.y0 > top + 4 and (STOP.search(ln.text) or SECTION.match(ln.text)) for ln in lines[pno])
+            stopped = any(ln.y0 > top + 4 and _ends_question(ln.text) for ln in lines[pno])
             if stopped or (nxt and nxt.page == pno + 1 and nxt.y < h * 0.25):
                 break
             pno += 1
-            top = BAND * float(doc[pno].rect.height) if pno < len(doc) else 0
-            if pno < len(doc) and not _english_page(lines[pno]):
+            if pno >= len(doc) or not _english_page(lines[pno]):
                 break
+            # Continue below the next page's running header ("JEE (Advanced) 2019 ... Paper 1", "4/36").
+            nh = float(doc[pno].rect.height)
+            top = max([BAND * nh] + [ln.y1 + 2 for ln in lines[pno] if ln.y0 < 0.12 * nh and STOP.search(ln.text)])
     return qs, answers
 
 
+def _strip_edge_rules(im: Any) -> Any:
+    """Drop page rules (thin full-width lines) and blank rows at the top and bottom edges of a crop."""
+    g = im.convert("L")
+    w, h = g.size
+    px = g.load()
+    step = max(1, w // 400)
+
+    def dark_frac(y: int) -> float:
+        xs = range(0, w, step)
+        return sum(1 for x in xs if px[x, y] < 160) / len(xs)
+
+    def strip(rows: range) -> int:
+        """Index of the first row (in scan order) that is real content. A wide rule counts as removable only when
+        blank rows separate it from the content (a page rule); a box or table border touches its content."""
+        ys = list(rows)
+        i = 0
+        while i < len(ys):
+            f = dark_frac(ys[i])
+            if f < 0.002:
+                i += 1
+                continue
+            if f > 0.5:
+                j = i
+                while j < len(ys) and dark_frac(ys[j]) > 0.5:
+                    j += 1  # rule thickness
+                blank = 0
+                while j + blank < len(ys) and dark_frac(ys[j + blank]) < 0.002:
+                    blank += 1
+                if j - i <= 8 and blank >= 4:
+                    i = j + blank
+                    continue
+            return ys[i]
+        return ys[0] if ys else 0
+
+    top = strip(range(h))
+    bottom = strip(range(h - 1, -1, -1))
+    return im.crop((0, top, w, bottom + 1)) if bottom > top else im
+
+
 def _trim(png: bytes) -> bytes:
-    """Trim white margins so crops are tight."""
+    """Trim white margins and edge rules so crops are tight."""
     from PIL import Image, ImageChops
 
-    im = Image.open(io.BytesIO(png)).convert("RGB")
+    im = _strip_edge_rules(Image.open(io.BytesIO(png)).convert("RGB"))
     bg = Image.new("RGB", im.size, (255, 255, 255))
     box = ImageChops.difference(im, bg).convert("L").point(lambda v: 255 if v > 24 else 0).getbbox()
     if not box:
@@ -278,6 +335,8 @@ def extract_jee_adv(
             warnings: list[str] = []
             if q.qtype is None:
                 warnings.append(Warning.QUESTION_TYPE_UNKNOWN.value)
+            if q.gap_after:
+                warnings.append(Warning.POSSIBLE_MERGED_QUESTIONS.value)
             ext_id = f"{(q.subject or 'X')[:1]}{q.number}"
             out.append({
                 "schema_version": 1,

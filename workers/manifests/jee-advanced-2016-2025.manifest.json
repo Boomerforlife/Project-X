@@ -14,7 +14,7 @@
       "paper_title": "JEE Advanced 2016 Paper 1",
       "year": 2016,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2016-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -25,7 +25,7 @@
       "paper_title": "JEE Advanced 2016 Paper 2",
       "year": 2016,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2016-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -36,7 +36,7 @@
       "paper_title": "JEE Advanced 2017 Paper 1",
       "year": 2017,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2017-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -47,7 +47,7 @@
       "paper_title": "JEE Advanced 2017 Paper 2",
       "year": 2017,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2017-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -58,7 +58,7 @@
       "paper_title": "JEE Advanced 2018 Paper 1",
       "year": 2018,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2018-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -69,7 +69,7 @@
       "paper_title": "JEE Advanced 2018 Paper 2",
       "year": 2018,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2018-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -80,7 +80,7 @@
       "paper_title": "JEE Advanced 2019 Paper 1",
       "year": 2019,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2019-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -91,7 +91,7 @@
       "paper_title": "JEE Advanced 2019 Paper 2",
       "year": 2019,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2019-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -102,7 +102,7 @@
       "paper_title": "JEE Advanced 2020 Paper 1",
       "year": 2020,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2020-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -113,7 +113,7 @@
       "paper_title": "JEE Advanced 2020 Paper 2",
       "year": 2020,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2020-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -124,7 +124,7 @@
       "paper_title": "JEE Advanced 2021 Paper 1",
       "year": 2021,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2021-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -135,7 +135,7 @@
       "paper_title": "JEE Advanced 2021 Paper 2",
       "year": 2021,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2021-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -146,7 +146,7 @@
       "paper_title": "JEE Advanced 2022 Paper 1",
       "year": 2022,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2022-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -157,7 +157,7 @@
       "paper_title": "JEE Advanced 2022 Paper 2",
       "year": 2022,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2022-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -168,7 +168,7 @@
       "paper_title": "JEE Advanced 2023 Paper 1",
       "year": 2023,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2023-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -179,7 +179,7 @@
       "paper_title": "JEE Advanced 2023 Paper 2",
       "year": 2023,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2023-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -190,7 +190,7 @@
       "paper_title": "JEE Advanced 2024 Paper 1",
       "year": 2024,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2024-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -201,7 +201,7 @@
       "paper_title": "JEE Advanced 2024 Paper 2",
       "year": 2024,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2024-P2",
       "layout": "jee_adv_crop"
     },
     {
@@ -212,7 +212,7 @@
       "paper_title": "JEE Advanced 2025 Paper 1",
       "year": 2025,
       "exam": "jee-advanced",
-      "paper_code": "P1",
+      "paper_code": "2025-P1",
       "layout": "jee_adv_crop"
     },
     {
@@ -223,7 +223,7 @@
       "paper_title": "JEE Advanced 2025 Paper 2",
       "year": 2025,
       "exam": "jee-advanced",
-      "paper_code": "P2",
+      "paper_code": "2025-P2",
       "layout": "jee_adv_crop"
     }
   ]

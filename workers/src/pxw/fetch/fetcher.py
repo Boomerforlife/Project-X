@@ -175,7 +175,8 @@ class Fetcher:
                     if len(buf) > self.max_bytes:
                         raise FetchError(f"refused: file larger than {self.max_bytes} bytes")
             data = bytes(buf)
-            if not data.startswith(b"%PDF"):
+            # PDF readers accept the header anywhere in the first 1024 bytes (jeeadv's 2017 paper starts with "\n").
+            if b"%PDF-" not in data[:1024]:
                 raise FetchError("refused: response is not a PDF (missing %PDF header)")
             return FetchResult(data, hashlib.sha256(data).hexdigest(), current, ctype)
         raise FetchError(f"refused: more than {MAX_REDIRECTS} redirects")
