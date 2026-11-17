@@ -239,10 +239,12 @@ def extract_neet_booklet(
             text = re.sub(r"^\s*\d{1,3}\s*\.\s*", "", " ".join(texts)).strip()
             for k, a in enumerate(assets):
                 content.append({"type": "image", "asset_ref": a["asset_ref"], "alt": (texts[k] or f"Question {q.number}")[:300]})
-            options = [{"label": lab, "external_option_id": lab, "content": [{"type": "paragraph", "text": f"({lab})"}]}
-                       for lab in "1234"]
+            # Labels A-D (the platform's option labels); the booklet's own numbers stay visible as "(1)".."(4)" and are
+            # the external ids, which is how NTA's NEET answer keys name options.
+            options = [{"label": "ABCD"[i], "external_option_id": str(i + 1),
+                        "content": [{"type": "paragraph", "text": f"({i + 1})"}]} for i in range(4)]
             fingerprint = " ".join(a["sha256"][:16] for a in assets)
-            normalized = build_normalized_text(text or f"image {assets[0]['sha256']}", [(o["label"], o["label"]) for o in options])
+            normalized = build_normalized_text(text or f"image {assets[0]['sha256']}", [(o["label"], o["external_option_id"]) for o in options])
             warnings: list[str] = []
             if q.subject is None:
                 warnings.append("SUBJECT_UNKNOWN")

@@ -47,7 +47,9 @@ def test_two_columns_sequence_subjects_and_options(tmp_path: Path) -> None:
     qs = r["questions"]
     assert [q["question_number"] for q in qs] == [str(i) for i in range(1, 9)]  # cover's "1." is not a question
     assert [q["section_hint"] for q in qs] == ["PHYSICS"] * 6 + ["BOTANY"] * 2
-    assert all([o["label"] for o in q["options"]] == ["1", "2", "3", "4"] for q in qs)
+    assert all([o["label"] for o in q["options"]] == ["A", "B", "C", "D"] for q in qs)  # platform labels (DB check)
+    assert all([o["external_option_id"] for o in q["options"]] == ["1", "2", "3", "4"] for q in qs)  # NTA key numbers
+    assert qs[0]["options"][0]["content"] == [{"type": "paragraph", "text": "(1)"}]  # as printed in the crop
     assert all(q["extraction"]["warnings"] == [] for q in qs)
     assert all(len(q["assets"]) == 1 for q in qs)
     assert r["stats"]["complete"] is True
