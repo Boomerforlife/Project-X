@@ -181,6 +181,12 @@ def run_document(
     if layout == NTA_IMAGE_LAYOUT or (layout == "auto" and looks_like_nta_image(pdf_path)):
         return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
                               exam_id=exam_id, auto_promote=auto_promote)
+    # NTA papers NTA took down, fetched from a mirror: same NTA layout, mirror watermark stripped first.
+    if layout == "nta_cbt_mirror":
+        return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
+                              exam_id=exam_id, auto_promote=auto_promote, stage="nta_mirror",
+                              extractor=lambda: extract_nta_cbt_image(pdf_path, doc.document_id, doc_dir / "crops",
+                                                                      ocr=_ocr_text(ctx.ocr), strip_marks=True))
     # JEE Advanced archive booklets (text-layer or scanned): crop each question with its options as printed.
     if layout == JEE_ADV_LAYOUT:
         return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
