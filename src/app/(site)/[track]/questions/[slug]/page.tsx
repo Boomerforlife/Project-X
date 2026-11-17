@@ -8,8 +8,9 @@ import { ButtonLink } from "@/components/ui/Button";
 import type { AnswerKey, Question, Solution } from "@/contracts";
 import { cn } from "@/lib/cn";
 import { getChapter, getPublicQuestions, getQuestionPage, getRelatedQuestions, getSubjects } from "@/lib/data";
-import { EXAMS, TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
+import { TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
+import { sourceLabel } from "@/lib/source";
 import { pageMetadata, safeMetadata } from "@/lib/seo";
 
 export async function generateStaticParams() {
@@ -155,14 +156,7 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
 }
 
 function SourceLabel({ q }: { q: Question }) {
-  const src = q.source;
-  const text =
-    src.kind === "pyq"
-      ? [EXAMS[src.exam].name, src.year, src.session, src.shift != null ? `Shift ${src.shift}` : null].filter((x) => x != null && x !== "").join(" · ")
-      : src.kind === "original"
-        ? "Practice question"
-        : "Sample (development)";
-  return <span className="text-xs text-fg-muted">{text}</span>;
+  return <span className="text-xs text-fg-muted">{sourceLabel(q.source)}</span>;
 }
 
 function answerText(q: Question, a: AnswerKey) {

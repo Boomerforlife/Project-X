@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DemoRequired } from "@/components/app/DemoGate";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { QuestionBody } from "@/components/practice/QuestionBody";
+import { SourceTag } from "@/components/ui/Badges";
 import { SolutionPanel } from "@/components/practice/SolutionPanel";
 import { formatClock } from "@/components/practice/useAttemptClock";
 import { RichText } from "@/components/content/RichText";
@@ -298,6 +299,7 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
                   </button>
                   {isOpen && (
                     <div className="rise space-y-5 border-t border-line bg-bg/40 px-4 py-5 sm:px-5">
+                      <SourceTag source={q.source} />
                       <QuestionBody question={q} answer={a.responses[qid]?.answer ?? null} disabled solution={sol} />
                       <SolutionPanel question={q} solution={sol} />
                       <div className="flex flex-wrap gap-2">

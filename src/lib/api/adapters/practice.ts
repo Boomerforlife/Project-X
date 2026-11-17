@@ -33,7 +33,7 @@ export function toPracticeQuestion(p: PracticeQuestion): Question {
     ...(diff ? { difficulty: diff } : {}),
     source:
       p.attribution.origin === "PYQ" && p.attribution.year != null
-        ? { kind: "pyq", exam, year: p.attribution.year, session: null, date: null, shift: null }
+        ? { kind: "pyq", exam, year: p.attribution.year, session: null, date: null, shift: null, paper: p.attribution.paper_title }
         : { kind: "original" },
     verification: { status: "processed" },
     hasSolution: true,

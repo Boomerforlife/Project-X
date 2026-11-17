@@ -22,6 +22,7 @@ import { isAnswered } from "@/lib/demo/scoring";
 import { demoSaveFailed, setCurrent, setResponse, submitAttempt, useDemo } from "@/lib/demo/store";
 import type { Attempt } from "@/lib/demo/types";
 import { EXAMS } from "@/lib/exams";
+import { sourceLabel } from "@/lib/source";
 import { QUESTION_TYPE_LABEL } from "@/lib/subjects";
 
 type Status = "not-visited" | "not-answered" | "answered" | "marked" | "answered-marked";
@@ -349,7 +350,8 @@ function Exam({ attempt: a, candidate }: { attempt: Attempt; candidate: string }
         <main id="main" className="min-w-0 flex-1 overflow-y-auto">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5 text-xs text-fg-muted sm:px-6">
             <p>
-              <span className="font-semibold text-fg">Question {idxInSection + 1}</span> · {QUESTION_TYPE_LABEL[q.type]}
+              <span className="font-semibold text-fg">Question {idxInSection + 1}</span> · {QUESTION_TYPE_LABEL[q.type]} ·{" "}
+              <span>{sourceLabel(q.source)}</span>
             </p>
             <p>Marks: {markingLine(section.marking, q.type)}</p>
           </div>

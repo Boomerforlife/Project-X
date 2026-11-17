@@ -59,6 +59,8 @@ export const Source = z.discriminatedUnion("kind", [
     session: z.string().nullable(), // e.g. "January", "April"; null when unknown
     date: z.string().nullable(), // ISO date of the sitting; null when unknown
     shift: z.number().int().positive().nullable(),
+    /** The official paper this question appeared in, e.g. "JEE Advanced 2025 Paper 1"; null/absent when unknown. */
+    paper: z.string().nullable().optional(),
   }),
   /** Original content written for practice; never presented as a PYQ. */
   z.object({ kind: z.literal("original") }),

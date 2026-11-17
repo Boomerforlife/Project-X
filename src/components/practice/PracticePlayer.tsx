@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ResponseValue } from "@/contracts";
 import { RichText } from "@/components/content/RichText";
-import { DifficultyChip, SubjectTag, TypeChip, VerificationBadge } from "@/components/ui/Badges";
+import { DifficultyChip, SourceTag, SubjectTag, TypeChip, VerificationBadge } from "@/components/ui/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { Dialog, Kbd } from "@/components/ui/Primitives";
@@ -227,6 +227,7 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
             {subject && <SubjectTag subject={subject.id} label={subject.name} />}
             <TypeChip type={q.type} />
             {q.difficulty && <DifficultyChip difficulty={q.difficulty} />}
+            <SourceTag source={q.source} />
             {!API && <VerificationBadge status={q.verification.status} note={q.verification.note} />}
           </div>
           {chapter && <p className={cn("mt-2 text-sm", SUBJECT_STYLE[q.subject].text)}>{chapter.name}</p>}
