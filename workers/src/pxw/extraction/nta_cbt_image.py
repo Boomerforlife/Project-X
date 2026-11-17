@@ -26,9 +26,19 @@ from pxw.common.jsonio import atomic_write_bytes
 from pxw.normalize.text import build_normalized_text, content_hash
 from pxw.storage import keys
 
-HEADER = re.compile(r"Question Number\s*:\s*(\d+)\s*Question Id\s*:\s*(\d+)\s*Question Type\s*:\s*([A-Z]+)")
+# 2019/early-2020 papers have no "Question Id"; their options are labelled "1." .. "4." instead of by option id.
+HEADER = re.compile(r"Question Number\s*:\s*(\d+)\s*(?:Question Id\s*:\s*(\d+)\s*)?Question Type\s*:\s*([A-Z]+)")
 SECTION = re.compile(r"^\s*(Mathematics|Physics|Chemistry)\s+Section\s+([A-Z])\s*$", re.IGNORECASE)
 OPTION_ID = re.compile(r"^\s*(\d{6,})\.\s*(.*)$")
+OPTION_NUM = re.compile(r"^\s*([1-4])\.\s*$")
+SECTION_NO = re.compile(r"Section\s*Number\s*:\s*(\d+)", re.IGNORECASE)
+# Third-party mirrors stamp their name on NTA's pages; these lines are removed before anything is read.
+MIRROR_TEXT = re.compile(r"(www\.)?p(re|er)pp\.in|\bprepp\b", re.IGNORECASE)
+ENGLISH_WORDS = re.compile(
+    r"\b(the|of|is|and|in|to|if|let|which|find|value|then|are|be|for|with|at|by|from|an|that|this|given|equal|"
+    r"correct|following|statement|number|its|has|have|will|when|where|as|on|one|two|what)\b",
+    re.IGNORECASE,
+)
 OPTIONS_LINE = re.compile(r"^\s*Options\s*:\s*$")
 # Metadata lines that are not question content.
 META = re.compile(
@@ -36,7 +46,7 @@ META = re.compile(
     r"Single Line Question Option|Option Orientation|Calculator|Response Time|Think Time|Minimum Instruction Time|"
     r"Response Type|Evaluation Required|Show Word Count|Answers Type|Text Areas|Possible Answers|Correct Marks|"
     r"Wrong Marks|Section (Id|Number|type|Marks)|Sub-Section|Mark As Answered|Clear Response|Is Section Default|"
-    r"Keyboard Layout|^Inscript$)",
+    r"Keyboard Layout|^Inscript$|Instruction Time|Question Mandatory|Mandatory or Optional|Option Orientation)",
     re.IGNORECASE,
 )
 NUMERIC_MARKER = re.compile(r"Response Type\s*:\s*Numeric|Possible Answers\s*:", re.IGNORECASE)
@@ -68,7 +78,7 @@ class _Line:
 
 @dataclass
 class _Opt:
-    external_id: str
+    external_id: str | None
     page: int
     y0: float
     y1: float
@@ -79,7 +89,7 @@ class _Opt:
 @dataclass
 class _Q:
     number: int
-    external_id: str
+    external_id: str | None
     qtype: str
     section: str | None
     header_page: int
@@ -89,6 +99,7 @@ class _Q:
     stem_rects: dict[int, list[tuple[float, float, float, float]]] = field(default_factory=dict)
     options: list[_Opt] = field(default_factory=list)
     numeric_marker: bool = False
+    section_no: int | None = None  # "Section Number : n" (2019/early 2020 print no subject names)
 
 
 def _lines(page: Any, pno: int) -> list[_Line]:
@@ -131,6 +142,7 @@ def parse_structure(doc: Any) -> list[_Q]:
     """Walk every page once and attribute lines and images to questions, stems and options."""
     questions: list[_Q] = []
     section: str | None = None
+    section_no: int | None = None
     cur: _Q | None = None
     in_options = False
 
@@ -147,10 +159,14 @@ def parse_structure(doc: Any) -> list[_Q]:
                 if cur:
                     cur.end = cur.end or (pno, ln.y0)
                 continue
+            m_secno = SECTION_NO.search(ln.text)
+            if m_secno:
+                section_no = int(m_secno.group(1))
             if m_head:
                 if cur:
                     cur.end = cur.end or (pno, ln.y0)
                 cur = _Q(int(m_head.group(1)), m_head.group(2), m_head.group(3).upper(), section, pno, ln.y1)
+                cur.section_no = section_no
                 questions.append(cur)
                 in_options = False
                 continue
@@ -166,9 +182,15 @@ def parse_structure(doc: Any) -> list[_Q]:
             if m_opt:
                 cur.options.append(_Opt(m_opt.group(1), pno, ln.y0, ln.y1, ln.x1))
                 continue
+            m_num = OPTION_NUM.match(ln.text) if in_options and all(o.external_id is None for o in cur.options) else None
+            if m_num:
+                cur.options.append(_Opt(None, pno, ln.y0, ln.y1, ln.x1))
+                continue
             if META.search(ln.text):
                 # Header continuation lines push the stem start down; trailing metadata ends the stem.
-                if pno == cur.header_page and ln.y0 - cur.header_bottom < 14:
+                if pno == cur.header_page and (ln.y0 - cur.header_bottom < 14 or (
+                    not cur.stem_rects and not any(cur.header_bottom - 1 <= r[1] < ln.y0 for r in images)
+                )):
                     cur.header_bottom = max(cur.header_bottom, ln.y1)
                     meta_bottom_by_q[id(cur)] = cur.header_bottom
                 elif not in_options:
@@ -221,21 +243,114 @@ def _assign(q: _Q, pno: int, rect: tuple[float, float, float, float], in_options
         q.stem_rects.setdefault(pno, []).append(rect)
 
 
+def strip_mirror_marks(doc: Any) -> dict[str, int]:
+    """Remove what a third-party mirror added to NTA's pages: images repeated at the same place on (nearly) every
+    page (the mirror's logo/watermark; NTA's question images are each unique) and the mirror's name in the text."""
+    import pymupdf
+
+    pages = len(doc)
+    seen: dict[tuple[int, tuple[int, ...]], int] = {}
+    for page in doc:
+        for info in page.get_image_info(xrefs=True):
+            k = (info["xref"], tuple(round(v) for v in info["bbox"]))
+            seen[k] = seen.get(k, 0) + 1
+    page_w, page_h = float(doc[0].rect.width), float(doc[0].rect.height)
+
+    def mark_like(bbox: tuple[int, ...]) -> bool:
+        # A watermark is big (mid-page logo) or sits in the top/bottom margin (corner logo). Small images inside the
+        # content area are never treated as marks, even if repeated: they may be real (identical) option images.
+        x0, y0, x1, y1 = bbox
+        big = (x1 - x0) * (y1 - y0) > 0.05 * page_w * page_h
+        margin = y1 <= 0.08 * page_h or y0 >= 0.92 * page_h
+        return big or margin
+
+    repeated = {x for (x, b), c in seen.items() if x and pages >= 5 and c >= 0.8 * pages and mark_like(b)}
+    images = texts = 0
+    for page in doc:
+        for x in repeated:
+            if any(i["xref"] == x for i in page.get_image_info(xrefs=True)):
+                page.delete_image(x)
+                images += 1
+        hit = False
+        for b in page.get_text("dict")["blocks"]:
+            for ln in b.get("lines", []):
+                if MIRROR_TEXT.search("".join(sp["text"] for sp in ln["spans"])):
+                    page.add_redact_annot(ln["bbox"])
+                    hit = True
+                    texts += 1
+        if hit:
+            page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
+    return {"mark_images": images, "mark_texts": texts}
+
+
+def _english_score(text: str) -> int:
+    return len(ENGLISH_WORDS.findall(text or ""))
+
+
+def _pick_english(
+    doc: Any, structure: list[_Q], ocr: Callable[[bytes], tuple[str, float | None, str | None]] | None
+) -> tuple[list[_Q], set[int], int]:
+    """Bilingual papers print every question once per language (same Question Id, or the same number in a row).
+    Keep one version per question: the one whose stem reads as English. Returns (kept, unchecked ids, dropped)."""
+    groups: list[list[_Q]] = []
+    for q in structure:
+        prev = groups[-1][0] if groups else None
+        same = prev is not None and (
+            (q.external_id is not None and q.external_id == prev.external_id)
+            or (q.external_id is None and prev.external_id is None and q.number == prev.number)
+        )
+        if same:
+            groups[-1].append(q)
+        else:
+            groups.append([q])
+    kept: list[_Q] = []
+    unchecked: set[int] = set()
+    dropped = 0
+    for g in groups:
+        if len(g) == 1:
+            kept.append(g[0])
+            continue
+        dropped += len(g) - 1
+        if ocr is None:
+            kept.append(g[0])
+            unchecked.add(id(g[0]))
+            continue
+        scored = []
+        for i, q in enumerate(g):
+            text = ""
+            for page_no, rects in sorted(q.stem_rects.items()):
+                png = _crop(doc[page_no], _union(rects), q.header_bottom + 0.5 if page_no == q.header_page else 0.0)
+                text += " " + ocr(_for_ocr(png))[0]
+            scored.append((_english_score(text), -i, q))
+        best = max(scored, key=lambda t: (t[0], t[1]))
+        if best[0] == 0 and all(sc == 0 for sc, _i, _q in scored):
+            unchecked.add(id(best[2]))  # no English words either way (pure notation): language not confirmed
+        kept.append(best[2])
+    return kept, unchecked, dropped
+
+
 def extract_nta_cbt_image(
     pdf_path: str | Path,
     source_document_id: str,
     crops_dir: Path,
     *,
     ocr: Callable[[bytes], tuple[str, float | None, str | None]] | None = None,
+    strip_marks: bool = False,
 ) -> dict[str, Any]:
-    """Return {"layout", "questions": [NormalizedQuestion dict], "stats"}; crops are written to crops_dir."""
+    """Return {"layout", "questions": [NormalizedQuestion dict], "stats"}; crops are written to crops_dir.
+    English only: bilingual papers keep the English version of each question. strip_marks=True first removes a
+    mirror's watermark (for NTA papers fetched from a mirror after NTA took them down)."""
     import pymupdf
 
     crops_dir.mkdir(parents=True, exist_ok=True)
     out: list[dict[str, Any]] = []
-    stats = {"questions": 0, "mcq": 0, "numerical": 0, "stems_without_content": 0, "options_without_content": 0}
+    stats: dict[str, Any] = {"questions": 0, "mcq": 0, "numerical": 0, "stems_without_content": 0,
+                             "options_without_content": 0, "other_language_blocks_dropped": 0}
     with pymupdf.open(str(pdf_path)) as doc:
-        structure = parse_structure(doc)
+        if strip_marks:
+            stats.update(strip_mirror_marks(doc))
+        structure, unchecked, dropped = _pick_english(doc, parse_structure(doc), ocr)
+        stats["other_language_blocks_dropped"] = dropped
         for q in structure:
             numerical = q.qtype in {"SA", "NAT"} or (q.numeric_marker and not q.options)
             assets: list[dict[str, Any]] = []
@@ -328,6 +443,8 @@ def extract_nta_cbt_image(
                 warnings.append("OPTION_COUNT_UNUSUAL")
             if any(not o["content"] for o in options):
                 warnings.append("EMPTY_OPTION")
+            if id(q) in unchecked:
+                warnings.append("LANGUAGE_NOT_CONFIRMED")
             # The hash must separate questions even when OCR is weak, so it includes the crop fingerprints.
             fingerprint = " ".join(a["sha256"][:16] for a in assets)
             # Without OCR text, use the crop fingerprints so unrelated questions never look alike to dedupe or grouping.
@@ -337,7 +454,7 @@ def extract_nta_cbt_image(
                 {
                     "schema_version": 1,
                     "question_number": str(q.number),
-                    "external_question_id": q.external_id,
+                    "external_question_id": q.external_id,  # None for 2019-style papers (no NTA ids)
                     "section_hint": q.section if q.section in {"PHYSICS", "CHEMISTRY", "MATHEMATICS"} else None,
                     "question_type_guess": "NUMERICAL" if numerical else "SINGLE_MCQ",
                     "content": content,
@@ -356,9 +473,47 @@ def extract_nta_cbt_image(
                     },
                 }
             )
+            out[-1]["_section_no"] = q.section_no
             stats["questions"] += 1
             stats["numerical" if numerical else "mcq"] += 1
+    stats["subjects_inferred"] = _infer_subjects(out)
+    for q in out:
+        q.pop("_section_no", None)
     return {"layout": LAYOUT_NAME, "questions": out, "stats": stats}
+
+
+def _infer_subjects(out: list[dict[str, Any]]) -> int:
+    """Papers without "Physics Section A" headings: decide each section's subject by a clear vocabulary vote over its
+    own (OCR) text; a subject is never given to two sections. Undecided questions get SUBJECT_UNKNOWN (review)."""
+    from pxw.extraction.jee_adv_crop import _SUBJECT_WORDS
+
+    pending = [q for q in out if q["section_hint"] is None]
+    if not pending:
+        return 0
+    blocks: dict[Any, list[dict[str, Any]]] = {}
+    for q in pending:
+        blocks.setdefault(q.get("_section_no"), []).append(q)
+    picks: dict[Any, str] = {}
+    for b, qs in blocks.items():
+        if b is None:
+            continue
+        text = " ".join(q["question_text"] for q in qs)
+        scores = sorted(((len(re.findall(rx, text, re.IGNORECASE)), sub) for sub, rx in _SUBJECT_WORDS.items()), reverse=True)
+        if scores[0][0] >= 12 and scores[0][0] >= 1.6 * scores[1][0]:
+            picks[b] = scores[0][1]
+    named = {q["section_hint"] for q in out if q["section_hint"]}
+    chosen = list(picks.values())
+    n = 0
+    for b, qs in blocks.items():
+        sub = picks.get(b)
+        ok = sub is not None and chosen.count(sub) == 1 and sub not in named
+        for q in qs:
+            if ok:
+                q["section_hint"] = sub
+                n += 1
+            else:
+                q["extraction"]["warnings"].append("SUBJECT_UNKNOWN")
+    return n
 
 
 def _for_ocr(png: bytes, max_width: int = 1100) -> bytes:
