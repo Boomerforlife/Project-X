@@ -9,11 +9,11 @@ import pymupdf
 from pxw.answer_keys.nta_final import normalize_answer, paper_slug, parse_nta_final_key
 
 
-def _key_pdf(path: Path, footer: bool = False) -> None:
+def _key_pdf(path: Path, footer: bool = False, answer_dx: float = 75.0, date: str = "02.04.2026") -> None:
     doc = pymupdf.open()
     p = doc.new_page(width=595, height=842)
     p.insert_text((40, 40), "NATIONAL TESTING AGENCY", fontsize=9)
-    p.insert_text((40, 55), "Exam Date : 02.04.2026", fontsize=9)
+    p.insert_text((40, 55), f"Exam Date : {date}", fontsize=9)
     p.insert_text((40, 70), "Exam Shift : Second", fontsize=9)
     p.insert_text((40, 85), "( MATHEMATICS )", fontsize=9)
     for x in (40.0, 220.0, 400.0):
@@ -29,7 +29,7 @@ def _key_pdf(path: Path, footer: bool = False) -> None:
         x = 40.0
         for qid, ans in row:
             p.insert_text((x, y), qid, fontsize=8)
-            p.insert_text((x + 75, y), ans, fontsize=8)
+            p.insert_text((x + answer_dx, y), ans, fontsize=8)
             x += 180
         y += 16
     if footer:  # the 2021 keys print the word QUESTION again at the foot of the page
@@ -73,3 +73,12 @@ def test_footer_words_do_not_break_the_columns(tmp_path: Path) -> None:
     _key_pdf(pdf, footer=True)
     got = {r.external_question_id: r.raw_answer for r in parse_nta_final_key(pdf)}
     assert len(got) == 9 and got["900000002"] == "900000106" and got["900000009"] == "5"
+
+
+def test_2024_layout_answer_column_left_of_its_header_and_dashed_date(tmp_path: Path) -> None:
+    pdf = tmp_path / "key24.pdf"
+    _key_pdf(pdf, answer_dx=60.0, date="02-04-2026")  # answers start 15pt left of "CORRECT OPTION ID"
+    rows = parse_nta_final_key(pdf)
+    got = {r.external_question_id: r.raw_answer for r in rows}
+    assert len(got) == 9 and got["900000001"] == "900000102" and got["900000005"] == "900000117,900000118"
+    assert all(r.exam_date == "2026-04-02" for r in rows)

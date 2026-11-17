@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-DATE = re.compile(r"Exam Date\s*:\s*(\d{2})\.(\d{2})\.(\d{4})")
+DATE = re.compile(r"Exam Date\s*:\s*(\d{2})[./-](\d{2})[./-](\d{4})")  # 24.02.2021, 27-01-2024
 SHIFT = re.compile(r"Exam Shift\s*:\s*(First|Second|1|2)", re.IGNORECASE)
 SUBJECT = re.compile(r"\(\s*(MATHEMATICS|PHYSICS|CHEMISTRY)\s*\)", re.IGNORECASE)
 QID = re.compile(r"^\d{6,14}$")
@@ -91,8 +91,11 @@ def parse_nta_final_key(pdf_path: str | Path) -> list[KeyRow]:
             for r in grouped:
                 for k, (qx, ax) in enumerate(cols):
                     nxt = cols[k + 1][0] if k + 1 < len(cols) else float("inf")
-                    qid_words = [w for w in r if qx - 15 <= w[0] < ax - 5 and QID.match(w[4])]
-                    ans_words = sorted((w for w in r if ax - 15 <= w[0] < nxt - 15), key=lambda w: w[0])
+                    # Split each pair at the midpoint of its two headers: in 2024 keys the answer column starts left of
+                    # its "CORRECT" header, inside a window keyed to the header itself.
+                    mid = (qx + ax) / 2
+                    qid_words = [w for w in r if qx - 15 <= w[0] < mid and QID.match(w[4])]
+                    ans_words = sorted((w for w in r if mid <= w[0] < nxt - 15), key=lambda w: w[0])
                     if len(qid_words) != 1 or not ans_words:
                         continue
                     y = (qid_words[0][1] + qid_words[0][3]) / 2
