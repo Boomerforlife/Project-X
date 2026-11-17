@@ -20,6 +20,7 @@ from pxw.extraction.figures import capture_figures
 from pxw.extraction.jee_adv_crop import LAYOUT_NAME as JEE_ADV_LAYOUT
 from pxw.extraction.jee_adv_crop import extract_jee_adv
 from pxw.extraction.layout_profiles import detect_profile, get_profile
+from pxw.extraction.neet_booklet import extract_neet_booklet
 from pxw.extraction.nta_cbt_image import LAYOUT_NAME as NTA_IMAGE_LAYOUT
 from pxw.extraction.nta_cbt_image import extract_nta_cbt_image
 from pxw.extraction.nta_cbt_image import looks_like as looks_like_nta_image
@@ -181,6 +182,11 @@ def run_document(
     if layout == NTA_IMAGE_LAYOUT or (layout == "auto" and looks_like_nta_image(pdf_path)):
         return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
                               exam_id=exam_id, auto_promote=auto_promote)
+    # NEET printed booklets (English-medium codes): two columns, each question cropped with its options.
+    if layout == "neet_booklet":
+        return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
+                              exam_id=exam_id, auto_promote=auto_promote, stage="neet_booklet",
+                              extractor=lambda: extract_neet_booklet(pdf_path, doc.document_id, doc_dir / "crops"))
     # NTA papers NTA took down, fetched from a mirror: same NTA layout, mirror watermark stripped first.
     if layout == "nta_cbt_mirror":
         return _run_nta_image(doc, ctx, pdf_path, doc_dir, fetch, extract_h, reports, after, kw,
@@ -334,7 +340,7 @@ def _run_nta_image(
     normalized: list[dict[str, Any]] = nta["questions"]
     t0 = time.monotonic()
     decisions = run_dedupe(normalized, ctx.repo, doc.document_id if ctx.repo else None,
-                           check_batch=stage != "jee_adv")
+                           check_batch=stage not in ("jee_adv", "nta_mirror", "neet_booklet", "nta_image"))
     finals = [apply_decision(q, d) for q, d in zip(normalized, decisions, strict=True)]
     after(StageReport("dedupe", False, int((time.monotonic() - t0) * 1000), {
         "duplicates": sum(d["status"] == "DUPLICATE" for d in decisions),

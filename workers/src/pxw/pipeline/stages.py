@@ -21,9 +21,10 @@ STAGE_VERSIONS: dict[str, int] = {
     "extract": 1,
     "ocr": 1,
     "segment": 1,
-    "nta_image": 2,
+    "nta_image": 3,
     "jee_adv": 1,
-    "nta_mirror": 1,
+    "nta_mirror": 2,
+    "neet_booklet": 1,
     "figures": 1,
     "normalize": 1,
 }

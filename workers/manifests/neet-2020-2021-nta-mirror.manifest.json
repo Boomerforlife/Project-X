@@ -1,0 +1,34 @@
+{
+  "_comment": "NEET (UG) test booklets as printed by NTA (English-medium codes), fetched from a mirror because NTA does not host them. Only NTA's own booklet qualifies (its cover: 'This Booklet contains .. pages. Do not open this Test Booklet ..'); re-typed coaching versions are excluded. One code per year: all codes of a year carry the same questions in a different order. Owner approved mirrors 2026-11-18.",
+  "allowed_hosts": {
+    "NTA_MIRROR": ["cdn-images.prepp.in"]
+  },
+  "entries": [
+    {
+      "source": "NTA_MIRROR",
+      "url": "https://cdn-images.prepp.in/public/image/neet-2021-question-paper-pdf-sep-12-2021-n2-1760962082.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "neet-ug-2021-code-n2",
+      "paper_title": "NEET (UG) 2021 (12 Sep 2021, Code N2)",
+      "year": 2021,
+      "exam": "neet-ug",
+      "session": "September",
+      "exam_date": "2021-09-12",
+      "paper_code": "2021-N2",
+      "layout": "neet_booklet"
+    },
+    {
+      "source": "NTA_MIRROR",
+      "url": "https://cdn-images.prepp.in/public/image/neet-2020-question-paper-pdf-sep13-2020-e5-1760964525.pdf",
+      "kind": "QUESTION_PAPER",
+      "paper_slug": "neet-ug-2020-code-e5",
+      "paper_title": "NEET (UG) 2020 (13 Sep 2020, Code E5)",
+      "year": 2020,
+      "exam": "neet-ug",
+      "session": "September",
+      "exam_date": "2020-09-13",
+      "paper_code": "2020-E5",
+      "layout": "neet_booklet"
+    }
+  ]
+}
