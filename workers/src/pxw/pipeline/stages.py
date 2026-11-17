@@ -24,6 +24,7 @@ STAGE_VERSIONS: dict[str, int] = {
     "nta_image": 3,
     "jee_adv": 1,
     "nta_mirror": 2,
+    "neet_booklet": 1,
     "figures": 1,
     "normalize": 1,
 }
