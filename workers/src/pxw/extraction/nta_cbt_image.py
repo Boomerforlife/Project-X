@@ -296,6 +296,11 @@ def _assign(q: _Q, pno: int, rect: tuple[float, float, float, float], in_options
             opt = min(beside, key=lambda o: abs((o.y0 + o.y1) / 2 - cy))
         elif before and before[-1].page < pno and not any(o.page == pno and o.y0 < rect[1] for o in q.options):
             opt = max(before, key=lambda o: (o.page, o.y0))
+            if not opt.rects:
+                # Its crop is cut from the page the image is on (rects are page coordinates of that page).
+                opt.page, opt.y0, opt.y1 = pno, rect[1], rect[3]
+            elif opt.page != pno:
+                return  # an option already drawn on its own page: never mix two pages in one crop
         else:
             same_page = [o for o in q.options if o.page == pno] or q.options
             opt = min(same_page, key=lambda o: abs((o.y0 + o.y1) / 2 - cy))

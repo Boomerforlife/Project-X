@@ -74,3 +74,30 @@ answer read (5 in the 2017 scans, 1 in 2025 Paper 2); those have no answer yet. 
 decided from its own wording (checked by eye) or the block is flagged `SUBJECT_UNKNOWN`.
 To re-extract a paper: delete its unused DRAFT rows (guarded: no attempts, never published), then enqueue
 `app_private.enqueue_pipeline_job('PROCESS_DOCUMENT', 'PROCESS_DOCUMENT:<doc id>:<new suffix>', ...)` and run step 2.
+Enqueue once: a second run of a "cancel queued + enqueue" script cancels the jobs the first run created.
+
+### Question bank (2026-11-18). Priority: JEE Main and NEET; JEE Advanced is parked (drafts).
+| Set | Source | Papers | Promoted (DRAFT) | Official answers |
+|---|---|---|---|---|
+| JEE Main 2026 April | NTA (`nta_cbt_image`) | 9 | 675 | 673 (+2 review) |
+| JEE Main 2019-2025 | NTA's own CBT papers via mirror (`NTA_MIRROR`, `nta_cbt_mirror`) | 64 | 5,339 (+133 review) | 2021: 1,881; 2024: 1,154 |
+| NEET 2021 (code N2), 2020 (code E5) | NTA booklets via mirror (`neet_booklet`) | 2 | 290 (+90 biology to classify) | not yet (keys exist in the Internet Archive) |
+| JEE Advanced 2016-2025 | JAB (`jee_adv_crop`) | 20 | 1,053 | 302 |
+
+Mirrors (`NTA_MIRROR`, owner-approved 2026-11-18): only NTA's own documents qualify (NTA "Question Paper Name" header /
+NEET booklet cover), identity from NTA's paper name, never the file name; the mirror's watermark (large or corner images
+repeated on most pages, its name in the text) is removed before cropping; mirrors' own re-typed papers are excluded.
+English only: bilingual papers keep the version whose stem reads as English (OCR); unconfirmed ones are held.
+Not loaded: JEE Main 2025-04-04 S1 (the copy is blank where questions should be), 4 incomplete files, 10 sets whose NTA
+name has no date/shift (2023 "SET 1xx"), NEET 2022/2024 (only re-typed copies found).
+Official keys: `keys nta-final` reads NTA final keys (2021 from NTA's site; 2024 from Internet Archive copies of NTA's
+site with `--source NTA_MIRROR --allowed-host web.archive.org`). Answers link by NTA question/option ids.
+
+### Custom domain (tabbyprep.in)
+1. Verify the domain in Google Search Console (Domain property) with the gcloud account.
+2. `infra/gcp/map-domain.sh tabbyprep.in` maps `tabbyprep.in`/`www` to `projectx-web` and `api.` to `projectx-api` and
+   prints the DNS records to add at the registrar (certificates are automatic once they resolve).
+3. Supabase Auth URL configuration: Site URL `https://tabbyprep.in`; redirect URLs `https://tabbyprep.in/**`,
+   `https://www.tabbyprep.in/**`. Google OAuth client: JS origin `https://tabbyprep.in`.
+4. Rebuild web with `_SITE_URL=https://tabbyprep.in`, `_API_BASE_URL=https://api.tabbyprep.in/api/v1`, `_AUTH_GOOGLE=on`;
+   redeploy the API with `WEB_URL=https://tabbyprep.in EXTRA_ORIGINS=https://www.tabbyprep.in API_URL=https://api.tabbyprep.in`.
