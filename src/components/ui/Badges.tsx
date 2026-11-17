@@ -1,5 +1,6 @@
-import type { Difficulty, QuestionType, SubjectId, VerificationStatus } from "@/contracts";
+import type { Difficulty, QuestionType, Source, SubjectId, VerificationStatus } from "@/contracts";
 import { cn } from "@/lib/cn";
+import { sourceLabel } from "@/lib/source";
 import { DIFFICULTY_LABEL, QUESTION_TYPE_LABEL, SUBJECT_STYLE } from "@/lib/subjects";
 
 export function Chip({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -41,6 +42,19 @@ export function DifficultyChip({ difficulty }: { difficulty: Difficulty }) {
 
 export function TypeChip({ type }: { type: QuestionType }) {
   return <Chip>{QUESTION_TYPE_LABEL[type]}</Chip>;
+}
+
+/** Where the question comes from ("JEE Advanced 2025 Paper 1"), shown with every question while attempting it. */
+export function SourceTag({ source }: { source: Source }) {
+  const label = sourceLabel(source);
+  return (
+    <Chip className="max-w-full">
+      <span className="sr-only">Source: </span>
+      <span className="truncate" title={label}>
+        {label}
+      </span>
+    </Chip>
+  );
 }
 
 /**
