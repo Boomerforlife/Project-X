@@ -56,6 +56,9 @@ META = re.compile(
     re.IGNORECASE,
 )
 NUMERIC_MARKER = re.compile(r"Response Type\s*:\s*Numeric|Possible Answers\s*:", re.IGNORECASE)
+# Metadata that only ever follows the stem (a numerical question's answer settings): never header.
+NOT_TRAILING = re.compile(r"Response Type|Evaluation Required|Show Word Count|Answers Type|Text Areas|Possible Answers",
+                          re.IGNORECASE)
 LAYOUT_NAME = "nta_cbt_image"
 DPI = 200
 PAD = 1.5
@@ -109,13 +112,23 @@ class _Q:
     image_options: bool = False  # options are bare images after "Options :" (no option ids or "1." labels)
 
 
+# What a browser adds when NTA's "Online Question Paper PDF Preview" is printed: date/time, page title, URL, page n/m.
+BROWSER_PRINT = re.compile(
+    r"^(\d{1,2}/\d{1,2}/\d{2,4},?\s+\d{1,2}:\d{2}(\s*[AP]M)?|Online Question Paper PDF Preview|https?://\S+|\d{1,3}/\d{1,3})$",
+    re.IGNORECASE,
+)
+
+
 def _lines(page: Any, pno: int) -> list[_Line]:
     out: list[_Line] = []
+    h = float(page.rect.height)
     for b in page.get_text("dict")["blocks"]:
         for ln in b.get("lines", []):
             t = "".join(s["text"] for s in ln["spans"]).strip()
             if t:
                 x0, y0, x1, y1 = ln["bbox"]
+                if (y1 < 0.04 * h or y0 > 0.96 * h) and BROWSER_PRINT.match(t):
+                    continue  # browser print header/footer, not paper content
                 out.append(_Line(pno, y0, y1, x0, x1, t))
     out.sort(key=lambda l: (l.y0, l.x0))
     return out
@@ -215,6 +228,16 @@ def parse_structure(doc: Any, skip_xrefs: frozenset[int] = frozenset()) -> list[
                 )):
                     cur.header_bottom = max(cur.header_bottom, ln.y1)
                     meta_bottom_by_q[id(cur)] = cur.header_bottom
+                elif (
+                    pno == cur.header_page + 1
+                    and not cur.stem_rects
+                    and not cur.options
+                    and not any(r[1] < ln.y0 for r in images)
+
+                    and not in_options
+                    and NOT_TRAILING.search(ln.text) is None
+                ):
+                    continue  # header continued across the page break: skip it, the stem comes below
                 elif not in_options:
                     # Trailing metadata (e.g. "Response Type : Numeric ... Possible Answers : 1") ends the stem.
                     cur.options_line = cur.options_line or (pno, ln.y0)
@@ -265,8 +288,17 @@ def _assign(q: _Q, pno: int, rect: tuple[float, float, float, float], in_options
         return  # after a numerical question's trailing metadata: placeholders, not content
     if in_options and q.options:
         cy = (rect[1] + rect[3]) / 2
-        same_page = [o for o in q.options if o.page == pno] or q.options
-        opt = min(same_page, key=lambda o: abs((o.y0 + o.y1) / 2 - cy))
+        # 1) the option whose id line sits beside the image (within its vertical span)
+        beside = [o for o in q.options if o.page == pno and rect[1] - 4 <= (o.y0 + o.y1) / 2 <= rect[3] + 4]
+        # 2) an option split by a page break: its id line ends one page, its image starts the next
+        before = [o for o in q.options if (o.page, o.y0) < (pno, rect[1])]
+        if beside:
+            opt = min(beside, key=lambda o: abs((o.y0 + o.y1) / 2 - cy))
+        elif before and before[-1].page < pno and not any(o.page == pno and o.y0 < rect[1] for o in q.options):
+            opt = max(before, key=lambda o: (o.page, o.y0))
+        else:
+            same_page = [o for o in q.options if o.page == pno] or q.options
+            opt = min(same_page, key=lambda o: abs((o.y0 + o.y1) / 2 - cy))
         opt.rects.append(rect)
     else:
         q.stem_rects.setdefault(pno, []).append(rect)
@@ -290,7 +322,8 @@ def strip_mirror_marks(doc: Any) -> dict[str, int]:
         # content area are never treated as marks, even if repeated: they may be real (identical) option images.
         x0, y0, x1, y1 = bbox
         big = (x1 - x0) * (y1 - y0) > 0.05 * page_w * page_h
-        margin = y1 <= 0.08 * page_h or y0 >= 0.92 * page_h
+        # corner logos start at the very edge; some mirrors' are taller (to ~12% of the page)
+        margin = (y0 <= 0.03 * page_h and y1 <= 0.12 * page_h) or (y1 >= 0.97 * page_h and y0 >= 0.88 * page_h)
         return big or margin
 
     repeated = {x for (x, b), c in seen.items() if x and pages >= 5 and c >= 0.8 * pages and mark_like(b)}
