@@ -9,7 +9,7 @@ import pymupdf
 from pxw.answer_keys.nta_final import normalize_answer, paper_slug, parse_nta_final_key
 
 
-def _key_pdf(path: Path) -> None:
+def _key_pdf(path: Path, footer: bool = False) -> None:
     doc = pymupdf.open()
     p = doc.new_page(width=595, height=842)
     p.insert_text((40, 40), "NATIONAL TESTING AGENCY", fontsize=9)
@@ -32,6 +32,8 @@ def _key_pdf(path: Path) -> None:
             p.insert_text((x + 75, y), ans, fontsize=8)
             x += 180
         y += 16
+    if footer:  # the 2021 keys print the word QUESTION again at the foot of the page
+        p.insert_text((90, 820), "FINAL ANSWER KEY QUESTION PAPER", fontsize=7)
     doc.save(str(path))
     doc.close()
 
@@ -64,3 +66,10 @@ def test_normalize_answer_rules() -> None:
     assert normalize_answer("Any non -negative Integer", None) == {"kind": "DROPPED"}  # any answer accepted -> review
     # An id that is not one of this question's options is never accepted as an answer.
     assert normalize_answer("999999999", opts) == {"kind": "DROPPED"}
+
+
+def test_footer_words_do_not_break_the_columns(tmp_path: Path) -> None:
+    pdf = tmp_path / "key21.pdf"
+    _key_pdf(pdf, footer=True)
+    got = {r.external_question_id: r.raw_answer for r in parse_nta_final_key(pdf)}
+    assert len(got) == 9 and got["900000002"] == "900000106" and got["900000009"] == "5"

@@ -65,8 +65,13 @@ def parse_nta_final_key(pdf_path: str | Path) -> list[KeyRow]:
             # Column layout from the headers: "QUESTION ID" starts each id column, "CORRECT OPTION ID" each answer column.
             # Every answer is read from its own column, whatever it contains (an id, a number, or words such as
             # "Any non-negative Integer"), so one unusual cell can never shift the pairs that follow it.
-            qcols = sorted(w[0] for w in words if w[4].upper() == "QUESTION")
-            acols = sorted(w[0] for w in words if w[4].upper() == "CORRECT")
+            # Only the header row counts: the 2021 keys also print "QUESTION" in their footer.
+            correct_y = [w[1] for w in words if w[4].upper() == "CORRECT"]
+            header_y = min(correct_y) if correct_y else None
+            def in_header(w: Any, hy: float | None = header_y) -> bool:
+                return hy is not None and abs(w[1] - hy) < 6
+            qcols = sorted(w[0] for w in words if w[4].upper() == "QUESTION" and in_header(w))
+            acols = sorted(w[0] for w in words if w[4].upper() == "CORRECT" and in_header(w))
             if qcols and len(qcols) == len(acols):
                 cols = list(zip(qcols, acols, strict=True))
             elif last_cols:
@@ -74,7 +79,7 @@ def parse_nta_final_key(pdf_path: str | Path) -> list[KeyRow]:
             else:
                 continue
             last_cols = cols
-            header_bottom = max((w[3] for w in words if w[4].upper() in {"QUESTION", "CORRECT"}), default=0.0)
+            header_bottom = max((w[3] for w in words if w[4].upper() in {"QUESTION", "CORRECT"} and in_header(w)), default=0.0)
             body = sorted((w for w in words if w[1] >= header_bottom - 1), key=lambda w: ((w[1] + w[3]) / 2, w[0]))
             grouped: list[list[Any]] = []
             for w in body:
