@@ -573,7 +573,8 @@ export function publishUnmet(q: QuestionRow, options: readonly OptionRow[], curr
   else if (current && !answerKeysEqual(q.answer_key, current.final_answer)) unmet.push('answer_key must equal the current solution final_answer');
   if (!q.subject_id) unmet.push('subject_id is required');
   if (!q.chapter_id) unmet.push('chapter_id is required');
-  if (!q.difficulty) unmet.push('difficulty is required');
+  // Same rule as the DB guard (0027): an official-key-matched PYQ may publish before it is rated.
+  if (!q.difficulty && !(q.origin === 'PYQ' && q.verification_status === 'OFFICIAL_KEY_MATCHED')) unmet.push('difficulty is required');
   if (q.question_type === 'NUMERICAL') {
     if (options.length > 0) unmet.push('NUMERICAL questions must have no options');
   } else {
@@ -686,6 +687,91 @@ export async function autoPublishOfficialMatch(store: Store, deps: Pick<AppDeps,
     });
   } catch (e) {
     // The transaction rolled back: nothing about this question changed.
+    const reason = e instanceof ApiError ? `${e.code}${e.details ? `:${JSON.stringify(e.details)}` : ''}` : String(e);
+    return { id, published: false, reason: reason.slice(0, 500) };
+  }
+}
+
+/**
+ * Worker: set the chapter of a DRAFT question from the deterministic keyword classifier (src/content/chapter-keywords.ts).
+ * Only fills an empty chapter, never overwrites one; the evidence (matched terms, scores) goes to audit_log so a batch can
+ * be reviewed or undone.
+ */
+export async function autoTagChapter(store: Store, id: string, chapterId: string, evidence: Record<string, unknown>): Promise<boolean> {
+  return store.service(async (r) => {
+    const q = await r.admin.getQuestion(id);
+    if (!q || q.publication_status !== 'DRAFT' || q.chapter_id) return false;
+    await save(r, q, q.row_version, { chapter_id: chapterId });
+    await r.admin.insertAudit({
+      actor_id: null,
+      actor_type: 'WORKER',
+      action: 'question.auto_tag_chapter',
+      entity_type: 'question',
+      entity_id: id,
+      request_id: null,
+      ip_hash: null,
+      details: { chapter_id: chapterId, method: 'keywords-v1', ...evidence },
+    });
+    return true;
+  });
+}
+
+/**
+ * Worker publication of a previous-year question with an OFFICIAL answer key and no worked solution yet
+ * (owner decision 2026-11-20: no AI). The "solution" is the exam body's final key itself (provenance OFFICIAL, no steps),
+ * so OFFICIAL_KEY_MATCHED is literally true; the web shows "worked solution coming". Requires a chapter; difficulty may
+ * stay null (migration 0027). Same requirement check, image copy and DB guard as the admin publish. Nothing claims a
+ * human review. Idempotent: a question that is no longer a PENDING draft is skipped.
+ */
+export async function publishOfficialAnswerOnly(store: Store, deps: Pick<AppDeps, 'storage' | 'logger'>, id: string): Promise<AutoPublishResult> {
+  try {
+    return await store.service(async (r): Promise<AutoPublishResult> => {
+      const q = await r.admin.getQuestion(id);
+      if (!q) return { id, published: false, reason: 'NOT_FOUND' };
+      if (q.publication_status !== 'DRAFT') return { id, published: false, reason: `NOT_DRAFT:${q.publication_status}` };
+      if (q.verification_status !== 'PENDING') return { id, published: false, reason: `STATUS:${q.verification_status}` };
+      if (q.origin !== 'PYQ') return { id, published: false, reason: `ORIGIN:${q.origin}` };
+      if (q.answer_key_source !== 'OFFICIAL' || !q.answer_key) return { id, published: false, reason: 'NO_OFFICIAL_KEY' };
+      if (!q.chapter_id) return { id, published: false, reason: 'NO_CHAPTER' };
+      const options = await r.admin.optionsFor(id);
+      checkKeyAgainst(q.answer_key, q.question_type, options, 'answer_key');
+
+      const sol = await r.admin.insertSolution({
+        question_id: id,
+        final_answer: canonicalizeAnswerKey(q.answer_key),
+        summary: null,
+        steps: [],
+        formulas: [],
+        concepts: [],
+        alternatives: [],
+        shortcuts: [],
+        common_mistakes: [],
+        provenance: 'OFFICIAL',
+        based_on_version_id: null,
+        author_id: null,
+        edit_note: 'Official final answer key only; no worked solution yet',
+      });
+      await r.admin.setSolutionReview(sol.id, 'APPROVED', null);
+      await r.admin.supersedeApproved(id, sol.id);
+      const withSolution = await save(r, q, q.row_version, { current_solution_id: sol.id, verification_status: 'OFFICIAL_KEY_MATCHED' });
+      const current = await r.admin.getSolution(sol.id);
+      const unmet = publishUnmet(withSolution, options, current);
+      if (unmet.length) throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet } });
+      await copyAssetsToPublic(r, deps, withSolution, options, current);
+      const after = await save(r, withSolution, withSolution.row_version, { publication_status: 'PUBLISHED' });
+      await r.admin.insertAudit({
+        actor_id: null,
+        actor_type: 'WORKER',
+        action: 'question.publish_official_answer_only',
+        entity_type: 'question',
+        entity_id: id,
+        request_id: null,
+        ip_hash: null,
+        details: { solution_version_id: sol.id },
+      });
+      return { id, published: true, tags: purgeTagsFor(after) };
+    });
+  } catch (e) {
     const reason = e instanceof ApiError ? `${e.code}${e.details ? `:${JSON.stringify(e.details)}` : ''}` : String(e);
     return { id, published: false, reason: reason.slice(0, 500) };
   }
