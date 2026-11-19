@@ -25,3 +25,7 @@ steps:
       - .
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/web:${_TAG}
+# Runs as the images-only build account (not the default compute account, which has Editor on the project).
+serviceAccount: projects/${PROJECT_ID}/serviceAccounts/projectx-build@${PROJECT_ID}.iam.gserviceaccount.com
+options:
+  logging: CLOUD_LOGGING_ONLY

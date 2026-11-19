@@ -7,8 +7,8 @@ Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 
 * **Identity** = service account `projectx-api@…` (bucket objectAdmin on the 3 buckets, secretAccessor on its secrets).
 * **No CDN purge**: Vercel/Next caches pages; the API sets Cache-Control; the web app is told to refresh via the revalidate webhook.
 * **Rate limit** is per instance (in memory). Add Cloud Armor only if abuse appears.
-Build: `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://cloudbuild.googleapis.com/ gcloud builds submit . --tag asia-south1-docker.pkg.dev/projectx-staging-a7k2/projectx/api:<tag> --project projectx-staging-a7k2 --region asia-south1`
-(the override is needed only if your gcloud has a regional Cloud Build endpoint configured).
+Build: `gcloud builds submit . --config cloudbuild.api.yaml --substitutions _TAG=<tag> --project projectx-staging-a7k2 --region asia-south1`
+(add `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://asia-south1-cloudbuild.googleapis.com/` and `--async` if the global endpoint drops).
 Deploy: `infra/gcp/deploy-api-staging.sh <tag> <comma-separated web origins>`.
 Verify: `<service url>/api/v1/health` returns `{"data":{"status":"ok",...,"db":"ok"}}`.
 Auth: Supabase signs logins with asymmetric keys (JWKS verified live), so `AUTH_MODE=jwks`; no JWT secret is needed.
@@ -93,11 +93,40 @@ name has no date/shift (2023 "SET 1xx"), NEET 2022/2024 (only re-typed copies fo
 Official keys: `keys nta-final` reads NTA final keys (2021 from NTA's site; 2024 from Internet Archive copies of NTA's
 site with `--source NTA_MIRROR --allowed-host web.archive.org`). Answers link by NTA question/option ids.
 
-### Custom domain (tabbyprep.in)
-1. Verify the domain in Google Search Console (Domain property) with the gcloud account.
-2. `infra/gcp/map-domain.sh tabbyprep.in` maps `tabbyprep.in`/`www` to `projectx-web` and `api.` to `projectx-api` and
-   prints the DNS records to add at the registrar (certificates are automatic once they resolve).
-3. Supabase Auth URL configuration: Site URL `https://tabbyprep.in`; redirect URLs `https://tabbyprep.in/**`,
-   `https://www.tabbyprep.in/**`. Google OAuth client: JS origin `https://tabbyprep.in`.
-4. Rebuild web with `_SITE_URL=https://tabbyprep.in`, `_API_BASE_URL=https://api.tabbyprep.in/api/v1`, `_AUTH_GOOGLE=on`;
-   redeploy the API with `WEB_URL=https://tabbyprep.in EXTRA_ORIGINS=https://www.tabbyprep.in API_URL=https://api.tabbyprep.in`.
+### Custom domain (tabbyprep.in) via Firebase Hosting (2026-11-19)
+Cloud Run's own domain mapping is not offered in asia-south1 and a global load balancer costs ~USD 18/month, so the
+site is served through Firebase Hosting (same GCP project; Firebase was added to it), which rewrites every path to
+`projectx-web` in asia-south1. Script: `infra/gcp/firebase-hosting.sh deploy | domain <d> | status <d>`.
+* Live through Hosting: https://projectx-staging-a7k2.web.app ; `tabbyprep.in` (apex) and `www.tabbyprep.in` (redirects to
+  the apex) are connected and go live once the registrar has these records (GoDaddy DNS):
+  `A @ 199.36.158.100` (replacing GoDaddy's parking A records), `TXT @ hosting-site=projectx-staging-a7k2`,
+  `CNAME www projectx-staging-a7k2.web.app`. TLS certificates are issued automatically afterwards.
+* Hosting drops cookies (except `__session`): fine, the session lives in the browser and the API gets Bearer tokens.
+  60 s request timeout. Hosting's CDN honours Next's `s-maxage`; running `firebase-hosting.sh deploy` again (a new release)
+  clears it - do that after publishing content until revalidation also purges Hosting.
+* The API stays on its run.app URL (browsers call it with CORS; no cookies), so no `api.` record is needed.
+  `deploy-api-staging.sh` now defaults to `WEB_URL=https://tabbyprep.in` (links, CORS) with www, web.app and the
+  run.app web URL as extra origins; the revalidate webhook goes straight to the run.app web URL.
+* Web image `web-staging-5` is built with `_SITE_URL=https://tabbyprep.in` (canonical URLs), `_AUTH_GOOGLE=on`.
+* Supabase Auth URL configuration: Site URL `https://tabbyprep.in`; redirect URLs `https://tabbyprep.in/**`,
+  `https://projectx-staging-a7k2.web.app/**` (keep the run.app one while it is used). Google OAuth client: JS origin
+  `https://tabbyprep.in` (the redirect URI stays Supabase's `/auth/v1/callback`).
+* Search Console (for SEO later): add a Domain property and its TXT record; indexing stays off until content is publishable.
+
+## Access for Owner A (2026-11-19)
+Owner A uses their own Google account (no shared keys or tokens): `gcloud auth login`, then
+`gcloud config set project projectx-staging-a7k2`. Full access since 2026-11-19: `editor`, `secretmanager.admin`
+(reads secret values) and `resourcemanager.projectIamAdmin` on the project. `owner` itself cannot be granted from the CLI
+on a project outside an organization (SOLO_MUST_INVITE_OWNERS): send it from IAM & Admin -> IAM -> Grant access; Owner A
+accepts the emailed invite. The earlier deploy-only grants below are still in place:
+`run.developer`, `cloudbuild.builds.editor`, `artifactregistry.reader`, `serviceusage.serviceUsageConsumer`,
+`logging.viewer`, `firebasehosting.admin` (project); `iam.serviceAccountUser` on `projectx-web@`, `projectx-api@`,
+`projectx-build@` only; `storage.objectAdmin` + `legacyBucketReader` on the `projectx-staging-a7k2_cloudbuild` bucket only.
+Revoke in IAM & Admin -> IAM.
+All builds run as `projectx-build@` (push to the `projectx` registry, write logs, read uploaded source); the default
+compute account has Editor, so builds must not run as it (the `cloudbuild.*.yaml` files set `serviceAccount`).
+Redeploy:
+* Web: `gcloud builds submit . --config cloudbuild.web.yaml --ignore-file .gcloudignore.web --substitutions _TAG=web-staging-N,_SITE_URL=https://tabbyprep.in,_AUTH_GOOGLE=on,_SUPABASE_PUBLISHABLE_KEY=<publishable key>`
+  then `infra/gcp/deploy-web-staging.sh web-staging-N`, then `infra/gcp/firebase-hosting.sh deploy` (clears the CDN).
+* API: `gcloud builds submit . --config cloudbuild.api.yaml --substitutions _TAG=staging-N`, then `infra/gcp/deploy-api-staging.sh staging-N`.
+  Deploy the API before the web build (the web build prerenders against the live API).

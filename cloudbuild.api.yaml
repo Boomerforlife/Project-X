@@ -1,0 +1,15 @@
+# Builds the API image with the root Dockerfile (ignore file: .gcloudignore).
+# gcloud builds submit . --config cloudbuild.api.yaml --substitutions _TAG=staging-N --project projectx-staging-a7k2 --region asia-south1
+substitutions:
+  _REGION: asia-south1
+  _REPO: projectx
+  _TAG: staging-1
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${_TAG}", "."]
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${_TAG}
+# Runs as the images-only build account (not the default compute account, which has Editor on the project).
+serviceAccount: projects/${PROJECT_ID}/serviceAccounts/projectx-build@${PROJECT_ID}.iam.gserviceaccount.com
+options:
+  logging: CLOUD_LOGGING_ONLY
