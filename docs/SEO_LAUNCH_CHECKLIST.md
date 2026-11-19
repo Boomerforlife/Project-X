@@ -20,7 +20,7 @@ Until both hold, every page is `noindex` and `sitemap.xml` is empty. Turn it on 
 
 ## Before launch (needs content or a decision)
 
-- [ ] **Content:** the live DB now has 433 published AI-checked practice questions. They are practice-only (NOINDEX, no public question page), but they make chapter/subject hubs indexable (≥ 5 published per chapter), so review those hub pages before turning indexing on. Individually indexable question pages need editorial or licensed, human-verified questions.
+- [ ] **Content:** the live DB now has 433 published AI-checked practice questions plus 1,523 official-key JEE Main PYQs (2026-11-20, NOINDEX, answer-only). They are practice-only (NOINDEX, no public question page), but they make chapter/subject hubs indexable (≥ 5 published per chapter), so review those hub pages before turning indexing on. Individually indexable question pages need editorial or licensed, human-verified questions.
 - [ ] Known: unknown chapter/question slugs render not-found with `noindex` but HTTP 200 (streaming). Acceptable; fix later by resolving the slug before the page streams.
 - [x] Production domain chosen (https://tabbyprep.in); `NEXT_PUBLIC_SITE_URL` set at build (canonicals and sitemap URLs use it).
 - [x] Legal pages final; noindex lifts automatically from `src/lib/legal.ts`.

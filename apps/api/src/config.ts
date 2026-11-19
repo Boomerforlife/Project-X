@@ -32,7 +32,8 @@ const EnvSchema = z.object({
   CF_ZONE_ID: z.string().optional(),
   CF_API_TOKEN_PURGE: z.string().optional(),
   WEB_REVALIDATE_URL: z.string().url().optional(),
-  WEB_REVALIDATE_SECRET: z.string().optional(),
+  // Trimmed: a secret saved with a trailing CR/LF (Windows) can never be sent in a header (2026-11-20 incident).
+  WEB_REVALIDATE_SECRET: z.string().trim().optional(),
   RATE_LIMIT_DRIVER: z.enum(['memory', 'cloudflare', 'noop']).default('memory'),
   API_VERSION: z.string().default('0.1.0'),
   // ---- billing (Tabby Plus, Razorpay one-time Orders). Disabled unless all three Razorpay values are set.
