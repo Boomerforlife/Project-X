@@ -21,6 +21,8 @@ export const metadata: Metadata = {
   applicationName: SITE.name,
   robots: INDEXABLE ? undefined : { index: false, follow: true },
   formatDetection: { telephone: false },
+  // AdSense site ownership verification. The publisher id is public by design; no ad script is loaded by this tag.
+  other: { "google-adsense-account": "ca-pub-2970121715798701" },
 };
 
 export const viewport: Viewport = {
