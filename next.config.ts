@@ -11,7 +11,7 @@ function originOf(value: string | undefined): string | null {
 }
 
 /**
- * Content Security Policy (see docs/DEPLOYMENT.md section 5.6).
+ * Content Security Policy (report-only for scripts; Google ad origins: docs/MONETIZATION_HANDOVER.md).
  *
  * Why script-src is Report-Only: Next injects inline bootstrap scripts whose hashes change every build, plus our theme
  * script and JSON-LD. Enforcing `script-src 'self'` needs a per-request nonce, which needs dynamic rendering (a proxy or

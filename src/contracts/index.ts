@@ -1,10 +1,8 @@
 /**
- * ⚠️ DRAFT CONTRACT — PROPOSED BY PERSON 1, NOT YET AGREED WITH PERSON 2.
- *
- * These schemas exist so UI work and fixtures share one validated shape.
- * Every field here is a proposal to discuss (see docs/api-contract-draft.md).
- * When the real OpenAPI/shared schema lands, replace this module with the
- * generated types and update fixtures + consuming UI together.
+ * Frontend schemas for demo mode and fixtures, so UI work and fixtures share one
+ * validated shape. The API's agreed contract is @projectx/contracts
+ * (packages/contracts, docs/API_CONTRACTS.md); where the two differ, the API
+ * contract wins.
  */
 import { z } from "zod";
 import type { PublicContentBlock } from "@projectx/contracts";

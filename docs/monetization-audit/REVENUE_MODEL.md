@@ -1,5 +1,7 @@
 # Revenue Model
 
+Strategy notes from 2026-11-15; what shipped is in docs/MONETIZATION_HANDOVER.md.
+
 Monthly steady-state model in INR. **Every input is an assumption unless marked [V] (verified, with source) or [S] (supported by a cited estimate).** Tabby has no traffic, conversion or ad data yet, so treat this as a planning frame to replace with real numbers after 2–3 months of analytics.
 
 ## 1. Definitions (to avoid double counting)
@@ -30,11 +32,11 @@ Monthly steady-state model in INR. **Every input is an assumption unless marked 
 | Affiliate: average order | ₹500 | ₹500 | ₹500 | [A] |
 | Affiliate: commission | 4% | 4% | 4% | [S] Amazon India books reported at ~3–7% |
 | USD → INR | ₹88 | ₹88 | ₹88 | [A] |
-| Infra (USD/month) by MAU: 1k $30, 5k $35, 10k $45, 50k $120, 100k $250 | same | same | same | [A] built on Workers Paid $5 [V] + Supabase Pro $25 [V] + compute/storage growth; repo `COST_STRATEGY.md` |
+| Infra (USD/month) by MAU: 1k $30, 5k $35, 10k $45, 50k $120, 100k $250 | same | same | same | [A] built on Supabase Pro $25 [V] + Google Cloud (Cloud Run, Firebase Hosting, Cloud Storage) assumed to stay in free tiers plus growth; GCP prices not checked here; `COST_STRATEGY.md` |
 | AI content pipeline | $30/month | same | same | [A] `AI_DAILY_BUDGET_USD` default $1/day (repo) |
 | Support/ops (INR/month) by MAU: 0 / 2k / 5k / 25k / 50k | same | same | same | [A] part-time help from 5k MAU |
 
-**Excluded** (fixed costs that are business decisions, not contribution): founder or team salaries, marketing, legal/CA fees, content licensing (potentially large — real PYQs are not yet licensed), and Razorpay subscription-product fees if any (not verified).
+**Excluded** (fixed costs that are business decisions, not contribution): founder or team salaries, marketing, legal/CA fees, content licensing (potentially large; not modelled; the NTA mirror source was owner-approved on 2026-11-18), and Razorpay subscription-product fees if any (not verified).
 
 ## 3. Scenario results (monthly)
 
@@ -96,7 +98,7 @@ Not in the tables above. Formula:
 Monthly SEO ad revenue = public page views × ad units per page × fill × eCPM / 1000
 ```
 
-Example [A]: 300,000 public question-page views/month × 1 unit × 70% fill × ₹40 eCPM = **₹8,400/month**. This depends entirely on having real, licensed, indexable content, which is blocked today (`STATUS.md`: no real PYQs ingested, indexing off until `NEXT_PUBLIC_ALLOW_INDEXING=true` and API data).
+Example [A]: 300,000 public question-page views/month × 1 unit × 70% fill × ₹40 eCPM = **₹8,400/month**. This depends on published, indexable content. As of 2026-11-19 the bank has about 433 published questions and 7,357 draft PYQs; indexing is still off until `NEXT_PUBLIC_ALLOW_INDEXING=true` and the API data is publishable.
 
 ## 7. Direct sponsorship and affiliate pricing frame (not quotes)
 
@@ -116,7 +118,6 @@ Prices should be revisited once real impression and click data exist. Always sel
 - [upGrowth: How to calculate Google AdSense earnings in India (2026)](https://upgrowth.in/how-to-calculate-google-adsense-earnings-india/)
 - [upGrowth: Website ad revenue metrics 2026](https://upgrowth.in/website-ad-revenue-metrics-2026/)
 - [Razorpay payment gateway pricing explained](https://razorpay.com/blog/razorpay-payment-gateway-pricing-explained/)
-- [Cloudflare Workers pricing (official docs)](https://developers.cloudflare.com/workers/platform/pricing/index.md)
 - [Supabase pricing](https://supabase.com/pricing?utm=airanks.net)
 - [Cuelinks: Amazon affiliate commission rates guide](https://www.cuelinks.com/blog/amazon-affiliate-commission-rates-guide/), [Fluxnote: Amazon India affiliate rates 2026](https://fluxnote.io/guides/amazon-india-affiliate-commission-rates-2026)
 - Repository: `docs/COST_STRATEGY.md`, `packages/ai` budget config (branch `integration/web-api`)

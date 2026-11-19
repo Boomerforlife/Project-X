@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * API-mode student store (docs/INTEGRATION_PLAN.md 2.4, 1.7, 1.8).
+ * API-mode student store (integration plan, in git history: 2.4, 1.7, 1.8).
  *
  * Exposes the same hooks/actions as the local demo store so screens barely
  * change. The state it publishes is shaped like `DemoState`, but every number

@@ -38,18 +38,28 @@ refuse a source that is not approved.
   the signed permission / email, or the contributor agreement. Put its location in `note` and `license_url`. If you
   cannot point to evidence, do not approve.
 * The seed (`supabase/seed/0005_sources.sql`) ships `PROJECTX_EDITORIAL` and `PROJECTX_AI` as approved (our own
-  content) and `NTA` as **not** approved. Re-running the seed never revokes or grants an approval.
+  content) and `NTA` as **not** approved. Re-running the seed never revokes or grants an approval. Approvals made later are recorded in the live database (see section 3).
 
 ## 3. Official papers (NTA, JEE Advanced)
 
-NTA and the JEE Advanced board (JAB) papers stay **unapproved** until we hold written permission or a legal sign-off.
-Being publicly downloadable is not a licence. Until then:
+NTA and the JEE Advanced board (JAB) papers need written permission or a legal sign-off before use.
+Being publicly downloadable is not a licence. Current state (2026-11-19):
 
-* the sources stay `reuse_permitted = false`; the importer and the document ingestion both refuse them (exit code 3);
+* `NTA_MIRROR` (NTA's own CBT papers via a mirror) was **approved by the owner on 2026-11-18**, under the rules in section 3.1. The `NTA` source is used for the JEE Main 2026 April papers.
+* A source that is not approved is refused by the importer and by the document ingestion (exit code 3);
 * the `scraper` branch's discovery catalogue (`workers/scraper/`, `pxw ingest discover`) only indexes the public
   URLs and metadata of official PDFs and never downloads or extracts them. Nothing found there is ingested, extracted
   or published unless the source has been approved first;
-* official answer keys are likewise not used.
+* official answer keys are linked to questions: NTA final keys (`keys nta-final`) and the answers JAB prints in its booklets. Counts are in `docs/DEPLOYMENT_GCP.md` ("Question bank").
+
+### 3.1 NTA mirror rules (owner-approved 2026-11-18)
+
+* Only NTA's own documents qualify: an NTA "Question Paper Name" header, or the NEET booklet cover. A paper's identity comes from NTA's paper name, never from the file name.
+* The mirror's watermark (large or corner images repeated on most pages, and its name in the text) is removed before cropping.
+* The mirror's own re-typed papers are excluded.
+* English only. A bilingual paper keeps the version whose stem reads as English (checked by OCR); unconfirmed ones are held.
+* NEET booklets (`neet_booklet`) follow the same rules. NEET 2020 and 2021 are loaded; NEET 2022 and 2024 have only re-typed copies, so they are not loaded.
+* Some sets are held back (a blank copy, incomplete files, or an NTA name with no date or shift). The list is in `docs/DEPLOYMENT_GCP.md`.
 
 ## 4. What must never be imported
 

@@ -20,10 +20,10 @@ Files (all new; the API's `Dockerfile`, `.dockerignore` and `.gcloudignore` are 
 P=projectx-staging-a7k2
 gcloud builds submit . --project=$P --region=asia-south1 \
   --config=cloudbuild.web.yaml --ignore-file=.gcloudignore.web \
-  --substitutions=_TAG=web-staging-1,_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...,_SITE_URL=https://<web url>
+  --substitutions=_TAG=web-staging-1,_SITE_URL=https://tabbyprep.in,_AUTH_GOOGLE=on,_SUPABASE_PUBLISHABLE_KEY=<publishable key>
 ```
 The publishable key is public by design (it is in every browser bundle). Never pass a secret or service-role key.
-For the very first deploy `_SITE_URL` can be a placeholder. After step 2, rebuild with the real `https://projectx-web-…run.app` URL (or the custom domain), because canonicals and the sitemap use it.
+The canonical URL is https://tabbyprep.in (served by Firebase Hosting). `_SITE_URL` must be that URL at build time, because canonicals and the sitemap use it.
 
 ## 2. Deploy
 
@@ -35,13 +35,18 @@ gcloud run deploy projectx-web --project=$P --region=asia-south1 \
 ```
 `REVALIDATE_SECRET` must equal the API's `WEB_REVALIDATE_SECRET` (same Secret Manager secret).
 
+Then release Firebase Hosting so tabbyprep.in serves the new revision (this also clears the CDN):
+```bash
+infra/gcp/firebase-hosting.sh deploy
+```
+
 ## 3. Wire the API to the web
 
 Update the `projectx-api` service:
-- `CORS_ALLOWED_ORIGINS` += the web URL (and the custom domain later).
+- `CORS_ALLOWED_ORIGINS` already includes tabbyprep.in, www, the web.app and run.app web URLs. Add any new web origin here.
 - `WEB_REVALIDATE_URL=https://<web url>/api/revalidate/` (cache refresh when content is published).
 - `WEB_BASE_URL=https://<web url>` (parent payment links).
-- Redeploy the API **from `main`** so `/api/v1/billing/*` and `/api/v1/analytics/events` exist. Billing stays off until the Razorpay keys are set, and the pricing page then says "Payments are not open yet".
+- Razorpay billing is live. `/api/v1/billing/*` and `/api/v1/analytics/events` are part of the deployed API.
 
 ## 4. Supabase Auth
 

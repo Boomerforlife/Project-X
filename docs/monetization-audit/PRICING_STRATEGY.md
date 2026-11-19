@@ -1,5 +1,7 @@
 # Pricing Strategy
 
+Strategy notes from 2026-11-15; what shipped is in docs/MONETIZATION_HANDOVER.md.
+
 Prices are GST-inclusive consumer prices in INR. Figures marked **[A]** are assumptions; **[V]** are verified from a cited source; **[U]** are reported but unverified.
 
 ## 1. The hypothesis prices have an inverted ladder
@@ -38,10 +40,10 @@ Razorpay's standard pricing has no fixed per-transaction fee [V], so small ticke
 | Plan | Price | Per month | Positioning |
 |---|---|---|---|
 | Free | ₹0 | — | Complete practice, all solutions, 2 full papers/month, one sponsored card on dashboard and results |
-| Plus Monthly | **₹59** | ₹59 | Try it during a mock-test month |
-| Plus Quarterly | **₹149** | ₹49.67 (16% off) | **Default / pre-selected.** Matches one JEE session cycle (e.g. Jan → Apr) |
-| Plus Annual ("Exam year") | **₹499** | ₹41.58 (30% off) | Best value; for Class 11 and repeaters |
-| Launch offer | **₹29 first month**, then ₹59 | — | See eligibility below |
+| Plus 30-day pass | **₹59** | ₹59 | Try it during a mock-test month |
+| Plus 90-day pass | **₹149** | ₹49.67 (16% off) | **Default / pre-selected.** Matches one JEE session cycle (e.g. Jan → Apr) |
+| Plus 365-day pass ("Exam year") | **₹499** | ₹41.58 (30% off) | Best value; for Class 11 and repeaters |
+| Launch offer | **₹29 one-time 30-day pass**, no renewal | — | See eligibility below |
 
 Why these numbers:
 - ₹499 annual keeps your ₹500 anchor (psychologically "under 500").
@@ -55,7 +57,7 @@ Why these numbers:
 
 - New accounts only, one redemption per account and per verified phone/email; first purchase only.
 - Time-boxed (e.g. first 60 days after public launch) or capped (first 1,000 buyers). State the real end date. No fake countdown timers.
-- Applies to the **first month of Monthly** only. If it is auto-renewing, the renewal price (₹59) and date must be shown before payment and in the confirmation. Simpler: make the launch offer a **one-time 30-day pass** with no auto-renew.
+- Applies to the **first month of Monthly** only. If it is auto-renewing, the renewal price (₹59) and date must be shown before payment and in the confirmation. Shipped as a **one-time 30-day pass** with no auto-renew.
 - Alternatively: ₹29 off the first quarterly (₹120). This anchors users on the plan you want them on.
 
 ## 5. Free trial

@@ -1,7 +1,7 @@
 # ProjectX Tech Stack, Front to Back
 
 Audience: the project owner. You are smart, but you may not be a backend person. Every claim here was checked against
-the code or config in this repo (branch `integration/web-api`, 2026-11-15), not just against other docs. Where I could
+the code or config in this repo, not just against other docs. Hosting facts were updated on 2026-11-19 to the current Google Cloud setup (runbook: `DEPLOYMENT_GCP.md`). Where I could
 not verify something, it is marked **[unverified]**. Section 17 is honest about what is built, stubbed or never run.
 
 The product has a working name, "Tabby" (`src/lib/site.ts`). The repo and packages are called ProjectX.
@@ -15,10 +15,10 @@ The product has a working name, "Tabby" (`src/lib/site.ts`). The repo and packag
    |  loads pages (HTML) from                      signs in / signs up directly with
    v                                                    v
  WEB APP (Next.js 16, src/)  ---- reads content ---> API (Hono, apps/api)  ---- SQL ----> DATABASE
-   server components + client      over HTTPS        runs as a Cloudflare Worker         Supabase Postgres
+   server components + client      over HTTPS        runs on Cloud Run                   Supabase Postgres
    "use cache" + tags              Bearer JWT        zod validation, rate limits         RLS, triggers, job queue
         ^                                |   |
-        | POST /api/revalidate/          |   +--> R2 buckets (files: PDFs, crops, public images, uploads)
+        | POST /api/revalidate/          |   +--> Cloud Storage buckets (files: PDFs, crops, public images, uploads)
         +--------------------------------+
           "these cache tags changed"                 Offline / operator-run (never inside a web request):
                                                       - Python ingestion (workers/): PDF -> structured questions
@@ -29,10 +29,10 @@ The product has a working name, "Tabby" (`src/lib/site.ts`). The repo and packag
 In plain words:
 
 - **Web app** = what students see. Next.js (React).
-- **API** = the only door to the data for the web app. A small Hono server that runs on Cloudflare Workers.
+- **API** = the only door to the data for the web app. A small Hono (Node) server on Cloud Run (`projectx-api`). The web app runs on Cloud Run too (`projectx-web`), served at https://tabbyprep.in through Firebase Hosting.
 - **Database** = Supabase (Postgres). Holds questions, solutions, users, attempts. It also enforces the important rules.
 - **Auth** = Supabase Auth. The browser signs in with Supabase; the API only checks the resulting token.
-- **Files** = Cloudflare R2 (like S3, no egress fees).
+- **Files** = Google Cloud Storage buckets.
 - **Ingestion + AI** = batch tools you run on a machine, not part of the live site. They turn PDFs into draft questions
   and draft solutions. A human then approves and publishes.
 
@@ -57,26 +57,27 @@ ProjectX/
       session/          Student state store for API mode (attempts, bookmarks, drafts)
       demo/             Local-only demo store used in mock mode
       site.ts, indexing.ts, seo.ts, exams.ts, subjects.ts   Config, SEO flags, exam metadata
-  apps/api/             The API (Hono + zod-openapi), deployed as a Cloudflare Worker
-    src/                app.ts, worker.ts (Cloudflare entry), node.ts (local dev entry), routes/, services/,
-                        repositories/{sql,memory}, middleware/, auth/
-    wrangler.toml       Worker config: R2 + rate-limit bindings, three environments
+  apps/api/             The API (Hono + zod-openapi), deployed on Cloud Run
+    src/                app.ts, server.ts (Cloud Run entry, built to dist/server.mjs), node.ts (local dev entry), worker.ts
+                        (legacy Cloudflare entry, not deployed), routes/, services/, repositories/{sql,memory}, middleware/, auth/
+    wrangler.toml       Legacy Cloudflare Worker config (not used for deployment)
     test/               API tests (in-memory store and real SQL on PGlite)
   packages/
     contracts/          THE shared contract: zod schemas for every request/response, error codes, generated OpenAPI
     shared/             Pure helpers: canonical JSON, answer comparison, decimals, slugs, cursors
     db/                 Migration runner, PGlite (in-process Postgres for tests), postgres.js executor
     database-types/     Generated TypeScript types of the DB schema
-    edge/               Cloudflare helpers: cache classes + tags, purge drivers, rate limiter, signed URLs, R2 storage
+    edge/               Cache classes + tags, purge drivers, rate limiter, signed URLs, storage adapters (local, gcs, legacy r2)
     ai/                 Gemini client + mock, prompts, verification rules, SymPy bridge, job runner CLI
   supabase/
-    migrations/         0001 ... 0015 SQL migrations (the schema)
+    migrations/         0001 ... 0026 SQL migrations (the schema; live DB is at 0025)
     seed/               Reference data: exams, subjects, chapters, topics, sources
     fixtures/           Demo questions and dev users (never for production)
     shim/               Fake Supabase roles/auth.users so PGlite can run the migrations (never for production)
     tests/              Database tests (RLS, triggers, publication guard, pipeline)
   workers/              Python ingestion package "pxw" (PyMuPDF, OCR, SymPy check)
-  infra/cloudflare/     Runbooks and config snippets (cache rules, WAF rule, R2 CORS/lifecycle, backup, usage)
+  infra/gcp/            Deploy scripts for Cloud Run, Firebase Hosting and the ingest job (see DEPLOYMENT_GCP.md)
+  infra/cloudflare/     Legacy runbooks and config snippets (not used)
   docs/                 Design docs (ARCHITECTURE, DATABASE_SCHEMA, API_CONTRACTS, AI_PIPELINE, INGESTION_PIPELINE, ...)
 ```
 
@@ -120,7 +121,7 @@ script so there is no flash.
 |---|---|---|
 | `(site)` | Public, indexable marketing + question pages | `/`, `/[track]/` (jee/neet), `/[track]/[subject]/[chapter]/`, `/[track]/questions/[slug]/`, `/[track]/pyq/[year]/`, `/resources`, `/study-plans` |
 | `(auth)` | Login, signup, onboarding | `/login`, `/signup`, `/onboarding` |
-| `(app)` | Signed-in shell, all noindex | `/dashboard`, `/practice`, `/progress`, `/bookmarks`, `/mistakes`, `/review`, `/results`, `/tests/[paperId]`, `/leaderboard`, `/account` |
+| `(app)` | Signed-in shell, all noindex | `/dashboard`, `/practice`, `/progress`, `/bookmarks`, `/mistakes`, `/review`, `/results`, `/tests/[paperId]`, `/leaderboard`, `/account`, `/admin/questions` (admin difficulty classification) |
 | `(exam)` | Exam-style CBT shell | `/cbt` |
 | `(focus)` | Distraction-free practice player | `/practice/session/...` |
 | `api/` | Two tiny route handlers | `/api/revalidate` (cache webhook), `/api/dev/token` (dev login) |
@@ -230,8 +231,8 @@ Envelope on every API response: `{ data, meta? }` on success, `{ error: { code, 
 - All routes live under `/api/v1`. Route files: `routes/public.ts`, `routes/student.ts` (practice + user), `routes/admin/index.ts`.
 - Layers: `routes/` (HTTP) -> `services/` (business rules) -> `repositories/` (SQL, in `sql/`, or an in-memory fake in
   `memory/` for fast tests). `mappers/` turn DB rows into API DTOs.
-- Two entry points: `worker.ts` (Cloudflare Workers, builds dependencies per request) and `node.ts` (local dev server
-  using PGlite or Postgres, local file storage, in-memory rate limiter).
+- Entry points: `server.ts` (Cloud Run, precompiled to `dist/server.mjs`), `node.ts` (local dev server using PGlite or
+  Postgres, local file storage, in-memory rate limiter) and `worker.ts` (legacy Cloudflare Workers entry, not deployed).
 - Docs: `/api/v1/openapi.json` and `/api/v1/docs` exist; `ENABLE_API_DOCS` controls the docs page (false in production vars).
 
 ### 5.2 Middleware and request lifecycle
@@ -306,7 +307,7 @@ look like `q-<id>`, `qslug-<slug>`, `ch-<id>`, `sub-<id>`, `exam-<id>`, `tax`, `
 
 ### 5.6 Rate limiting
 
-Six classes, each a Cloudflare Workers Rate Limiting binding, keyed by user id when logged in, else by hashed IP:
+Six classes, keyed by user id when logged in, else by hashed IP. `RL_WRITE`, `RL_ATTEMPTS`, `RL_DOUBTS` and `RL_ADMIN` are counted in Postgres across instances (migration 0017); `RL_PUBLIC` and `RL_SEARCH` are in memory per instance:
 
 | Class | Limit per 60 s | Applied to |
 |---|---|---|
@@ -315,10 +316,10 @@ Six classes, each a Cloudflare Workers Rate Limiting binding, keyed by user id w
 | `RL_WRITE` | 30 | profile/bookmark/session/upload writes |
 | `RL_ATTEMPTS` | 60 | submitting attempts |
 | `RL_DOUBTS` | 5 | posting doubts |
-| `RL_ADMIN` | 120 | defined in config and in the type; **[unverified]** which admin routes apply it (I confirmed the class exists in `wrangler.toml` and `edge/rate-limit.ts`; I did not trace every admin route) |
+| `RL_ADMIN` | 120 | defined in config and in the type; **[unverified]** which admin routes apply it (I did not trace every admin route) |
 
-Over the limit: HTTP 429 `RATE_LIMITED` with `Retry-After`. Drivers: `cloudflare` (real bindings), `memory` (dev/tests),
-`noop`. A free-plan WAF rule is documented as a coarse backstop (`infra/cloudflare/waf-rate-limit-rule.md`), not applied.
+Over the limit: HTTP 429 `RATE_LIMITED` with `Retry-After`. Drivers: `memory` (default), `cloudflare` (legacy bindings),
+`noop`. No WAF or Cloud Armor is in place; `DEPLOYMENT_GCP.md` says to add Cloud Armor only if abuse appears.
 
 ### 5.7 Attempt submission and idempotency (`services/practice.ts`)
 
@@ -379,6 +380,7 @@ final authority.
 | 0013 | Publication guard trigger |
 | 0014 | Guard hardening (runs on insert and every update of a published row; deferred re-checks when solutions/options change; semantic numeric comparison of keys; attempt session must belong to same user; promote re-checks licence) |
 | 0015 | `profiles.class_level` (11/12/dropper) and `practice_sessions.ui_mode` + `time_limit_sec` (added for the web integration) |
+| 0016-0026 | Later migrations (helper search_path pin, shared rate limits, billing, analytics, AI-checked practice-only publishing, problem families, study plans, classification and rewards). See `DATABASE_SCHEMA.md` and the files in `supabase/migrations/`. 0026 is not yet applied to the live DB. |
 
 ### 6.3 Roles and RLS (row level security)
 
@@ -400,7 +402,7 @@ How the API uses this (`packages/db/src/postgres.ts`):
 - `withService(fn)`: plain privileged connection, used for published content, grading, admin and role lookups.
   Roles are looked up here, never taken from the token.
 
-The service-role *key* is never put on the Worker; the Worker connects with a database URL. (Which database user that
+The service-role *key* is never put on the API service; it connects with a database URL held in Secret Manager. (Which database user that
 URL logs in as is a deployment setting; see "unverified" list.)
 
 ### 6.4 Triggers worth knowing
@@ -443,17 +445,17 @@ Turns an approved source PDF into draft questions. Runs on an operator machine (
 
 - **Libraries** (`workers/pyproject.toml`): PyMuPDF (PDF text and layout), RapidOCR + onnxruntime (default OCR),
   optional PaddleOCR and Tesseract extras, rapidfuzz (near-duplicate matching), Pillow, NumPy, Pydantic, psycopg 3
-  (database), boto3 (R2 over the S3 API), SymPy 1.14.0 (verification check). Python `>=3.11`.
+  (database), optional Google Cloud Storage extra, SymPy 1.14.0 (verification check). Python `>=3.11`.
 - **CLI** (`pxw`): `ingest register`, `jobs run`, `process-document`, `parse-answer-key`, `ocr`, `promote`,
   `dev synth-pdf` (makes a synthetic test PDF).
-- **Stages of `PROCESS_DOCUMENT`**: fetch original from R2 (verify sha256) -> extract text with PyMuPDF (spans, bboxes)
+- **Stages of `PROCESS_DOCUMENT`**: fetch original from the storage bucket (verify sha256) -> extract text with PyMuPDF (spans, bboxes)
   -> OCR only pages with little or garbled text -> segment into questions/options using a layout profile -> figures
   crop -> normalize (text, LaTeX-ish maths) -> dedupe (exact hash + fuzzy) -> write `source_questions` (staging) and
   private crops. Each stage writes a versioned artifact so a retry skips completed stages.
 - **Warnings** (low OCR confidence, odd option counts, missing figure, needs maths review) block auto-promotion.
 - **Licensing gate**: only sources with `reuse_permitted` and an approval timestamp can be ingested; enforced in the
-  CLI and in the database promote function (re-checked in migration 0014). In STATUS.md the NTA source stays
-  `reuse_permitted=false`, so no real past papers have been ingested.
+  CLI and in the database promote function (re-checked in migration 0014). The NTA mirror source (`NTA_MIRROR`) was
+  approved on 2026-11-18; see `CONTENT_SOURCES.md` and `DEPLOYMENT_GCP.md` for what has been imported.
 - **Promote** (`promote_source_question`): creates a `DRAFT` question and enqueues `AI_CLASSIFY`.
 - Two job-store backends: Postgres, or a JSON file for offline tests.
 
@@ -488,40 +490,42 @@ AI_CLASSIFY -> (quality check) -> AI_SOLVE -> AI_VERIFY -> (if PASSED) AI_SEO
 
 ---
 
-## 9. Files and storage (Cloudflare R2)
+## 9. Files and storage (Google Cloud Storage)
 
-Three buckets, bound to the Worker as `SOURCE_DOCS`, `PUBLIC_ASSETS`, `USER_UPLOADS` (names get a `-staging` suffix in staging):
+Three buckets in the GCP project: `projectx-staging-a7k2-source-docs`, `-public-assets`, `-user-uploads` (`STORAGE_DRIVER=gcs`, bucket names in `GCS_BUCKET_*`). Setup: `DEPLOYMENT_GCP.md`, `PRODUCTION_SETUP.md`. Private by default; opening `public-assets` for approved images is a separate, deliberate step. The key patterns below are unchanged from the earlier R2 design.
 
 | Bucket | Visibility | Contents | Key pattern (`edge/keys.ts`) |
 |---|---|---|---|
-| `projectx-source-docs` | private | Original PDFs, derived crops, DB backups | `sources/{code}/{year}/{sha}.{ext}`, `derived/...`, `backups/{date}/db.sql.gz` |
-| `projectx-public-assets` | public via a custom domain | Images referenced by published questions | `assets/{sha[0..2]}/{sha}.{ext}` (content-addressed, `immutable`, 1-year cache) |
-| `projectx-user-uploads` | private | Doubt attachments (PNG/JPEG/WebP, max 5 MB) | `u/{userId}/{yyyy-mm}/{id}.{ext}` |
+| source-docs | private | Original PDFs and derived crops | `sources/{code}/{year}/{sha}.{ext}`, `derived/...` |
+| public-assets | private until deliberately opened | Images referenced by published questions | `assets/{sha[0..2]}/{sha}.{ext}` (content-addressed, `immutable`, 1-year cache) |
+| user-uploads | private | Doubt attachments (PNG/JPEG/WebP, max 5 MB) | `u/{userId}/{yyyy-mm}/{id}.{ext}` |
 
 - Uploads are sniffed for real image type, size-capped, and served back only through short-lived HMAC-signed URLs
   (`/files/{token}`, max 15 minutes, `Content-Disposition: attachment`).
-- The Python tools write to R2 over the S3 API with keys that live only on the operator machine.
+- The Python tools write to the buckets with `pxw --storage gcs` using Application Default Credentials.
 - Local dev uses a filesystem driver (`STORAGE_DRIVER=local`) with the same key layout.
 
 ---
 
-## 10. Cloudflare summary
+## 10. Hosting summary (Google Cloud)
+
+Runbook and current state: `DEPLOYMENT_GCP.md`. The earlier plan (Cloudflare Workers, R2, WAF, OpenNext) was dropped.
 
 | Piece | Status in repo |
 |---|---|
-| **Workers** (API) | Config + entry point exist (`apps/api/wrangler.toml`, `worker.ts`); `wrangler deploy --dry-run` bundles OK; not deployed |
-| **R2** buckets and bindings | Declared in `wrangler.toml`; buckets not created |
-| **Rate-limit bindings** `RL_*` | Declared per environment (namespace ids 1001-1006 dev, 2001-2006 staging, 3001-3006 prod) |
-| **Workers Caching** (`[cache] enabled = true`) | Enabled in config but plan availability is **unverified**; fallback documented (`CACHE_MODE=cache_api` + zone purge) |
-| **Hyperdrive** (DB connection pooling) | Optional, commented out; worker code already prefers a `HYPERDRIVE` binding if present |
-| **Web app on Cloudflare via OpenNext** | **Planned only.** `@opennextjs/cloudflare` appears in `docs/DEPLOY_FACTS.md` and `INTEGRATION_PLAN.md` but there is no OpenNext dependency, config or wrangler file for the web app in this repo yet |
-| **Custom domains / DNS / WAF rule** | Runbooks only (`infra/cloudflare/`) |
+| **API** | Cloud Run service `projectx-api` (asia-south1, project `projectx-staging-a7k2`), https://projectx-api-989800061583.asia-south1.run.app/api/v1; precompiled `dist/server.mjs` |
+| **Web** | Cloud Run service `projectx-web`, Next.js 16 |
+| **Domain / CDN** | https://tabbyprep.in through Firebase Hosting, which rewrites every path to Cloud Run; its CDN caches by `s-maxage` and is cleared by a new release (`infra/gcp/firebase-hosting.sh deploy`) |
+| **Files** | Three Cloud Storage buckets (section 9) |
+| **Secrets** | GCP Secret Manager |
+| **Builds** | Cloud Build, running as the `projectx-build` service account |
+| **Database / auth** | Supabase project in Mumbai (Postgres + Auth; email and Google sign-in on) |
+| **Billing alert** | About USD 5 / INR 450 on the GCP project (alerts only) |
+| **Cloudflare files in the repo** | `worker.ts`, `wrangler.toml`, `infra/cloudflare/`: legacy, not deployed |
 
-The Worker opens one database connection per request (`max: 1`, `prepare: false` because pooled/transaction mode does
-not support prepared statements) and closes it with `ctx.waitUntil`. Secrets are set with `wrangler secret put`:
-`DATABASE_URL` (unless Hyperdrive), `SIGNING_SECRET`, `IP_HASH_SECRET`, `SUPABASE_JWT_SECRET` (hs256 only),
-`CF_API_TOKEN_PURGE` (zone purge only), `WEB_REVALIDATE_SECRET`. Never on the Worker: the Gemini key, R2 S3 keys, the
-Supabase service-role key.
+The API opens its database connection through the Supabase transaction pooler (port 6543, `prepare: false` because
+transaction mode does not support prepared statements). Secrets (`DATABASE_URL`, `signing-secret`, `ip-hash-secret`,
+`web-revalidate-secret`) live in Secret Manager. Never on the API: the Gemini key and the Supabase service-role key.
 
 ---
 
@@ -529,15 +533,15 @@ Supabase service-role key.
 
 Three layers, each with a purpose:
 
-1. **Cloudflare edge cache** in front of the API, controlled by the `Cache-Control` classes and tags above. Preferred
-   mode is Workers Caching (`CACHE_MODE=workers`); fallback is a Cache API middleware (`cache_api`), which only caches
-   GETs without `Authorization` and only `public` + `s-maxage` responses.
+1. **Firebase Hosting CDN** in front of the web app, honouring Next's `s-maxage`; a new Hosting release clears it. The API
+   is called directly on its run.app URL and sets the `Cache-Control` classes and tags above for its callers. (The Cloudflare
+   modes `CACHE_MODE=workers` / `cache_api` remain in the code but are not used.)
 2. **Next.js cache** in the web app (`"use cache"` + `cacheLife` + `cacheTag`). The tags are copied from the API's
    `X-Cache-Tags`.
 3. **Browser** (`max-age` 60 s on content; nothing on private data).
 
-Purge drivers (`CACHE_PURGE_DRIVER`: `noop | workers | zone_api | both`), all composed by `buildInvalidator` in
-`worker.ts`:
+Purge drivers (`CACHE_PURGE_DRIVER`: `noop | workers | zone_api | both`; the Cloudflare ones are legacy), composed by
+`buildInvalidator` in `worker.ts`:
 
 - `workers`: the runtime's `cache.purge({tags})` (feature-detected; throws if unavailable), chunks of 100, retries on rate limits.
 - `zone_api`: Cloudflare zone purge `POST /zones/{id}/purge_cache {tags}`, chunks of 30, 3 attempts, needs a token scoped to Cache Purge only.
@@ -550,7 +554,7 @@ Purge drivers (`CACHE_PURGE_DRIVER`: `noop | workers | zone_api | both`), all co
 ### 12.1 A student opens a public question page
 
 ```
-Browser            Web app (Next)                         API (Worker)              DB
+Browser            Web app (Next)                         API (Cloud Run)           DB
   | GET /jee/questions/<slug>/                                                       |
   |--------------->|                                                                 |
   |                | "use cache" hit?  -> yes: serve cached HTML/data immediately    |
@@ -596,7 +600,7 @@ Response is `private, no-store`.
 
 ```
  1. Operator registers an APPROVED source + PDF       (pxw ingest register; licence gate)
- 2. PROCESS_DOCUMENT job: PyMuPDF/OCR -> segment -> dedupe -> source_questions (staging) + crops in R2
+ 2. PROCESS_DOCUMENT job: PyMuPDF/OCR -> segment -> dedupe -> source_questions (staging) + crops in the storage bucket
  3. PARSE_ANSWER_KEY job (optional): official keys linked to questions
  4. Promote (admin API or pxw promote): source_question -> DRAFT question; enqueues AI_CLASSIFY
  5. AI worker:  CLASSIFY -> QUALITY -> SOLVE (new solution_version, AI_GENERATED)
@@ -616,7 +620,7 @@ has never been called live (section 17).
 ### 12.4 Publish -> cache purge -> page refresh
 
 ```
-Admin           API (admin service)                     Cloudflare cache          Web app (Next)
+Admin           API (admin service)                     Edge cache (legacy)       Web app (Next)
   | POST /admin/questions/{id}/publish                                                  |
   |------------->| DB transaction: set PUBLISHED, review_event, audit_log               |
   |<-------------| 200 (response returns immediately)                                   |
@@ -646,7 +650,7 @@ Taxonomy changes via migration/seed need a manual purge of tag `tax` (there is a
 | Ingestion | **pytest** + ruff | Synthetic PDFs generated in code (no real papers committed), mock OCR, file-backed job store; some tests need real Postgres and are skipped by default | `workers/tests` |
 | Web app | Vitest | Pure logic: adapters, session store, bank/core fixtures, API client | `npm run test:web`; `typecheck:web` runs `next typegen && tsc` |
 
-Last recorded runs (`docs/STATUS.md`, 2026-11-14, before the web integration commit): contracts 10, shared 36, edge 30,
+Last recorded runs (the old status doc, 2026-11-14, before the web integration commit; that doc has been removed): contracts 10, shared 36, edge 30,
 db 246, ai 124, api 39 tests passing; Python 99 passed / 2 skipped; typecheck and ruff clean. I did **not** re-run
 anything while writing this document, so treat those numbers as the last documented state. No CI configuration was found
 in the repo **[unverified that none exists elsewhere]**.
@@ -658,20 +662,18 @@ in the repo **[unverified that none exists elsewhere]**.
 | | Dev (your laptop) | Staging | Production |
 |---|---|---|---|
 | Web | `next dev`, mock or api mode | Separate build (public env vars are inlined at build time, so **one build per environment**) | Separate build |
-| API | `npm run dev:api` (`node.ts`) or `wrangler dev` | Worker `projectx-api-staging` (`--env staging`) | Worker `projectx-api` (`--env production`) |
+| API | `npm run dev:api` (`node.ts`) | Cloud Run `projectx-api` | see `PRODUCTION_SETUP.md` |
 | DB | PGlite (`DB_DRIVER=pglite`), or local Supabase stack via CLI (needs Docker) | Own Supabase project (must be separate) | Own Supabase project |
 | Auth mode | `test` or `dev` tokens | `jwks` | `jwks` (`test` forbidden) |
-| Storage | local filesystem | `-staging` R2 buckets | production R2 buckets |
-| Rate limiter | memory | Cloudflare bindings (2001-2006) | Cloudflare bindings (3001-3006) |
+| Storage | local filesystem | Cloud Storage buckets | Cloud Storage buckets |
+| Rate limiter | memory | memory + Postgres | memory + Postgres |
 | API docs | on | on (`ENABLE_API_DOCS=true`) | off |
 
-Config files: `.env.example` (all variables, with comments), `apps/api/wrangler.toml` (Wrangler does not inherit
-bindings into `[env.*]`, so they are repeated on purpose). `SUPABASE_URL`, CORS origins, asset base URLs and zone id are
+Config files: `.env.example` (all variables, with comments); deploy settings are in `infra/gcp/*.sh` and `cloudbuild.*.yaml`. `SUPABASE_URL`, CORS origins, asset base URLs and zone id are
 empty placeholders until real resources exist. Production refuses weak secrets (>= 32 chars required for signing/hash
-secrets when `STORAGE_DRIVER=r2` or `APP_ENV` is staging/production, `config.ts`).
+secrets when `STORAGE_DRIVER` is r2/gcs or `APP_ENV` is staging/production, `config.ts`).
 
-Migrations: `docs/DEPLOY_FACTS.md` (Supabase CLI v3 syntax) is more current than `docs/DEPLOYMENT.md`; per that file,
-`supabase db push` now needs `--remote`. Do not apply `supabase/shim/` or `supabase/fixtures/` to a hosted project.
+Migrations: see `docs/DEPLOY_FACTS.md` (Supabase CLI v3 syntax; `supabase db push` needs `--remote`) and `docs/DEPLOYMENT_GCP.md`. Do not apply `supabase/shim/` or `supabase/fixtures/` to a hosted project.
 
 ---
 
@@ -684,8 +686,8 @@ Migrations: `docs/DEPLOY_FACTS.md` (Supabase CLI v3 syntax) is more current than
 | Authorization (admin) | Roles in `user_roles`, looked up from the database on each privileged call (60 s per-isolate cache); not trusted from the token; first admin is inserted manually by SQL |
 | Grading integrity | Correct answers and solutions are never sent before an attempt; grading is server-side |
 | Publishing integrity | DB publication guard, immutable solutions, human approval required, audit log |
-| Abuse | Per-class rate limits (user id or hashed IP); optional WAF backstop; upload size/type sniffing; doubts limited to 5/min and never auto-public |
-| Secrets | Worker secrets via `wrangler secret put`; the browser has only the Supabase publishable key; Gemini key and R2 S3 keys stay on the operator machine |
+| Abuse | Per-class rate limits (user id or hashed IP); Cloud Armor only if abuse appears; upload size/type sniffing; doubts limited to 5/min and never auto-public |
+| Secrets | GCP Secret Manager; the browser has only the Supabase publishable key; Gemini key stays on the operator machine |
 | Webhooks | Revalidate endpoint requires a bearer secret (constant-time compare) and strict tag format |
 | Private files | Short-lived HMAC-signed URLs, `attachment` disposition, `nosniff` |
 | Browser hardening | CORS allow-list with no wildcard, no cookies/credentials; HSTS; `Referrer-Policy: no-referrer`; `poweredByHeader: false` |
@@ -693,13 +695,13 @@ Migrations: `docs/DEPLOY_FACTS.md` (Supabase CLI v3 syntax) is more current than
 | Content licensing | `sources.reuse_permitted` + approval gate enforced in CLI and DB; NTA stays disallowed until cleared |
 | Dev backdoors | `/api/dev/token` is 404 in production builds; `AUTH_MODE=test` forbidden in production |
 
-Known gaps are listed in section 17 (never run against real Supabase/Cloudflare).
+Known gaps are listed in section 17.
 
 ---
 
 ## 16. Cost model and free-tier limits
 
-Goal (`docs/COST_STRATEGY.md`): run at roughly zero cost until there is real traffic. Figures below are the
+Goal (`docs/COST_STRATEGY.md`): run at roughly zero cost until there is real traffic. Supabase figures below are the
 **commonly published free-tier numbers recorded in that doc; I did not check vendor pages**, and they change.
 
 | Resource | Free allowance (approx.) | What eats it | What the design does |
@@ -707,15 +709,15 @@ Goal (`docs/COST_STRATEGY.md`): run at roughly zero cost until there is real tra
 | Supabase DB | 500 MB; pauses after ~7 days idle | questions/solutions (~10-20 KB each), attempts | no blobs in DB, narrow rows |
 | Supabase Auth | 50k monthly active users | students | n/a |
 | Supabase egress | ~5 GB/month | cache misses | heavy edge caching |
-| Workers | 100k requests/day, 10 ms CPU per request | API calls | cache hits, tiny per-request work, no AI in requests |
-| R2 | 10 GB, 1M writes, 10M reads/month, no egress fee | PDFs, crops, images | immutable content-addressed public assets |
-| Cache purge | free, rate-limited | publishes | purge by tag, batched |
-| Rate limiting | bindings included; 1 free WAF rule | abuse | per-route limits |
+| Cloud Run | has a free tier (check current limits) | API and web requests | scale to zero, `--cpu-boost`, no AI in requests |
+| Firebase Hosting | has a free tier (check current limits) | web traffic | CDN caching by `s-maxage` |
+| Cloud Storage | check current pricing | PDFs, crops, images | immutable content-addressed public assets |
+| Billing alert | about USD 5 / INR 450 | overspend | alerts only; does not stop spending |
 | Gemini | free tier is rate limited and may use prompts for training | AI batch | batch only, budget caps, public content only; move to a paid key before licensed content |
 | Supabase default email | 2 messages/hour (per `DEPLOY_FACTS.md`) | signup confirmations | configure custom SMTP before launch |
 
-Upgrade triggers (sustained 7 days): DB > 350 MB or need backups/PITR -> Supabase Pro (~$25/mo); Workers > 70k req/day
--> Workers Paid (~$5/mo); slow DB connections -> Hyperdrive; Gemini limits -> paid key; R2 > 8 GB -> trim derived files.
+Upgrade triggers (sustained 7 days): DB > 350 MB or need backups/PITR -> Supabase Pro (~$25/mo); sustained cold starts or
+request volume -> minimum instances on Cloud Run or paid usage; Gemini limits -> paid key; growing buckets -> trim derived files.
 Deliberately not paid for: Redis, Elasticsearch/vector DB (Postgres full-text + `pg_trgm` instead), message queues
 (Postgres job table), always-on workers, image CDN, APM.
 
@@ -726,27 +728,30 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 ## 17. What is built vs stubbed / mock (be honest)
 
 **Built and tested locally (PGlite, mocks, synthetic data):**
-- Full schema (15 migrations), RLS, triggers, publication guard, job queue, streak/daily activity.
-- The whole API surface (about 57 paths per `STATUS.md`) with OpenAPI generation.
+- Full schema (26 migrations in the repo; the live DB is at 0025), RLS, triggers, publication guard, job queue, streak/daily activity.
+- The whole API surface with OpenAPI generation, including billing, analytics, study plans and admin classification endpoints.
 - Web app against the API: public pages, auth screens, practice sessions, attempts, bookmarks, mistakes, progress, streak, onboarding.
 - Cache tag/purge plumbing including the web revalidate webhook.
 - Python ingestion on synthetic PDFs; AI pipeline on the mock Gemini client; SymPy checker.
 
-**Never run for real (from `STATUS.md` and `DEPLOY_FACTS.md`):**
-- **Nothing is deployed.** No Supabase project has the migrations applied, no Cloudflare Worker, R2 bucket, DNS or cache rule exists.
-- **Gemini has never been called.** There is no API key; everything uses the mock. Model ids and prices are placeholders.
-- RapidOCR on real images, the JWKS auth verifier against a real Supabase, the Workers Caching purge API (feature-detected, plan availability unknown), and Supabase pooler role switching (`set local role` through the Supavisor/Hyperdrive path) are all untested.
-- **No real past-year questions** have been ingested; the NTA source is marked not reusable. The only content is demo/seed/synthetic.
+**Live (2026-11-19; see `DEPLOYMENT_GCP.md` and `LAUNCH_READINESS.md`):**
+- Web and API run on Cloud Run; the site is served at https://tabbyprep.in through Firebase Hosting; Supabase (Mumbai) is the database and auth.
+- About 433 published questions and 7,357 draft PYQs (JEE Main 2019-2026, JEE Advanced, NEET) are imported. Indexing is still off until content is publishable.
+- Razorpay one-time prepaid Plus passes are live (real payments) since 2026-11-19. AdSense placements are built but ads are not switched on in the web build (publisher account under review); rewarded ads via Google Ad Manager are off by default. See `MONETIZATION_HANDOVER.md`.
+
+**Still unverified or open:**
+- **Gemini** status: I did not verify whether a live key is in use; model ids and prices in the repo are placeholders to re-check.
+- Migration 0026 is in the repo but not yet applied to the live database.
+- The old Cloudflare-specific paths (Workers Caching purge, Hyperdrive, OpenNext) were never run and are no longer planned.
 - The syllabus seed (20/20/14 chapters) needs checking against the current NTA bulletin.
 - Known limitation: two source questions with byte-identical images share one `question_assets` row (needs a join table).
-- The OpenNext deployment of the web app is not set up.
 
 **Demo-only in API mode:**
 - **Papers / full-length CBT tests** are fixture-backed in every mode. In API mode they are hidden unless
   `NEXT_PUBLIC_FEATURE_PAPERS=demo`; attempts there are local-only and flagged.
 - **Leaderboard** is demo data; hidden in API mode unless `NEXT_PUBLIC_FEATURE_LEADERBOARD=demo` (`LEADERBOARD_ENABLED`).
 - Some student state stays in the browser even in API mode: test-mode drafts, the review list and mistake categories.
-- There is no admin web UI in this repo; admin work is the admin API (so far).
+- A small admin web UI exists at `/admin/questions/` (difficulty classification); other admin work is the admin API (including admin billing).
 - The web app's product name "Tabby" is a working name.
 
 ---
@@ -764,7 +769,7 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 | Change how long the API's responses are cached | `cachePolicies` in `packages/edge/src/cache.ts` |
 | Add an API endpoint | zod schemas in `packages/contracts/src/`, route in `apps/api/src/routes/`, logic in `services/`, SQL in `repositories/sql/store.ts` (and the memory repo), then `npm run openapi` |
 | Change an API response shape the UI sees | `packages/contracts` + `src/lib/api/schemas.ts` + adapters in `src/lib/api/adapters/` |
-| Change rate limits | `rateLimitDefaults` in `packages/edge/src/rate-limit.ts` AND the `[[ratelimits]]` blocks in `apps/api/wrangler.toml` (all 3 environments) |
+| Change rate limits | `rateLimitDefaults` in `packages/edge/src/rate-limit.ts` (and the legacy `[[ratelimits]]` blocks in `apps/api/wrangler.toml`) |
 | Change who can do what | `access:` on each route; role logic in `apps/api/src/middleware/guards.ts` |
 | Change grading / marking | `packages/shared/src/answers.ts` and `services/practice.ts` (`gradeAttempt`) |
 | Change publish requirements | DB: a new migration replacing the guard function (never edit an old migration after it is applied); API: `publishUnmet` in `services/admin.ts` |
@@ -775,10 +780,10 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 | Change verification rules | `packages/ai/src/verify/rules.ts` (rules version) |
 | Change PDF parsing for a new paper layout | `workers/src/pxw/extraction/layout_profiles/` |
 | Change OCR engines / confidence | `OCR_ENGINES`, `OCR_MIN_CONFIDENCE` in `.env`; `workers/src/pxw/ocr/` |
-| Add a storage bucket or key pattern | `apps/api/wrangler.toml`, `packages/edge/src/keys.ts`, `workers/src/pxw/storage/keys.py` (keep identical) |
-| Change CORS | `CORS_ALLOWED_ORIGINS` in the Worker vars (exact origins) |
+| Add a storage bucket or key pattern | `GCS_BUCKET_*` settings (`apps/api/src/config.ts`), `packages/edge/src/keys.ts`, `workers/src/pxw/storage/keys.py` (keep identical) |
+| Change CORS | `CORS_ALLOWED_ORIGINS` on the API service (exact origins; set by `infra/gcp/deploy-api-staging.sh`) |
 | Make the first admin | SQL insert into `user_roles` (see `docs/DEPLOY_FACTS.md` section 1.5) |
-| Deploy | `docs/DEPLOYMENT.md` + `docs/DEPLOY_FACTS.md` (every remote step needs your approval) |
+| Deploy | `docs/DEPLOYMENT_GCP.md` (runbook), `docs/PRODUCTION_SETUP.md` (every remote step needs your approval) |
 
 ---
 
@@ -796,19 +801,17 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 - **CORS**: browser rule about which websites may call the API; configured as an allow-list.
 - **Draft / Published / Archived**: publication states of a question.
 - **Envelope**: the standard `{ data }` / `{ error }` wrapper around API responses.
-- **Hono**: a small web framework that runs on Workers.
-- **Hyperdrive**: Cloudflare's database connection pooler/accelerator (optional here).
+- **Hono**: a small web framework; the API runs it on Node in Cloud Run.
 - **Idempotency**: sending the same request twice has the same effect as once; here via `client_attempt_id`.
 - **Ingestion**: turning source PDFs into structured question rows.
-- **Isolate**: one running instance of a Worker; per-isolate caches vanish on restart.
+- **Instance**: one running copy of a Cloud Run service; in-memory caches vanish when it stops (older code comments call this an isolate).
 - **Migration**: a numbered SQL file that evolves the database schema.
 - **OCR**: optical character recognition, reading text from images.
 - **OpenAPI**: machine-readable API description generated from the zod schemas.
-- **OpenNext**: adapter to run Next.js on Cloudflare Workers (planned, not set up).
 - **PGlite**: Postgres compiled to run inside Node, used for fast tests.
 - **Publication guard**: database trigger refusing to publish an unverified or inconsistent question.
 - **PYQ**: previous-year question.
-- **R2**: Cloudflare's object storage (S3-compatible, no egress fees).
+- **GCS**: Google Cloud Storage, the object storage for the three buckets.
 - **RLS (row level security)**: Postgres feature that filters which rows each database role can see or change.
 - **Service role / service connection**: the privileged database access that bypasses RLS; server-side only.
 - **Source (licensing)**: a record of where content came from and whether we may reuse it.
@@ -816,18 +819,17 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 - **SymPy**: Python maths library used to check solution formulas symbolically/numerically.
 - **Tag (cache)**: see Cache tag.
 - **Verification status**: how trustworthy a question's answer/solution is (section 8); `HUMAN_VERIFIED` requires a person.
-- **Worker (Cloudflare)**: code that runs on Cloudflare's edge; the API is one. Not to be confused with the Python `workers/` folder (the ingestion tools).
+- **Worker (Cloudflare)**: legacy deployment target, not used. Not to be confused with the Python `workers/` folder (the ingestion tools).
 - **zod**: TypeScript schema library for validating data at runtime.
 
 ---
 
 ## 20. Facts I could not verify
 
-- Whether Cloudflare Workers Caching (`[cache] enabled = true`, `cache.purge`) is available on your plan; the code feature-detects it.
 - That `RL_ADMIN` is attached to every admin route (class exists; routes not individually traced).
-- Which database user the production `DATABASE_URL` will log in as, and whether `set local role` + `request.jwt.claims` behave through Supavisor/Hyperdrive (STATUS.md lists it as untested).
-- Whether a new hosted Supabase project signs JWTs with asymmetric keys by default (needed for `AUTH_MODE=jwks`).
-- Current vendor free-tier numbers in section 16 (copied from `docs/COST_STRATEGY.md` and `DEPLOY_FACTS.md`, not re-checked).
-- The current test pass counts (quoted from `STATUS.md`; nothing was executed for this document).
+- Which database user the production `DATABASE_URL` will log in as, and whether `set local role` + `request.jwt.claims` behave through Supavisor (was listed as untested).
+- Whether a new hosted Supabase project signs JWTs with asymmetric keys by default (`DEPLOYMENT_GCP.md` says the current project does, so `AUTH_MODE=jwks`).
+- Current vendor free-tier numbers in section 16 (Supabase figures copied from `docs/COST_STRATEGY.md` and `DEPLOY_FACTS.md`, not re-checked).
+- The current test pass counts (quoted from the removed status doc; nothing was executed for this document).
 - Whether any CI pipeline exists outside the repo; none is in the repo.
 - Web-app behaviour at runtime (this document is from reading code and config; I did not run the app).

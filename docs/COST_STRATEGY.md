@@ -1,6 +1,6 @@
 # ProjectX — Cost Strategy
 
-Goal: run at ₹0 until real traffic, with measured, documented upgrade triggers. Free-tier figures below are the commonly published limits;
+Goal: run at near-zero cost until real traffic, with measured, documented upgrade triggers. Free-tier figures below are the commonly published limits;
 **re-check the vendor pricing pages before any upgrade decision** (they change).
 
 ## 1. Free-tier budget map
@@ -9,16 +9,17 @@ Goal: run at ₹0 until real traffic, with measured, documented upgrade triggers
 | Supabase DB | 500 MB, project pauses after ~7 days idle | questions+solutions (~10–20 KB/question incl. versions), attempts (~200 B/row + indexes) | parsed AI output only (no raw transcripts), prune superseded AI runs' `output` after 90 days, attempts are narrow, no blobs in DB |
 | Supabase Auth | 50k MAU | students | — |
 | Supabase egress | ~5 GB/mo | API reads on cache misses | edge cache (§2) means DB egress ≈ misses only |
-| Workers | 100k requests/day, 10 ms CPU/request | all API calls incl. cache hits served by Workers Caching | cache static-ish data in Owner A's HTML cache too; keep per-request CPU tiny (no AI, JWT verify + one query) |
-| R2 | 10 GB-month, 1M Class A, 10M Class B ops/month, **$0 egress** | PDFs, crops, public assets | content-addressed immutable public assets (`Cache-Control: public, max-age=31536000, immutable`) so CDN absorbs reads |
-| Cache purge | all purge methods on all plans; free-tier rate limits | admin publish actions | purge by tag, batched per action (≤ 10 tags), never purge-everything automatically |
-| Workers Rate Limiting / WAF | binding included; 1 free WAF rate-limit rule | abuse | per-route limits (API_CONTRACTS §1) |
+| Cloud Run (`projectx-api`, `projectx-web`) | has a free tier (check the current limits) | API and web requests | scale to zero; precompiled `dist/server.mjs` and `--cpu-boost` keep cold starts short; no AI in requests |
+| Firebase Hosting | has a free tier (check the current limits) | web traffic through `tabbyprep.in` | CDN caches by `s-maxage`; a new release (`infra/gcp/firebase-hosting.sh deploy`) clears it |
+| Cloud Storage (3 buckets) | check current pricing | PDFs, crops, public assets | content-addressed immutable public assets (`Cache-Control: public, max-age=31536000, immutable`) |
+| Rate limiting | no extra service | abuse | per-route limits (API_CONTRACTS §1): in memory per instance, plus Postgres for the write/attempt/doubt/admin classes |
+| GCP billing alert | about USD 5 / ₹450 on the project | any overspend | alerts only; it does not stop spending |
 | Gemini | free tier is rate-limited; free-tier prompts may be used by Google to improve products | AI pipeline (batch) | only public exam content is ever sent (no PII); move to paid key before processing licensed/partner content |
 
 ## 2. Caching (largest lever)
-* Public GETs are cacheable for everyone (no auth variance): `s-maxage` 1 h (content) / 24 h (taxonomy) with `stale-while-revalidate`, purge by tag on
-  every editorial change (exact tag map in API_CONTRACTS §1). Expected hit ratio on SEO pages > 90 % → DB sees < 10 % of public traffic.
-* Owner A's SSR HTML should also be CDN-cached with our `X-Cache-Tags` copied to its `Cache-Tag`, so most page views never reach our Worker.
+* Public GETs are cacheable for everyone (no auth variance): `s-maxage` 1 h (content) / 24 h (taxonomy) with `stale-while-revalidate`. The web app caches them
+  with Next tags and the API calls its revalidate webhook on editorial changes (tag map in API_CONTRACTS §1); Firebase Hosting's CDN honours `s-maxage`
+  and is cleared by a new Hosting release. Goal: most public traffic never reaches the DB.
 * Never cache authenticated responses (`private, no-store`); student traffic is small rows, single indexed queries.
 
 ## 3. AI cost controls
@@ -30,18 +31,18 @@ weekly via `npm run ai -- budget`.
 
 ## 4. Tracking (no paid observability)
 * `usage_counters(day, metric)`: `ai.calls`, `ai.cost_usd_micros`, `ai.input_tokens`, `ai.output_tokens`, `ingestion.pages`, `ingestion.ocr_pages`, `api.attempts`.
-* Weekly ops script (W5 `infra/cloudflare/README` runbook): `select pg_database_size(current_database())`, top table sizes, R2 bucket sizes (dashboard), Workers
-  request analytics (dashboard), cache hit ratio. Record in a dated log.
+* Weekly check: `select pg_database_size(current_database())`, top table sizes, bucket sizes and Cloud Run request/instance metrics (GCP console), billing report. Record in a dated log.
 
 ## 5. Upgrade triggers (decide, don't auto-scale)
 | Trigger (sustained 7 days) | Action | Cost |
 |---|---|---|
 | DB size > 350 MB, or project pausing hurts, or need daily backups/PITR | Supabase Pro | ~$25/mo |
-| Workers > 70k requests/day, or CPU-limit errors | Workers Paid | ~$5/mo base |
-| Many cold DB connections from Workers / p95 DB latency > 300 ms | enable Hyperdrive binding (adapter already supported) | plan-dependent |
+| Sustained cold starts hurting users, or request volume nearing the Cloud Run / Firebase Hosting free tiers | set a minimum instance count on `projectx-api` / `projectx-web`, or accept paid usage | per Google Cloud pricing |
+| Supabase free-tier limits (DB size, egress, pausing) | Supabase Pro (as above) | ~$25/mo |
+| p95 DB latency > 300 ms | review pooler use and queries first | n/a |
 | Gemini free-tier rate limits block daily batch, or licensed content | paid Gemini key with the same caps | per token |
-| R2 > 8 GB | review retention of derived page renders (keep originals + crops only) | ~$0.015/GB-mo beyond free |
+| Bucket storage growing | review retention of derived page renders (keep originals + crops only) | per Cloud Storage pricing |
 
 ## 6. Things we deliberately do not pay for
 Redis, Elasticsearch/vector DB (Postgres FTS + pg_trgm), queues (Postgres job table), always-on workers (CLIs on demand), image CDN products
-(pre-sized PNG/WebP crops), APM (JSON logs + Workers logs).
+(pre-sized PNG/WebP crops), APM (JSON logs + Cloud Run logs).

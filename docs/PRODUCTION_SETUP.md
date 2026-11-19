@@ -1,11 +1,13 @@
 # Production setup
 
 Every dashboard step and credential needed to run Tabby in production, by service. Owner noted per step.
-Stack (fixed, free tier): **Google Cloud Run** for the web (`projectx-web`, Next.js standalone) and the API (`projectx-api`), asia-south1 → → **Supabase** (Postgres + Auth, `gardheietftxyforposh`, ap-south-1). Payments: **Razorpay** (test mode only at launch). Scraper: **GitHub Actions**.
+Stack (fixed, free tier): **Google Cloud Run** for the web (`projectx-web`, Next.js standalone) and the API (`projectx-api`), asia-south1 → → **Supabase** (Postgres + Auth, `gardheietftxyforposh`, ap-south-1). Web served at **https://tabbyprep.in** through Firebase Hosting. Payments: **Razorpay**, **Live** since 2026-11-19. Scraper: **GitHub Actions**.
 
 Secrets never go in git, chat, or any `NEXT_PUBLIC_*` variable.
 
-## 0. Status of the connectivity check (2026-11-15)
+## 0. Connectivity checks (history, 2026-11-15/16)
+
+Current status of every piece: `docs/LAUNCH_READINESS.md`.
 
 | Check | Result |
 |---|---|
@@ -16,21 +18,20 @@ Secrets never go in git, chat, or any `NEXT_PUBLIC_*` variable.
 | Web billing UI → API billing (local API with billing on) | pricing renders server prices; checkout opens only with real test keys |
 | Live auth E2E (2026-11-16): Supabase sign-up + password sign-in → API verifies the token → `/users/me`, PATCH profile, PUT exam preferences, bookmarks, mistakes, streak, progress | all 200 (two test accounts `e2e-test-*@tabby-e2e.dev` created; delete them in Auth → Users) |
 | Practice against the live API (2026-11-16, after loading 433 questions) | sign-up → chapter session (5 questions) → graded attempts with solutions → mistakes (4) → bookmark → complete → streak/progress: all pass |
-| Live API has `/billing/*`, `/analytics/*` | **no**: needs a redeploy from this branch after merge (step 2.4) |
+| Live API has `/billing/*`, `/analytics/*`, `/plans/*` | yes since the redeploy from `main` (2026-11-18/19) |
 
 Local dev on the Windows workstation: start `next dev` from **PowerShell**. From Git Bash, Turbopack's CSS worker dies with `0xc0000142`.
 
 ## 1. Supabase (owner: Owner B, with the user for the dashboard)
 
-1. **Migrations.** Apply everything in `supabase/migrations/` up to `0024_study_plans` (0022/0023 problem families by Owner B,
-   0024 study plans by Owner A, additive: one new table, RLS on, no grants to anon/authenticated).
-   `supabase link --project-ref gardheietftxyforposh` then `supabase db push` (the CLI uses a temporary login role; no DB password needed).
-   Checks: `select count(*) from billing_plans` = 4; `select count(*) from study_plans` runs (0 rows).
-2. **Auth → URL configuration.** Site URL = the production web origin. Redirect URLs: `https://<prod domain>/**`, `https://projectx-web-*.run.app/**`, `http://localhost:3000/**`.
+1. **Migrations.** The live DB has 0001–0025. Next: `0026_classification_rewards_billing_fixes` (additive; back up first, see
+   `docs/MONETIZATION_HANDOVER.md` §6). `supabase link --project-ref gardheietftxyforposh` then `supabase db push`
+   (the CLI uses a temporary login role; no DB password needed). Check after 0026: `select code from ad_reward_rules` returns `extra_full_paper`.
+2. **Auth → URL configuration** (done). Site URL `https://tabbyprep.in`. Redirect URLs: `https://tabbyprep.in/**`, `https://projectx-staging-a7k2.web.app/**`, `https://projectx-web-*.run.app/**`, `http://localhost:3000/**`.
    The `/**` patterns already cover the Google return URL (`/login/?oauth=1&next=…`).
 3. **Auth → providers.** Email on; decide on email confirmation (on is safer). Custom SMTP before launch (Supabase's default sender is rate-limited).
-   **Google** (code by Owner B: the button is behind the build flag `NEXT_PUBLIC_AUTH_GOOGLE=on`, Cloud Build substitution
-   `_AUTH_GOOGLE=on`; turn the flag on only after the provider works, or the button lands on a Supabase error):
+   **Google** (on since 2026-11-19; the button is behind the build flag `NEXT_PUBLIC_AUTH_GOOGLE=on`, Cloud Build substitution
+   `_AUTH_GOOGLE=on`; the steps below are how it was set up):
    1. Google Cloud Console → APIs & Services → OAuth consent screen: External, app name "Tabby", support email, the production
       domain under authorised domains; scopes `email`, `profile`, `openid` only. Publish it (testing mode limits sign-in to test users).
    2. Credentials → Create credentials → OAuth client ID → *Web application*.
@@ -44,21 +45,21 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
 4. **JWT signing keys.** Asymmetric keys (the API verifies through JWKS, `AUTH_MODE=jwks`). Nothing to copy.
 5. **API keys.** Copy the **publishable** key (`sb_publishable_…`) for the web build. Never use the secret/service-role key in the web app.
 6. **First admin.** After the admin signs up: `insert into user_roles (user_id, role) values ('<auth user id>', 'ADMIN');`
-7. **Backups.** Enable PITR or daily backups on the paid plan before taking payments (orders are financial records).
+7. **Backups.** Payments are live and orders are financial records: confirm daily backups (or PITR on a paid plan) in Supabase → Database → Backups, and take one before each migration.
 
 ## 2. Google Cloud Run API (owner: Owner B)
 
-Project `projectx-staging-a7k2`, service `projectx-api`. Runbook: `docs/DEPLOYMENT_GCP.md` (Owner B's branch).
+Project `projectx-staging-a7k2`, service `projectx-api`. Runbook: `docs/DEPLOYMENT_GCP.md`. Deploy with `infra/gcp/deploy-api-staging.sh`, which sets all of the below.
 
-1. **Secrets (Secret Manager) → env:** `DATABASE_URL` (transaction pooler, :6543), `SIGNING_SECRET`, `IP_HASH_SECRET`, `WEB_REVALIDATE_SECRET`, and for billing `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
+1. **Secrets (Secret Manager) → env:** `DATABASE_URL` (transaction pooler, :6543), `SIGNING_SECRET`, `IP_HASH_SECRET`, `WEB_REVALIDATE_SECRET`, and for billing `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (stored with `infra/gcp/set-razorpay-secrets.ps1`).
 2. **Plain env:** `APP_ENV=production|staging`, `AUTH_MODE=jwks`, `SUPABASE_URL=https://gardheietftxyforposh.supabase.co`, `DB_DRIVER=postgres`, `STORAGE_DRIVER=gcs` + 3 bucket names,
-   `CORS_ALLOWED_ORIGINS=https://<prod domain>,https://<preview domain>`, `WEB_REVALIDATE_URL=https://<prod domain>/api/revalidate/`,
-   `WEB_BASE_URL=https://<prod domain>` (parent payment links), `RAZORPAY_KEY_ID=rzp_test_…`, `FREE_FULL_PAPERS_PER_MONTH=2`. Leave `BILLING_ALLOW_LIVE` unset (live keys are refused).
-3. **CPU allocation.** Deploy with `--no-cpu-throttling` (or move webhook side effects before the response). The API finishes background work (cache revalidation) after replying, and throttled CPU can stall it.
-4. **Redeploy from `main`** so `/billing/*`, `/analytics/events`, `/problems/*` and `/plans/*` exist (apply migration 0024 first).
-   Checks: `GET /api/v1/billing/plans` returns 4 plans and `payments_enabled: true`; `POST /api/v1/plans/diagnostic` without a
-   token returns 401 (not 404).
-5. **Cold starts.** Scales to zero; the first request after idle takes a few seconds. The image runs TypeScript through `tsx` at start-up; shipping compiled JS shortens that. `--min-instances=1` removes it (small cost).
+   `CORS_ALLOWED_ORIGINS` (tabbyprep.in, www, web.app, run.app web URL, localhost), `WEB_REVALIDATE_URL=<run.app web URL>/api/revalidate/`,
+   `WEB_BASE_URL=https://tabbyprep.in` (parent payment links), `FREE_FULL_PAPERS_PER_MONTH=2` (default). `BILLING_ALLOW_LIVE=true` is set
+   automatically by the deploy script while live keys are stored (the API refuses live keys without it). Optional `REWARDED_ADS_ENABLED=true`.
+3. **CPU allocation.** Default (throttled) CPU is fine: the server waits for each request's background work before releasing the response (`DEPLOYMENT_GCP.md`, hardening).
+4. **Next redeploy from `main`** (after migration 0026) adds `/entitlements`, `/rewards/*`, `/admin/classify/*` and checkout verify.
+   Checks: `GET /api/v1/billing/plans` returns 4 plans and `payments_enabled: true`; `GET /api/v1/entitlements` returns 200.
+5. **Cold starts.** Scales to zero; the first request after idle takes about 2 s (precompiled `dist/server.mjs`). `--min-instances=1` removes it (small cost).
 6. Budget alert ≈ ₹450 stays the safety net.
 
 ## 3. Web app on Cloud Run (owner: Owner B)
@@ -67,16 +68,21 @@ Hosting decision (2026-11-16): Cloud Run, not Vercel (Vercel Hobby forbids comme
 Full runbook: **`docs/DEPLOY_WEB_CLOUD_RUN.md`** (`Dockerfile.web`, `cloudbuild.web.yaml`, build-time `NEXT_PUBLIC_*` substitutions,
 `REVALIDATE_SECRET` from Secret Manager). Build-time values: `NEXT_PUBLIC_DATA_SOURCE=api`, `NEXT_PUBLIC_API_BASE_URL`,
 `NEXT_PUBLIC_AUTH_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SITE_URL`,
-`NEXT_PUBLIC_ALLOW_INDEXING=false` (true only at launch). Never set `DEV_TEST_JWT_SECRET` or `NEXT_PUBLIC_AUTH_MODE=dev` in a deployed build.
-`vercel.json` and the Cloudflare `deploy:web*` scripts remain from earlier plans and are unused.
+`NEXT_PUBLIC_ALLOW_INDEXING=false` (true only at launch), `NEXT_PUBLIC_AUTH_GOOGLE=on`, ad settings in `docs/MONETIZATION_HANDOVER.md` §5.
+Never set `DEV_TEST_JWT_SECRET` or `NEXT_PUBLIC_AUTH_MODE=dev` in a deployed build. After each web deploy, release Firebase Hosting
+(`infra/gcp/firebase-hosting.sh deploy`) to clear its CDN. `vercel.json` and the Cloudflare `deploy:web*` scripts remain from earlier plans and are unused.
 
-## 4. Razorpay (owner: the user, test mode)
+## 4. Razorpay (owner: the user, **Live** since 2026-11-19)
 
-1. Account in **Test mode**. Settings → API Keys → generate test keys: Key Id → `RAZORPAY_KEY_ID` (public), Key Secret → Secret Manager.
-2. Settings → Webhooks → add `https://<API host>/api/v1/billing/webhooks/razorpay`, secret → `RAZORPAY_WEBHOOK_SECRET`,
-   events: `order.paid`, `payment.captured`, `payment.failed`, `refund.processed`.
-3. Test: buy Plus Quarterly with a test card or test UPI, then check that `/billing/success/` turns "Plus is active". Resend the webhook from the dashboard; access must not double.
-4. Live mode later needs KYC: the Terms / Privacy / Refund / Contact pages must be final (the drafts have `[TO FILL]` blanks) and the business details filled in. Then set `BILLING_ALLOW_LIVE=true` together with live keys.
+1. Account activated (KYC done), website `https://tabbyprep.in/` approved. Live API keys generated; stored with
+   `infra/gcp/set-razorpay-secrets.ps1` (run it yourself; values never in chat or git), then redeploy the API.
+2. Webhooks are separate per mode. Both Test and Live have one at
+   `https://projectx-api-989800061583.asia-south1.run.app/api/v1/billing/webhooks/razorpay` with `order.paid`, `payment.captured`,
+   `payment.failed`, `refund.processed`; the Live one must use the secret stored in `razorpay-webhook-secret`.
+3. Verified in Test mode (2026-11-19): purchase → webhook granted Plus; a duplicate `order.paid` was ignored. To do: one real ₹29
+   Launch Pass purchase and refund in Live mode.
+4. Back to Test mode: re-run the script with test keys and redeploy (or route traffic to revision `projectx-api-00013-qtl`).
+5. Legal pages required by Razorpay are final (`src/lib/legal.ts`).
 
 ## 5. GitHub (owner: the user)
 
@@ -90,6 +96,6 @@ Full runbook: **`docs/DEPLOY_WEB_CLOUD_RUN.md`** (`Dockerfile.web`, `cloudbuild.
 | Supabase DB password / pooler URI | Secret Manager `database-url` | Owner B |
 | Supabase publishable key | Cloud Build substitution for the web image (+ local `.env.local`, git-ignored) | Owner B |
 | Signing / IP-hash / revalidate secrets (≥ 32 chars) | Secret Manager (API + web `REVALIDATE_SECRET`) | Owner B |
-| Razorpay test key id / secret / webhook secret | Cloud Run env / Secret Manager | User → Owner B |
+| Razorpay live key id / secret / webhook secret | Secret Manager `razorpay-key-id`, `razorpay-key-secret`, `razorpay-webhook-secret` | User (script) |
 | GCP service-account key (optional ingest) | GitHub secret `GCP_SA_KEY` | Owner B |
-| gcloud login on this workstation | `gcloud auth login` (expired here) | User |
+| gcloud login on this workstation | `gcloud auth login` (works from PowerShell) | User |

@@ -110,6 +110,7 @@ any stage DEAD job or QUALITY says incomplete → `NEEDS_ATTENTION` (admin fixes
 **Stage chaining (handlers enqueue next):** AI_CLASSIFY → (QUALITY inline; if `is_complete && !is_ambiguous`) AI_SOLVE → AI_VERIFY → (if outcome PASSED) AI_SEO.
 CLASSIFY with confidence < 0.7 still proceeds but records the check (§7) and may block auto-pass. CLASSIFY fills subject/chapter/topic/difficulty
 **only where the column is null** (never overwrites values set by ingestion or humans); `question_type` from AI is advisory only (mismatch → QUALITY issue).
+**Difficulty provenance:** every writer of `questions.difficulty` must set the transaction-local settings `app.difficulty_source` (`'AI'` or `'IMPORT'` for automated writers) and `app.difficulty_set_by`. Migration `0026` records them in `questions.difficulty_source`, `difficulty_set_by` and `difficulty_set_at` through the trigger `questions_difficulty_meta`. A human classification (`ADMIN`, made in the web UI at `/admin/questions/`) is the reviewed one.
 
 **verification_status:**
 ```

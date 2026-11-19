@@ -27,12 +27,35 @@ Target: Supabase Postgres 15+ and PGlite (PG 18) — PG ≤15 SQL only. All tabl
 | `0011_doubts_uploads.sql` | user_uploads, doubts |
 | `0012_rls_and_grants.sql` | enable RLS everywhere, policies, revokes/grants, function EXECUTE grants |
 | `0013_publication_guard.sql` | `questions_publication_guard` trigger (needs solutions/keys tables) |
+| `0014_publication_guard_hardening.sql` | Guard runs on every write to a PUBLISHED row; deferred re-checks when solutions/options change; NUMERICAL keys compared semantically; `attempts.session_id` must belong to the same user |
+| `0015_profile_class_level_session_ui.sql` | Profile class level (onboarding); practice session `ui_mode` and time limit |
+| `0016_pin_helper_search_path.sql` | Pins `search_path` on internal helper functions |
+| `0017_shared_rate_limits.sql` | Shared (cross-instance) rate-limit counters in `app_private.rate_limit_windows` |
+| `0018_billing.sql` | Tabby Plus billing: Razorpay one-time orders, passes, promo codes, free full-paper allowance (`billing_*` tables, written by the API only) |
+| `0019_analytics.sql` | Privacy-light aggregate daily counters (`analytics_daily`); no user, IP, device or free text |
+| `0020_publish_ai_checked.sql` | AI-generated practice questions may publish once automated checks pass (practice-only, not indexed) |
+| `0021_ai_checked_practice_only.sql` | Publication guard enforces the practice-only rule for `AI_GENERATED` questions |
+| `0022_problem_families.sql` | Problem set: questions that differ only in numbers share a numbered problem; live counters and per-user status |
+| `0023_problem_title_cleanup.sql` | Cleaner problem titles (LaTeX spacing and escaped symbols removed) |
+| `0024_study_plans.sql` | Study plans (Tabby Plus), built from a diagnostic session |
+| `0025_link_keys_clears_stale_official.sql` | Re-linking official keys clears a stale OFFICIAL answer when the key is dropped or cannot be mapped |
+| `0026_classification_rewards_billing_fixes.sql` | Question difficulty metadata, rewarded-ad tables, `billing_orders.refunded_paise`. Additive only. **Not yet applied to the live database (live is at 0025).** |
 
 Seeds (`supabase/seed/`, idempotent `insert … on conflict (slug) do update`): `0001_exams.sql`, `0002_subjects.sql`,
 `0003_chapters_jee_main.sql`, `0004_topics_jee_main.sql`, `0005_sources.sql`. Dev-only fixtures (never prod):
 `supabase/fixtures/0001_dev_demo_content.sql`. Test-only shim: `supabase/shim/00_supabase_shim.sql`.
-`supabase/config.toml`: `[db.seed] enabled = true, sql_paths = ["./seed/*.sql"]`. If Supabase CLI rejects 4-digit
-versions, rename to `2026111400NNNN_name.sql` preserving order (runner sorts lexicographically either way).
+`supabase/config.toml`: `[db.seed] enabled = true, sql_paths = ["./seed/*.sql"]`. The 4-digit file names are accepted by the Supabase CLI (see DEPLOY_FACTS.md §1.2).
+
+### 0a. Tables added after 0013
+
+| Table | Migration | Purpose |
+|---|---|---|
+| `app_private.rate_limit_windows` | 0017 | Shared rate-limit counters. Internal; no client access |
+| `billing_plans`, `billing_payment_links`, `billing_orders`, `billing_events`, `billing_entitlements`, `billing_promo_codes`, `billing_promo_redemptions`, `billing_full_paper_usage` | 0018 | Tabby Plus prices, payment links, Razorpay orders and webhook events, access passes, promo codes, free full-paper allowance. No client grants |
+| `analytics_daily` | 0019 | Aggregate daily event counters |
+| `question_families`, `user_family_status` | 0022 | Problem families (numbered problems) and each student's status per problem. Adds `questions.family_id` |
+| `study_plans` | 0024 | One study plan per user and exam; days stored as jsonb |
+| `ad_reward_rules`, `ad_reward_claims` | 0026 | Rewarded-ad rules and claims. Also adds `questions.difficulty_source`, `difficulty_set_by`, `difficulty_set_at` and `billing_orders.refunded_paise` |
 
 ## 1. Enums (0002)
 

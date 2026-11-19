@@ -1,6 +1,8 @@
 # Problem library + diagnostic study plans — design
 
-Date: 2026-11-17 · Owner A (frontend/SEO), with additive API work for Owner B to review · Target branch: `ownerAkamain`
+Status: implemented (main, 2026-11-19)
+
+Date: 2026-11-17 · Owner A (frontend/SEO), with additive API work for Owner B to review · Target branch: `main` (was `ownerAkamain`)
 
 ## 1. Intent
 
@@ -110,7 +112,7 @@ import the same module from `packages/` and run it on fixtures.
 3. **Diagnostic:** the existing test-mode player, timed at 2.5 min × questions by default. No feedback, no hints, no
    kitty. Autosave as with any session.
 4. **Results:** per-subject and per-chapter breakdown with an evidence count ("based on 3 questions"). Free users see
-   the per-subject summary and the top 3 focus chapters. The full per-chapter breakdown and the plan are Plus (my call,
+   the per-subject summary and the top 3 focus chapters. The full per-chapter breakdown is Plus (my call,
    as an upsell, see §8). The server strips the rest for free users, so it is never sent to them.
    Diagnostic questions are ordinary attempts, so each uses one of the free user's free versions of that problem. That
    is acceptable because the diagnostic only picks problems the student hasn't tried, so it costs at most one of three.
@@ -202,8 +204,7 @@ As built (changed from the first draft):
   to the session it started. One ACTIVE plan per user per exam (partial unique index); a new plan archives the old one and
   never deletes it.
 - RLS on, served via the API's service connection (same pattern as 0022).
-- `billing_plans.features` is **not** changed yet. The pricing page only shows features it has copy for, and adding
-  `study_plan` to the paid plans is Owner B's call when this ships. Gating uses the existing "is Plus" check.
+- Gating uses the tier policy in `apps/api/src/entitlements/policy.ts` (`planLimits`). Free users get a basic plan within `FREE_PLAN_MAX_DAYS` and `FREE_PLAN_MAX_DAILY_MINUTES` (defaults 7 days, 60 minutes); Plus allows up to 14 days and 120 minutes a day.
 - Diagnostic sessions store their scope and mix in `practice_sessions.filters` (`diagnostic: true, chapter_ids,
   requested_mix, actual_mix, short_by`).
 
@@ -214,9 +215,9 @@ Endpoints (`apps/api/src/plans/`):
 - Diagnostic sessions are created by a new internal repository call that inserts a `practice_sessions` row with
   server-chosen `question_ids`, `mode = 'MIXED'`, `ui_mode = 'test'`, and `filters.diagnostic = true`. The public
   `CreateSessionBody` is **not** changed, so clients still can't choose ids.
-- `POST /plans`: from a completed diagnostic, creates the plan. **Plus** (403 `PREMIUM_REQUIRED`).
-- `GET /plans/current?exam=`: plan with days/items, recomputed on read. **Plus**.
-- `POST /plans/items/{id}/start`: creates the linked session (or returns the problem list) and stores `session_id`. **Plus**.
+- `POST /plans`: from a completed diagnostic, creates the plan. **Free within limits**; a longer plan or more daily minutes needs **Plus** (403 `PREMIUM_REQUIRED`).
+- `GET /plans/current?exam=`: plan with days/items, recomputed on read. Open to all signed-in users; the response depends on the viewer's tier.
+- `POST /plans/{id}/items/{key}/start`: creates or reuses the item's practice session (or returns the problem list) and stores `session_id`. Checked against the viewer's tier.
 - `POST /plans/{id}/archive`.
 
 Contracts in `packages/contracts/src/dto/plans.ts` and OpenAPI, with mocks in the web fixtures. The pure algorithm lives in
@@ -234,14 +235,14 @@ The plan is kept (read-only, shown greyed with "Renew to continue"); nothing is 
 - AI-checked questions keep their "AI-checked" label inside plan sessions.
 
 ## 8. Calls I made (owner to confirm or overturn)
-1. The diagnostic and its top-3 summary are **free**; the full report, plan, checkpoints and adaptation are **Plus**.
+1. The diagnostic and its top-3 summary are **free**; the full per-chapter report is **Plus**. A basic plan is free within limits (7 days, 60 minutes a day); Plus allows up to 14 days and 120 minutes a day.
 2. Default mix 30/50/20; diagnostic default 30 questions; plan 7 or 14 days.
 3. Bands are shown, not percentages.
 4. The library replaces the chapter browser on `/practice/`; quick start stays.
 5. API work (`apps/api/src/plans/`, migration `0024`) is built by Owner A as an additive module, following the
    billing precedent. Owner B reviews it before deploying. Check the next free migration number at build time.
-6. Work happens on `ownerAkamain` (the owner's instruction, 2026-11-17), first fast-forwarded to `origin/main` to pick
-   up Owner B's `/problems`. It goes to `main` by PR once Owner B's questions are in and the issues are fixed.
+6. Work happened on `ownerAkamain` (the owner's instruction, 2026-11-17), first fast-forwarded to `origin/main` to pick
+   up Owner B's `/problems`. It was merged to `main` on 2026-11-19.
 7. Diagnostic questions count toward the free-version cap (one per problem at most); Owner B's cap is unchanged.
 
 ## 9. Open contract items for Owner B

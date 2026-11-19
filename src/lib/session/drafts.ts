@@ -1,5 +1,5 @@
 /**
- * Local-only draft for in-progress sessions (docs/INTEGRATION_PLAN.md 1.7).
+ * Local-only draft for in-progress sessions (integration plan, in git history: 1.7).
  * Holds what the server does not know yet: unsent answers, review flags, the
  * current index, elapsed time, and the `client_attempt_id` reserved per
  * question BEFORE its request is sent, so a retry is idempotent.

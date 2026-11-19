@@ -1,7 +1,8 @@
 # Monetisation, ads, classification: handover (2026-11-19)
 
-Branch `feat/monetization-ads-difficulty` (from `main` at `77fff97`). **Nothing committed, pushed or deployed.**
-Domain: `tabbyprep.in`. Owner B deploys (see `docs/DEPLOYMENT_GCP.md`).
+Merged to `main` on 2026-11-19 (built on `feat/monetization-ads-difficulty`). Domain: `tabbyprep.in`. Deploy steps: `docs/DEPLOYMENT_GCP.md`.
+
+> **Status 2026-11-19 (evening).** Razorpay is **Live** (real payments) on the API that is already deployed (revision `projectx-api-00014-lz5`, `BILLING_ALLOW_LIVE=true`, live webhook). The rest of this work (migration 0026, `/entitlements`, `/rewards`, `/admin/classify`, checkout verify, ad placements) is on `main` but **not yet deployed**: apply 0026, then redeploy the API and web (section 6). AdSense site review was requested 2026-11-19; the verification tag and legal pages are live. Section 0 below is the audit as found before this work.
 
 ## 0. What I found first (audit)
 
@@ -34,14 +35,14 @@ Pricing kept exactly as configured: Monthly ₹59/30 d, Quarterly ₹149/90 d (R
 | AdSense units: display (dashboard bottom, tests list, results bottom, notebook/progress bottom), in-feed (problem library, between rows / subject sections only), multiplex (public content pages). Labelled "Advertisement", lazy-loaded near the viewport, unfilled/blocked slots collapse, no ad-blocker nagging, non-personalised by default (audience includes minors), test mode via `data-adtest`. | `AdSlot.tsx`, `loaders.ts` |
 | Rewarded ad (Google Ad Manager GPT) on the full-paper limit screen: opt-in, with "No thanks", cancel, honest outcome messages and "Go ad-free with Plus". Google's player provides the close/skip control and countdown. **No fake skip button and no simulated completion.** | `RewardedOffer.tsx`, `FullPaperLimit.tsx` |
 | Free/Plus indicator in the header and mobile menu ("Plus" / "Free · Upgrade") | `TierBadge.tsx`, `NavLinks.tsx` |
-| `/ads.txt` from `NEXT_PUBLIC_ADSENSE_CLIENT`; `google-adsense-account` meta; Google ad origins in the (report-only) CSP | `src/app/ads.txt/route.ts`, `layout.tsx`, `next.config.ts` |
+| `/ads.txt` and the `google-adsense-account` meta from the publisher id (defaults to `ca-pub-2970121715798701` in `src/lib/ads/config.ts`, overridable with `NEXT_PUBLIC_ADSENSE_CLIENT`); Google ad origins in the (report-only) CSP | `src/app/ads.txt/route.ts`, `layout.tsx`, `next.config.ts` |
 | Fixed a pre-existing bug: the theme-before-paint `<head>` script rendered as a throwing stub (server layout imported a string from a `"use client"` module), so the saved theme never applied before first paint. | `src/components/theme/theme-script.ts` |
 
-**B. Implemented, waiting on credentials or account setup**: Razorpay live payments (test keys + webhook), AdSense units (publisher id, unit ids, site approval), rewarded ads (Ad Manager account + rewarded unit + `REWARDED_ADS_ENABLED=true`).
+**B. Implemented, waiting on credentials or account setup**: AdSense units (site approval, then unit ids), rewarded ads (Ad Manager account + rewarded unit + `REWARDED_ADS_ENABLED=true`). Razorpay live payments: done 2026-11-19.
 
 **C. Needs your manual action**: section 5, plus classifying the 7,357 drafts (the tool is ready; the judgement is a human's).
 
-**D. Needs Google/Razorpay approval**: Razorpay KYC and live activation (needs legal pages filled in); AdSense site approval for tabbyprep.in; Ad Manager account approval (rewarded web inventory).
+**D. Needs Google approval**: AdSense site approval for tabbyprep.in (requested 2026-11-19); Ad Manager account approval (rewarded web inventory). Razorpay KYC and live activation: done 2026-11-19.
 
 **E. Not done / blocked (honest list)**: see section 7.
 
@@ -72,7 +73,7 @@ Pricing kept exactly as configured: Monthly ₹59/30 d, Quarterly ₹149/90 d (R
 | Local E2E vs running API (`.local/e2e-journeys.mjs`) | **25/25**: new free user, free basic plan built and started with real questions, rewarded skip/too-fast/grant/daily cap, quota 2→3, checkout with unreal keys fails closed (503, nothing granted), server prices unchanged, Plus = ad-free + no rewards, revocation → back to free with ads, admin classify/filter/preview, non-admin refused |
 | Headless browser E2E (web dev server + local API, ads test mode) | 15/16 checks. The 16th (desktop dashboard ad) was a first-compile timing artefact: the screenshot of that same run shows the unit, and the mobile and after-expiry checks pass. Verified: no ads on pricing/account/plan/limit/admin, rewarded offer with "No thanks", **Google's sample rewarded ad actually rendered** (test unit), mobile 1 unit and no horizontal scroll, Plus badge and no ads for Plus, ads return after expiry, admin keyboard classification saves. |
 
-Payment tests covered by SQL tests with signed payloads: success, failure, invalid signature, duplicate webhook, duplicate refund, amount mismatch, partial/full refund, expiry, activation and revocation. **Not run: a real Razorpay test-mode payment** (no keys on this machine). Run checklist step 6 once keys exist.
+Payment tests covered by SQL tests with signed payloads: success, failure, invalid signature, duplicate webhook, duplicate refund, amount mismatch, partial/full refund, expiry, activation and revocation. Later (2026-11-19, deployed API): a real Razorpay **Test-mode** purchase succeeded end to end (webhook `payment.captured` granted Plus; `order.paid` idempotent). **Not yet run: a real Live-mode purchase** (checklist).
 Not run: workers Python tests (no worker code changed).
 
 ## 4. Credentials you provide (never in git, never in chat)
@@ -81,22 +82,22 @@ Not run: workers Python tests (no worker code changed).
 | Razorpay Key Id (`rzp_test_…`, later `rzp_live_…`) | Razorpay Dashboard → Account & Settings → API Keys | Secret Manager `razorpay-key-id` via `infra/gcp/set-razorpay-secrets.ps1` → API `RAZORPAY_KEY_ID` |
 | Razorpay Key Secret | same page (shown once) | `razorpay-key-secret` → `RAZORPAY_KEY_SECRET` |
 | Razorpay Webhook Secret | the secret you type when adding the webhook | `razorpay-webhook-secret` → `RAZORPAY_WEBHOOK_SECRET` |
-| AdSense publisher id **`ca-pub-2970121715798701`** (account created 2026-11-19 for tabbyprep.in) | AdSense → Account → Account information | web build `NEXT_PUBLIC_ADSENSE_CLIENT` / Cloud Build `_ADSENSE_CLIENT` (public). Set it in the first live build even with `_ADS=off`: the `google-adsense-account` meta tag and `/ads.txt` then let Google verify the site |
+| AdSense publisher id **`ca-pub-2970121715798701`** (account created 2026-11-19 for tabbyprep.in) | AdSense → Account → Account information | Built in as the default (`src/lib/ads/config.ts`); `NEXT_PUBLIC_ADSENSE_CLIENT` / `_ADSENSE_CLIENT` only overrides it. The verification meta tag and `/ads.txt` work in every build |
 | AdSense unit ids: Display, In-feed (+ layout key), Multiplex | AdSense → Ads → By ad unit | `NEXT_PUBLIC_ADSENSE_SLOT_DISPLAY`, `…_SLOT_INFEED`, `…_INFEED_LAYOUT_KEY`, `…_SLOT_MULTIPLEX` |
 | Ad Manager rewarded unit path `/NETWORK/unit` | Ad Manager → Inventory → Ad units (Out-of-page: Rewarded) | `NEXT_PUBLIC_GAM_REWARDED_UNIT`; then API `REWARDED_ADS_ENABLED=true` |
 
 All variables are in `.env.example`.
 
 ## 5. Manual configuration
-**Razorpay (test mode first)**: generate test keys → Settings → Webhooks → add `https://api.tabbyprep.in/api/v1/billing/webhooks/razorpay` (or the run.app URL until the domain is mapped) with events `order.paid`, `payment.captured`, `payment.failed`, `refund.processed` and a strong secret → run `infra/gcp/set-razorpay-secrets.ps1` yourself → ask Owner B to redeploy the API. Live: complete KYC (needs Terms/Privacy/Refund/Contact filled in), then live keys plus `BILLING_ALLOW_LIVE=true`.
+**Razorpay (done 2026-11-19, Live)**: account activated and `https://tabbyprep.in/` approved. Webhooks exist in **both** Test and Live mode (they are separate in Razorpay) at `https://projectx-api-989800061583.asia-south1.run.app/api/v1/billing/webhooks/razorpay` with `order.paid`, `payment.captured`, `payment.failed`, `refund.processed`; both must use the secret stored in `razorpay-webhook-secret`. Keys are stored by running `infra/gcp/set-razorpay-secrets.ps1` yourself (values never in chat or git), then the API is redeployed so new instances read them. The API runs with `BILLING_ALLOW_LIVE=true`. To go back to Test mode: re-run the script with test keys and route traffic to revision `projectx-api-00013-qtl`.
 
-**AdSense**: add site `tabbyprep.in` → it verifies via the meta tag / `ads.txt` (both automatic once the publisher id is in the build) → wait for approval → create Display, In-feed and Multiplex units → **Ads → By site → Auto ads: OFF** (critical: Auto ads/vignettes can't be kept out of the CBT) → Privacy & messaging: set up the GDPR/consent message (Google's CMP; only EEA/UK traffic sees it) → keep "personalised ads" off, or leave `NEXT_PUBLIC_ADS_NPA=on` (the default).
+**AdSense**: site `tabbyprep.in` added and review requested 2026-11-19 (meta tag live) → wait for approval (days to weeks; payment details are only needed once earnings start) → create Display, In-feed and Multiplex units → **Ads → By site → Auto ads: OFF** (critical: Auto ads/vignettes can't be kept out of the CBT) → Privacy & messaging: set up the GDPR/consent message (Google's CMP; only EEA/UK traffic sees it) → keep "personalised ads" off, or leave `NEXT_PUBLIC_ADS_NPA=on` (the default).
 
 **Google Ad Manager (only for rewarded)**: create an account (linked to AdSense) → new ad unit, Out-of-page format **Rewarded**, web → line item / AdSense backfill as offered → put the unit path in `NEXT_PUBLIC_GAM_REWARDED_UNIT`. Test first with `NEXT_PUBLIC_ADS=test` (it uses Google's sample unit). Never click your own ads.
 
-**Supabase**: Auth URL configuration for tabbyprep.in (in `docs/DEPLOYMENT_GCP.md` → Custom domain).
+**Supabase**: Auth URL configuration for tabbyprep.in is done (see `docs/DEPLOYMENT_GCP.md` → Custom domain).
 
-**Owner B, two deploy files (I didn't edit them, per our boundary).** Additive; defaults keep ads off:
+**Owner B, two deploy files (not edited, per our boundary).** Additive; defaults keep ads off. `_ADSENSE_CLIENT` is now optional (the publisher id is built in):
 ```dockerfile
 # Dockerfile.web: after ARG NEXT_PUBLIC_AUTH_GOOGLE=off
 ARG NEXT_PUBLIC_ADS=off
@@ -129,15 +130,15 @@ ENV NEXT_PUBLIC_ADS=$NEXT_PUBLIC_ADS NEXT_PUBLIC_ADSENSE_CLIENT=$NEXT_PUBLIC_ADS
       - --build-arg=NEXT_PUBLIC_ADSENSE_SLOT_MULTIPLEX=${_ADSENSE_SLOT_MULTIPLEX}
       - --build-arg=NEXT_PUBLIC_GAM_REWARDED_UNIT=${_GAM_REWARDED_UNIT}
 ```
-To turn rewarded on, the API deploy needs `REWARDED_ADS_ENABLED=true` added to its env (`infra/gcp/deploy-api-staging.sh`, `ENV=…`).
+To turn rewarded on, deploy the API with `REWARDED_ADS_ENABLED=true infra/gcp/deploy-api-staging.sh <tag>` (the script passes it through; it also keeps `BILLING_ALLOW_LIVE=true` automatically while live keys are stored).
 
-## 6. Deployment sequence (after you authorise a commit/PR)
-1. Review and merge the PR into `main`.
+## 6. Deployment sequence (code is on `main`)
+1. Done 2026-11-19: merged into `main`.
 2. Back up first: Supabase Dashboard → Database → Backups (confirm a recent daily backup or take one; PITR if on a paid plan). The migration is additive and has rollback SQL, but back up anyway.
 3. `npx supabase link --project-ref gardheietftxyforposh` then `npx supabase db push` (applies 0026 only; don't use `config push`).
 4. Check: `npx supabase db query --remote=gardheietftxyforposh --read-only "select count(*) from questions"` matches before/after (7,790), and `select code from ad_reward_rules`.
 5. Owner B redeploys the API from `main` (brings `/plans`, `/entitlements`, `/rewards`, `/admin/classify`, verify), then the web with the ad build args (section 5).
-6. Razorpay test payment end to end: buy Monthly with test card → success page shows Plus within seconds (verify path) → webhook delivery shows 200 → refund from admin → refund webhook → back to Free.
+6. Payments are **Live**: make one real ₹29 Launch Pass purchase on a fresh account → success page shows Plus within seconds (verify path) → Razorpay webhook delivery shows 200 → refund from the Razorpay dashboard → refund webhook → back to Free.
 7. Grant yourself the REVIEWER/ADMIN role (`insert into user_roles …` as before), open `/admin/questions/`, classify a few drafts.
 
 ## 7. Outstanding issues and decisions
@@ -146,17 +147,21 @@ To turn rewarded on, the API deploy needs `REWARDED_ADS_ENABLED=true` added to i
 - **Rewarded ads trust limit** (above): acceptable for a one-paper reward; don't attach bigger rewards without server-verifiable inventory.
 - **Ads on minors' devices**: non-personalised by default; get a legal view (DPDP) before turning that off.
 - AdSense on signed-in pages: allowed, but Google can only judge content it can crawl; public hubs carry the multiplex unit.
-- Owner B's deploy files need the patch in section 5 before any ad can appear in production.
+- Owner B's deploy files need the patch in section 5 before any ad can appear in production (unit ids and `NEXT_PUBLIC_ADS`).
+- Passes granted by the two Test-mode purchases on the live DB (valid to mid-December) are still active; decide whether to revoke them.
 - Pre-existing dev-only warning on `/pricing/` (Next "instant shell" from `searchParams` outside Suspense). Unrelated, not changed.
 - Promo `redeemed` can still exceed `max_redemptions` if two payments for codes reserved more than 30 minutes apart both complete (paid users keep access; only the count is off).
 
 ## 8. Launch checklist
-- [ ] PR reviewed and merged; migration 0026 applied after a backup; counts unchanged
+- [x] Merged into `main` (2026-11-19)
+- [ ] Migration 0026 applied after a backup; counts unchanged
 - [ ] API + web redeployed from `main` (Owner B), web with the ad build args
-- [ ] tabbyprep.in mapped (`infra/gcp/map-domain.sh`), Supabase Auth URLs set
-- [ ] Legal pages completed (`[TO FILL]` blanks); refund window decided
-- [ ] Razorpay test keys + webhook → test purchase, verify, webhook 200, refund → revoke
-- [ ] Razorpay KYC → live keys → `BILLING_ALLOW_LIVE=true` → one real ₹29 purchase and refund
+- [x] tabbyprep.in live via Firebase Hosting, Supabase Auth URLs set (www still to fix)
+- [x] Legal pages final (operator FIFO, 5-day refund), live 2026-11-19
+- [x] Razorpay Test keys + webhook → real test purchase granted Plus (2026-11-19)
+- [x] Razorpay KYC → live keys → `BILLING_ALLOW_LIVE=true` (2026-11-19)
+- [ ] One real ₹29 Live purchase and refund
+- [x] AdSense account, site added, review requested (2026-11-19)
 - [ ] AdSense approved; Auto ads OFF; consent message on; units created; `NEXT_PUBLIC_ADS=live`; `/ads.txt` shows your pub id
 - [ ] (Optional) Ad Manager rewarded unit; test with `NEXT_PUBLIC_ADS=test`; then `REWARDED_ADS_ENABLED=true`
 - [ ] Spot check: no ad in CBT, practice session, tests, pricing, checkout, account, admin; Plus account sees none

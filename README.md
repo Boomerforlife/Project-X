@@ -1,15 +1,23 @@
-# ProjectX backend
+# TabbyPrep (ProjectX)
 
-AI-verified question bank and practice API for JEE/NEET ("LeetCode for JEE/NEET"). This repo is the backend (Owner B):
-Supabase/Postgres schema, Hono API (Cloudflare Worker or Node), AI pipeline (Gemini, batch/CLI only), Python ingestion
-workers, and Cloudflare edge config. Start with `docs/BRIEF.md`, then `docs/ARCHITECTURE.md`.
+JEE / NEET practice platform ("LeetCode for JEE/NEET"), live at **https://tabbyprep.in**. One repo for the web app
+(Next.js, Owner A) and the backend (Owner B): Supabase/Postgres schema, Hono API, AI pipeline (Gemini, batch/CLI only) and
+Python ingestion workers.
+
+Where to start:
+* What is live and what is open: `docs/LAUNCH_READINESS.md`
+* How it is built: `docs/ARCHITECTURE.md`, `docs/TECH_STACK.md`
+* Deploying and operating it (Google Cloud Run + Firebase Hosting + Supabase): `docs/DEPLOYMENT_GCP.md`, `docs/PRODUCTION_SETUP.md`
+* Payments, ads and difficulty classification: `docs/MONETIZATION_HANDOVER.md`
+* API contract: `docs/API_CONTRACTS.md` and `packages/contracts` (OpenAPI in `packages/contracts/openapi/openapi.json`)
+* Frontend rules and product principles: `CLAUDE.md`
 
 ## Prerequisites
 * Node 22.18 (`.nvmrc`), npm 10+
 * Python 3.13 (for `workers/`)
 * No Docker, no cloud account, no credentials needed for local development and tests
 
-## Quickstart
+## Quickstart (backend)
 ```bash
 npm install                      # installs all workspaces
 cp .env.example .env             # PowerShell: Copy-Item .env.example .env   (safe local defaults, secrets blank)
@@ -28,7 +36,6 @@ other clients. See `docs/ARCHITECTURE.md` section 5.
 npm run typecheck                # all workspaces
 npm test                         # all TypeScript workspaces (offline, in-process PGlite)
 npm run openapi                  # regenerate packages/contracts/openapi/openapi.json
-npm run deploy:dry -w @projectx/api   # wrangler dry-run build of the Worker (no account, no deploy)
 ```
 
 ## Python workers
@@ -41,22 +48,23 @@ workers\.venv\Scripts\pxw --help
 (POSIX: `workers/.venv/bin/...`.)
 
 ## Layout
-`apps/api` (Hono API, `wrangler.toml`) · `packages/{contracts,shared,db,database-types,edge,ai}` · `supabase/` (migrations, seed, tests) ·
-`workers/` (Python `pxw`) · `infra/cloudflare/` (R2 CORS/lifecycle, WAF/cache notes, runbooks) · `docs/`.
+`src/` (Next.js web app) · `apps/api` (Hono API) · `packages/{contracts,shared,db,database-types,edge,ai,plans}` ·
+`supabase/` (migrations, seed, tests) · `workers/` (Python `pxw`) · `infra/gcp/` (deploy and secret scripts) ·
+`infra/cloudflare/` (legacy, unused) · `docs/`.
 
 ## Deployment
-Nothing deploys automatically. Every Cloudflare/Supabase change is a manual, approved step: see `docs/DEPLOYMENT.md`
-and `infra/cloudflare/`. Never commit secrets; `.env` and `.dev.vars` are git-ignored.
+Nothing deploys automatically. Web and API run on Cloud Run (`asia-south1`, project `projectx-staging-a7k2`); the site is
+served at tabbyprep.in through Firebase Hosting; the database is Supabase. Steps: `docs/DEPLOYMENT_GCP.md`.
+Razorpay is in **Live** mode (real payments). Never commit secrets: `.env`, `.env.local` and `.dev.vars` are git-ignored, and
+payment keys go into Secret Manager with `infra/gcp/set-razorpay-secrets.ps1`.
 
-
-## Frontend & SEO (Person 1 / Owner A)
+## Frontend & SEO (Owner A)
 
 Next.js 16 (App Router, Cache Components) · TypeScript strict · Tailwind CSS v4 · KaTeX · Zod · Vitest.
 
-See `CLAUDE.md`, `docs/PERSON-1-PERSON-2-INTEGRATION.md`, and `docs/api-contract-draft.md` for frontend handoff and integration details.
-
 Main student surfaces: `/practice/` (quick start + the problem library on `/problems`), `/plan/` (diagnostic and study plan on
-`/plans`, Tabby Plus), `/tests/` + `/cbt/` (papers, demo-only until PYQ papers exist). Contracts: `docs/API_CONTRACTS.md` §3.8–3.9.
+`/plans`; free basic plan, longer plans with Plus), `/tests/` + `/cbt/` (papers), `/pricing/` (Plus passes),
+`/admin/questions/` (difficulty classification, reviewers and admins). Contracts: `docs/API_CONTRACTS.md`.
 
 Run the whole stack locally (API with an in-process database and sample questions, web against it, dev sign-in):
 ```bash
@@ -66,6 +74,7 @@ NEXT_PUBLIC_AUTH_MODE=dev DEV_TEST_JWT_SECRET=dev-test-secret-change-me-32-chars
 ```
 Plus features locally: grant the dev user Plus with an admin dev token via `POST /api/v1/admin/billing/entitlements`.
 Without the API variables the web runs in demo mode on fixtures (everything stays in the browser).
+On Windows, start `next dev` from PowerShell (Turbopack's CSS worker fails under Git Bash).
 
 ### Frontend Commands
 ```bash

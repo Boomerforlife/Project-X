@@ -1,6 +1,6 @@
 # ProjectX — API Contracts v1 (binding)
 
-Base: `https://api.<domain>/api/v1`. JSON only (`application/json; charset=utf-8`) except `POST /uploads` (raw image body).
+Base: `https://projectx-api-989800061583.asia-south1.run.app/api/v1` (Cloud Run; no `api.` custom domain yet). JSON only (`application/json; charset=utf-8`) except `POST /uploads` (raw image body).
 OpenAPI 3.1 generated from `@hono/zod-openapi` routes → `GET /api/v1/openapi.json` and committed to
 `packages/contracts/openapi/openapi.json`. All schemas below live in `packages/contracts/src/**` with the exact names shown
 (`XxxSchema` Zod value + `type Xxx = z.infer<…>`). Zod notation: `uuid` = `z.uuid()`, `dec` = decimal string
@@ -265,13 +265,47 @@ The algorithm is pure and deterministic; the server gathers evidence only from a
 |---|---|---|---|
 | POST `/plans/diagnostic` | user (free) | `{ client_request_id, exam, subjects?: slug[], chapters?: slug[], length: 15\|30\|45 }` | `{ session, questions, requested_mix, actual_mix, short_by }`; 201 / 200 replay; 422 `NO_QUESTIONS` |
 | GET `/plans/diagnostic/:sessionId/report` | user | — | `{ session_id, completed, actual_mix, subjects[], focus[≤3], chapters: ChapterResult[] \| null, plus }` (`chapters` is null without Plus) |
-| POST `/plans` | **Plus** | `{ client_request_id, diagnostic_session_id, daily_minutes: 30\|60\|90\|120, days: 7\|14 }` | `StudyPlan`; archives the active plan for the exam; 403 `PREMIUM_REQUIRED` |
-| GET `/plans/current` | user | `exam` | `StudyPlan`, re-planned for today (past days and started items kept); 404 when none; `locked: true` (read-only, nothing re-planned) when Plus has lapsed |
-| POST `/plans/:id/items/:key/start` | **Plus** | — | `{ item, session \| null }`; creates or replays the item's practice session (idempotent per item); PROBLEMS / REVIEW_DIAGNOSTIC only record a start |
+| POST `/plans` | user (free within limits; **Plus** for longer) | `{ client_request_id, diagnostic_session_id, daily_minutes: 30\|60\|90\|120, days: 7\|14 }` | `StudyPlan`; archives the active plan for the exam. Free: up to `FREE_PLAN_MAX_DAYS` (default 7) days and `FREE_PLAN_MAX_DAILY_MINUTES` (default 60) a day. Plus: up to 14 days and 120 min a day. Beyond the limit: 403 `PREMIUM_REQUIRED` |
+| GET `/plans/current` | user | `exam` | `StudyPlan`, re-planned for today (past days and started items kept); 404 when none; `locked: true` (read-only, nothing re-planned) when Plus has lapsed and the plan is longer than the free limits |
+| POST `/plans/:id/items/:key/start` | user (free within limits; **Plus** for longer plans) | — | `{ item, session \| null }`; creates or replays the item's practice session (idempotent per item); PROBLEMS / REVIEW_DIAGNOSTIC only record a start |
 
 Diagnostic sessions are ordinary `practice_sessions` (`mode MIXED`, `ui_mode test`, `filters.diagnostic = true` plus scope and
 mix), so answers use `POST /practice/attempts` and the normal complete endpoint. Students never see a readiness percentage,
 rank or predicted score: only bands (`unmeasured`/`weak`/`shaky`/`strong`) and counts.
+
+### 3.10 Billing, rewards, classification and other endpoints
+
+Not in §3.1–3.9 above. Paths and purposes are from `packages/contracts/openapi/openapi.json` unless marked. Access uses the §1 levels; `admin` and `reviewer` are enforced server-side.
+
+| Method & path | Access | Purpose |
+|---|---|---|
+| GET `/billing/plans` | public | Tabby Plus plans and prices (server is the source of truth) |
+| GET `/billing/payment-links/{token}` | public | Parent payment link, public view |
+| POST `/billing/payment-links/{token}/order` | public | Start checkout from a parent payment link (201) |
+| GET `/billing/me` | user | My plan, access end, free-plan quota |
+| POST `/billing/orders` | user | Create a checkout order (server prices it) |
+| GET `/billing/orders` | user | My payment history |
+| GET `/billing/orders/{id}` | user | One of my orders (poll after checkout) |
+| POST `/billing/orders/{id}/verify` | user | Verify a Checkout payment (signature and provider record) |
+| POST `/billing/payment-links` | user | Create an "ask a parent to pay" link (7 days) |
+| POST `/billing/webhooks/razorpay` | Razorpay signature | Razorpay webhook. Not in openapi.json (plain route in `apps/api/src/billing/routes.ts`); body must be ≤ 256 KB |
+| GET `/admin/billing/orders` | admin | List orders |
+| POST `/admin/billing/orders/{id}/refund` | admin | Request a full refund (access is revoked by the refund webhook) |
+| POST `/admin/billing/entitlements` | admin | Grant Plus days (support) |
+| POST `/admin/billing/entitlements/{id}/revoke` | admin | Revoke an entitlement |
+| GET `/admin/billing/promo-codes` | admin | List promo codes |
+| POST `/admin/billing/promo-codes` | admin | Create a promo code |
+| PATCH `/admin/billing/promo-codes/{code}` | admin | Enable or disable a promo code |
+| GET `/entitlements` | optional | What this viewer gets: tier, features, limits, ad eligibility |
+| GET `/rewards/offers` | user | Optional rewarded-ad offers and whether each is available now |
+| POST `/rewards/offers/{code}/start` | user | Student chose to watch: issue a single-use nonce (201) |
+| POST `/rewards/claim` | user | Report the rewarded-ad outcome; grants only on GRANTED within the rules |
+| GET `/admin/classify/questions` | reviewer | Browse questions for classification (any status) with difficulty counts |
+| POST `/admin/classify/bulk` | reviewer | Set difficulty, chapter or topic on up to 200 questions |
+| GET `/admin/classify/questions/{id}/preview` | reviewer | Question with original crops (10-minute signed image URLs) and answer key |
+| GET `/files/preview/{token}` | signed token | Signed question image for the admin preview (token from the preview route, 10 minutes) |
+| POST `/analytics/events` | public | Aggregate daily counters from the web app. Not in openapi.json (plain route in `apps/api/src/analytics/routes.ts`); body ≤ 4 KB |
+| GET `/admin/analytics/daily` | admin | Daily event counters (aggregate only) |
 
 ## 4. Implementation notes binding on W2
 * Routes are `createRoute` definitions in `apps/api/src/routes/**`; request/response schemas imported from `@projectx/contracts`.

@@ -6,43 +6,45 @@ Status: binding for Milestone 1+. Source of requirements: `docs/BRIEF.md`. If an
 ## 1. System shape
 
 ```
- Browser / Owner A SSR ──HTTPS──▶ Cloudflare (DNS, WAF, CDN)
-                                     │
-                                     ├─ api.<domain>/api/v1/*  ──▶ Worker "projectx-api" (Hono, apps/api)
-                                     │        │  Workers Caching / Cache API for public GETs (Cache-Tag purge)
-                                     │        ├─▶ Supabase Postgres (Supavisor txn pooler :6543, or Hyperdrive)
-                                     │        └─▶ R2 bindings (SOURCE_DOCS, PUBLIC_ASSETS, USER_UPLOADS)
-                                     └─ assets.<domain>/*      ──▶ R2 public bucket (custom domain, immutable)
+ Browser ──HTTPS──▶ https://tabbyprep.in ──▶ Firebase Hosting (CDN; rewrites every path)
+                                               └──▶ Cloud Run "projectx-web" (Next.js, asia-south1)
+        │
+        └──HTTPS (CORS, Bearer token)──▶ Cloud Run "projectx-api" (Hono, apps/api, dist/server.mjs)
+                                          .../api/v1/*  (run.app URL, no api. subdomain)
+                                             ├─▶ Supabase Postgres (Mumbai, txn pooler :6543)
+                                             └─▶ Cloud Storage buckets (source-docs, public-assets, user-uploads)
 
- Operator laptop / on-demand runner (never in request path):
+ Cloud Run Job / operator machine (never in request path):
    packages/ai CLI (Node)  ── claims AI_* jobs ──▶ Postgres;  calls Gemini (server-side key); SymPy via Python
-   workers/ pxw CLI (Python) ── claims PROCESS_DOCUMENT/PARSE_ANSWER_KEY jobs ──▶ Postgres; R2 via S3 API
+   workers/ pxw CLI (Python) ── claims PROCESS_DOCUMENT/PARSE_ANSWER_KEY jobs ──▶ Postgres; Cloud Storage
 ```
+Deploy steps and current URLs: `DEPLOYMENT_GCP.md`. The Cloudflare Worker entry (`apps/api/src/worker.ts`, `wrangler.toml`) is still in the repo but is not deployed.
 
-* **One deployable** (the API Worker). No microservices, no always-on workers, no Redis/ES/vector DB.
+* **One API deployable** (the Cloud Run service `projectx-api`), plus the web app. No microservices, no always-on workers, no Redis/ES/vector DB.
 * **Job queue = Postgres table** `pipeline_jobs` claimed with `FOR UPDATE SKIP LOCKED`. AI and ingestion
   workers are CLIs run locally/on demand (later: optional cron). Never OCR or LLM calls inside API requests.
 * **Supabase** = Postgres + Auth (JWT issuer) + migrations. We do **not** use PostgREST/supabase-js for data;
   Owner A uses supabase-js **only for auth**. RLS still guards every private table (anon key is public).
 
-## 2. Repo layout and ownership (see WORK_SPLIT.md for exact file ownership)
+## 2. Repo layout and ownership
 
 ```
 package.json              npm workspaces ["apps/*","packages/*"]; no build step (TS source exports)
 tsconfig.base.json        strict, ES2022, module ESNext, moduleResolution Bundler, noUncheckedIndexedAccess
 .env.example  README.md
 apps/api/                 @projectx/api   Hono app, routes, middleware, services, repositories; worker.ts + node.ts
-  wrangler.toml           (owned by W5)
+  wrangler.toml           legacy Cloudflare Worker config (not deployed)
 packages/contracts/       @projectx/contracts  Zod schemas: enums, domain (ContentBlock, AnswerKey...), DTOs, errors
   openapi/openapi.json    generated from apps/api routes (committed)
 packages/shared/          @projectx/shared  pure logic: grading, decimal compare, slugify, cursor codec, Result
 packages/db/              @projectx/db  SQL executor abstraction (+ /postgres, /pglite, /testing entrypoints), migrator
 packages/database-types/  @projectx/database-types  generated TS types of the schema (Supabase-compatible shape)
 packages/ai/              @projectx/ai  Gemini client + mock, prompts, modules, verification engine, CLI
-packages/edge/            @projectx/edge  storage adapters, signed URLs, cache policy/tags/invalidation, rate limiter
+packages/edge/           @projectx/edge  storage adapters (local, gcs, r2), signed URLs, cache policy/tags/invalidation, rate limiter
 supabase/                 config.toml, migrations/NNNN_*.sql, seed/*.sql, fixtures/ (dev-only), shim/, tests/
 workers/                  Python project "pxw" (pyproject.toml, src/pxw/..., tests/)
-infra/cloudflare/         R2 CORS/lifecycle JSON, WAF/cache rule notes (no live changes)
+infra/gcp/               deploy scripts for Cloud Run, Firebase Hosting, ingest job (see DEPLOYMENT_GCP.md)
+infra/cloudflare/        legacy R2/WAF/cache notes (not used)
 docs/
 ```
 
@@ -53,7 +55,7 @@ esbuild), scripts `typecheck` (`tsc --noEmit -p .`) and `test` (`vitest run`).
 
 | Concern | Choice | Version | Rationale |
 |---|---|---|---|
-| Runtime | Node 22.18 (dev/CLIs), Cloudflare Workers (`nodejs_compat`) | — | locked stack |
+| Runtime | Node 22.18 (API on Cloud Run, dev, CLIs) | — | the Worker entry still exists but is not deployed |
 | Language | TypeScript | 5.9.3 | TS 7 (native) is newer; 5.9 is safest for zod-openapi type inference + tooling |
 | HTTP | hono | 4.13.14 | |
 | OpenAPI | @hono/zod-openapi | 1.6.3 | peer `zod ^4`, `hono >=4.10`; `OpenAPIHono`, `createRoute`, `app.doc31`, `defaultHook`, `openAPIRegistry.registerComponent('securitySchemes',…)`; import `z` from `@hono/zod-openapi` in route files |
@@ -69,7 +71,7 @@ esbuild), scripts `typecheck` (`tsc --noEmit -p .`) and `test` (`vitest run`).
 | Gemini | @google/genai | 2.32.0 | `ai.models.generateContent({model, contents, config:{responseMimeType:'application/json', responseJsonSchema}})` (field verified in typings) |
 | Workers tooling | wrangler 4.156.0, @cloudflare/workers-types 5.20261030.1 | | ratelimit binding needs ≥4.36 |
 | Node types | @types/node 26.6.6 | | |
-| Python | 3.13; pymupdf, rapidocr(+onnxruntime) default OCR, paddleocr optional extra, sympy 1.14.0, pydantic 2, psycopg[binary] 3, boto3, rapidfuzz, pytest, ruff | ranges in WORK_SPLIT | rapidocr is pip-only & Windows friendly; Paddle optional |
+| Python | 3.13; pymupdf, rapidocr(+onnxruntime) default OCR, paddleocr optional extra, sympy 1.14.0, pydantic 2, psycopg[binary] 3, boto3, rapidfuzz, pytest, ruff | ranges in `workers/pyproject.toml` | rapidocr is pip-only & Windows friendly; Paddle optional |
 
 **Postgres feature floor:** SQL must run on Supabase PG 15+ *and* PGlite PG 18 → use only PG ≤15 features
 (no `uuidv7()`, no virtual generated columns, no `MERGE … RETURNING`, no `JSON_TABLE`). UUIDs via core
@@ -122,7 +124,7 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
   dir, auto-migrate+seed+fixtures) or `DB_DRIVER=postgres`. `AUTH_MODE=test` accepts HS256 tokens signed with
   `TEST_JWT_SECRET`; `npm run token -w @projectx/api -- --user <uuid> [--admin]` prints one. Storage = local FS,
   cache purge = noop, rate limit = memory, AI not involved.
-* **Worker runtime check:** `npx wrangler dev -c apps/api/wrangler.toml` (W5) with `DB_DRIVER=postgres` against
+* **Legacy Worker runtime check (not the deployed path):** `npx wrangler dev -c apps/api/wrangler.toml` with `DB_DRIVER=postgres` against
   the pglite-server URL; `wrangler deploy --dry-run` in CI-like acceptance (no account needed).
 * **Optional real-Supabase check (when Docker/CLI available):** `supabase start && supabase db reset` applies the
   same migrations + seed; `npm run test:rls -w @projectx/db -- --url $DATABASE_URL` reruns the RLS suite against it.
@@ -147,8 +149,8 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
 3. Internal functions live in schema `app_private` (not exposed by PostgREST), `SECURITY DEFINER` with
    `SET search_path = ''`, EXECUTE revoked from `public`; only `app_private.is_published_question(uuid)` is granted
    to `authenticated` (used in a policy).
-4. Service-role key / DB URL / Gemini key / R2 S3 keys / purge token are server-only secrets; Worker gets only
-   `DATABASE_URL`, purge token, `IP_HASH_SECRET`, `SIGNING_SECRET`. Gemini + R2 S3 keys live only on the operator machine.
+4. Service-role key / DB URL / Gemini key / signing secrets are server-only secrets, held in GCP Secret Manager; the API service gets only
+   what it needs (`DATABASE_URL`, `IP_HASH_SECRET`, `SIGNING_SECRET`, web revalidate secret). The Gemini key lives only on the operator machine.
 5. Public DTOs are built by explicit allow-list mappers in `apps/api`; contract tests assert practice DTOs never
    contain `answer_key|correct|is_correct|solution|final_answer|explanation` keys before submission.
 6. Uploads: single-step `POST /uploads` through the Worker: size cap 5 MiB, MIME allow-list (png/jpeg/webp), magic
@@ -158,11 +160,11 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
    as backstop. CORS allow-list from env; no cookies (Bearer only) → `Access-Control-Allow-Credentials` not set.
 8. Security headers on API: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
    `Strict-Transport-Security`. Audit log for every admin mutation (`audit_log`) + `review_events` for editorial decisions.
-9. Backups: Supabase daily backups (Pro) / free-tier: weekly `pg_dump` runbook to private R2 (`backups/`), documented by W5.
+9. Backups: a Supabase plan setting (daily backups on Pro).
 
 ## 8. Owner A / Owner B integration agreement
 
-* Owner A consumes **only** `https://api.<domain>/api/v1` (OpenAPI 3.1 at `/api/v1/openapi.json`) and may import
+* Owner A consumes **only** the API at `https://projectx-api-989800061583.asia-south1.run.app/api/v1` (no `api.` subdomain; OpenAPI 3.1 at `/api/v1/openapi.json`) and may import
   `@projectx/contracts` for types/Zod. No direct PostgREST data access; supabase-js only for auth session; send
   `Authorization: Bearer <access_token>` on user routes.
 * SSR of public pages calls public endpoints **without** Authorization (so they are edge-cacheable); per-user
@@ -172,8 +174,8 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
   `GET /public/sitemap/questions` (which already excludes non-indexable / non-opted-in questions).
 * Canonical paths (fixed): exam `/{exam.slug}`, subject `/{exam.slug}/{subject.segment}`, chapter
   `/{exam.slug}/{subject.segment}/{chapter.segment}`, topic `…/{topic.segment}`, question `/questions/{question.slug}`.
-* Cache coherence: public responses carry `X-Cache-Tags` (copy of `Cache-Tag`, which Cloudflare strips). If Owner
-  A's HTML is cached on the same zone, it sets those tags on its page `Cache-Tag`; our purges then cover its pages.
+* Cache coherence: public responses carry `X-Cache-Tags` (copy of `Cache-Tag`). Owner A's web app copies them into
+  its Next cache tags, and the API's revalidate webhook drops those pages; Firebase Hosting's CDN is cleared by a new Hosting release.
 * Math is LaTeX inside ContentBlocks (`$…$` inline, `math` blocks display) — Owner A renders (e.g. KaTeX). Asset URLs are absolute.
 * Contract changes: additive-only within v1; `packages/contracts/CHANGELOG.md` + semver bump; breaking → `/api/v2`.
 * Mock server for Owner A: `npm run dev -w @projectx/api` with dev fixtures (clearly fake `demo-` questions,
@@ -196,13 +198,14 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
 | `TEST_JWT_SECRET` | api | dev/test only |
 | `CORS_ALLOWED_ORIGINS` | api | comma list |
 | `ENABLE_API_DOCS` | api | `true` in dev |
-| `PUBLIC_ASSETS_BASE_URL` | api | e.g. `https://assets.<domain>`; dev `http://localhost:8787/__local/public` |
-| `FILES_BASE_URL` | api | base for signed private URLs, e.g. `https://api.<domain>/api/v1/files` |
-| `STORAGE_DRIVER` | api, pxw | `local` \| `r2` (api: R2 bindings; pxw: S3 API) |
+| `PUBLIC_ASSETS_BASE_URL` | api | base URL of the public-assets bucket; dev `http://localhost:8787/__local/public` |
+| `FILES_BASE_URL` | api | base for signed private URLs, e.g. `<API URL>/api/v1/files` |
+| `STORAGE_DRIVER` | api, pxw | `local` \| `gcs` (`r2` is a legacy option) |
 | `LOCAL_STORAGE_DIR` | api, pxw, ai | default `.local/storage` |
 | `SIGNING_SECRET` | api | secret, HMAC for signed file URLs |
 | `IP_HASH_SECRET` | api | secret, HMAC for ip hashing |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | pxw, ops scripts | secrets, operator machine only |
+| `GCS_BUCKET_SOURCE_DOCS`, `GCS_BUCKET_PUBLIC_ASSETS`, `GCS_BUCKET_USER_UPLOADS` | api, pxw | required when `STORAGE_DRIVER=gcs`; auth via Application Default Credentials |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | pxw, ops scripts | legacy R2 option, not used |
 | `R2_BUCKET_SOURCE_DOCS`, `R2_BUCKET_PUBLIC_ASSETS`, `R2_BUCKET_USER_UPLOADS` | pxw, wrangler | `projectx-source-docs`, `projectx-public-assets`, `projectx-user-uploads` |
 | `CACHE_PURGE_DRIVER` | api | `noop` \| `workers` \| `zone_api` \| `both` |
 | `CACHE_MODE` | api | `workers` (Workers Caching via wrangler `[cache]`) \| `cache_api` (API mounts `edgeCacheMiddleware`) \| `none` (dev) |
@@ -216,18 +219,18 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
 | `PYTHON_BIN`, `SYMPY_TIMEOUT_MS` | ai | default `python`, `5000` |
 | `PXW_WORK_DIR`, `PXW_JOB_STORE`, `OCR_ENGINES`, `OCR_MIN_CONFIDENCE` | pxw | `.local/work`, `file`\|`postgres`, `rapidocr,paddle,tesseract`, `0.6` |
 
-Worker bindings (wrangler, W5): R2 `SOURCE_DOCS`, `PUBLIC_ASSETS`, `USER_UPLOADS`; ratelimits `RL_PUBLIC`,
+Legacy Cloudflare Worker bindings (wrangler, not deployed): R2 `SOURCE_DOCS`, `PUBLIC_ASSETS`, `USER_UPLOADS`; ratelimits `RL_PUBLIC`,
 `RL_SEARCH`, `RL_WRITE`, `RL_ATTEMPTS`, `RL_DOUBTS`, `RL_ADMIN`; optional `HYPERDRIVE`.
 
 ## 10. Cross-package interfaces (stable names)
 
-* `@projectx/edge` (W5) exports: `ObjectStorage` (`put/get/head/delete/copy`), `createR2Storage(binding)`,
+* `@projectx/edge` exports (also `createGcsStorage`): `ObjectStorage` (`put/get/head/delete/copy`), `createR2Storage(binding)`,
   `createLocalStorage(dir)`, `createMemoryStorage()`, `BucketName = 'SOURCE_DOCS'|'PUBLIC_ASSETS'|'USER_UPLOADS'`,
   `StorageSet = Record<BucketName, ObjectStorage>`, `signFileUrl/verifyFileUrl`, `CachePolicy` + `cachePolicies`
   (route class → headers), `cacheTags` builders, `CacheInvalidator` (`purgeTags(tags)`), `createWorkersCacheInvalidator`,
   `createZoneApiInvalidator`, `createCompositeInvalidator`, `createNoopInvalidator`, `createRecordingInvalidator`,
   `RateLimiter` (`limit(key, cls) → {success}`), `createCloudflareRateLimiter(env)`, `createMemoryRateLimiter(cfg)`,
-  `edgeCacheMiddleware` (Cache API fallback), `sniffImageMime(bytes)`. Exact signatures in WORK_SPLIT.md §W5.
+  `edgeCacheMiddleware` (Cache API fallback), `sniffImageMime(bytes)`. Exact signatures in the source.
 * `@projectx/shared` (W2): `gradeAttempt`, `compareDecimal`, `answerKeysEqual`, `slugify`, `encodeCursor/decodeCursor`, `sha256Hex`, `canonicalJson`.
 * `@projectx/contracts` (W2): everything in API_CONTRACTS.md §2–§3 plus `IngestionBundle`/`NormalizedQuestion` (INGESTION_PIPELINE.md) and JSON Schemas emitted to `packages/contracts/json-schema/*.json`.
 * `@projectx/ai` (W3): `GeminiClient`, `createGeminiClient`, `createMockGeminiClient`, `SympyChecker`, pipeline runner (AI_PIPELINE.md).
@@ -236,7 +239,7 @@ Worker bindings (wrangler, W5): R2 `SOURCE_DOCS`, `PUBLIC_ASSETS`, `USER_UPLOADS
 
 ## 11. Cost strategy (summary — details COST_STRATEGY.md)
 
-Edge-cache all public GETs (Workers Caching / Cache API, purge by tag) so DB sees mostly misses; no AI in the
+Cache all public GETs (Next tags in the web app, Firebase Hosting CDN by `s-maxage`) so the DB sees mostly misses; no AI in the
 request path; AI runs are batch, cached by input hash, capped by daily budget; cheap model first, strong model
-only for solve/critique; PDFs/crops in R2 (zero egress); DB keeps parsed outputs only; Free tiers first with
-documented upgrade triggers (Supabase DB > 350 MB or project-pause pain, Workers > 70k req/day, Gemini free-tier limits).
+only for solve/critique; PDFs/crops in Cloud Storage; DB keeps parsed outputs only; Free tiers first with
+documented upgrade triggers (Supabase DB > 350 MB or project-pause pain, sustained Cloud Run cold starts or Supabase free-tier limits, Gemini free-tier limits).

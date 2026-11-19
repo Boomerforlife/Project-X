@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Client registry for API mode (docs/INTEGRATION_PLAN.md 2.4): everything the
+ * Client registry for API mode (integration plan, in git history: 2.4): everything the
  * synchronous `catalog` needs to answer from memory. Filled by taxonomy loads,
  * session loads, attempt results and bookmark/mistake lists. Never holds fixture
  * data; never holds a solution before the server has revealed it.

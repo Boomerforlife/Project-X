@@ -2,7 +2,7 @@
 
 /**
  * Browser auth session. Tokens are only ever handed to the API as Bearer
- * headers; no cookies, no server-side session (docs/INTEGRATION_PLAN.md 2.6).
+ * headers; no cookies, no server-side session (integration plan, in git history: 2.6).
  */
 import { AUTH_MODE, type DevUserId } from "./config";
 import { supabase } from "./supabase";

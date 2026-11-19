@@ -5,7 +5,7 @@ The API sets explicit `Cache-Control` per class (`packages/edge/src/cache.ts`, t
 (`[cache] enabled = true` in `apps/api/wrangler.toml`). The rules below are for the fallback / belt-and-braces setup.
 
 ## Mode A: Workers Caching (preferred, `CACHE_MODE=workers`, `CACHE_PURGE_DRIVER=workers`)
-* Verify availability on the account/plan first (open question 3 in WORK_SPLIT section 8). If unavailable use Mode B.
+* Verify availability on the account/plan first (legacy note: the web now runs on Cloud Run behind Firebase Hosting, see docs/DEPLOYMENT_GCP.md). If unavailable use Mode B.
 * Purge: `createWorkersCacheInvalidator(cache)` wraps the runtime's `cache.purge({ tags })`; the exact runtime handle must be
   confirmed against current Workers docs when W2's `worker.ts` wires it up (verify before enabling).
 

@@ -10,7 +10,7 @@ Until both hold, every page is `noindex` and `sitemap.xml` is empty. Turn it on 
   - chapter: ≥ `MIN_QUESTIONS_TO_INDEX_CHAPTER` (5) published questions;
   - subject hub: at least one indexable chapter; exam hub (`/jee/`, `/neet/`): at least one indexable chapter;
   - PYQ hub/year pages: real (non-demo) papers only.
-- [x] Thin or empty pages are `noindex`: empty chapters/subjects/hubs, study plans (until written), legal drafts, demo papers. Private pages, `/billing/*`, `/pay/*` and `/tests/limit/` are noindex/nofollow.
+- [x] Thin or empty pages are `noindex`: empty chapters/subjects/hubs, study plans (until written), demo papers. Private pages, `/billing/*`, `/pay/*` and `/tests/limit/` are noindex/nofollow.
 - [x] Unique title + description + canonical (trailing slash) + Open Graph + **Twitter `summary_large_image` card** on every public page (`pageMetadata` in `src/lib/seo.ts`). Generated OG image: `src/app/opengraph-image.tsx`.
 - [x] Breadcrumbs (visible + `BreadcrumbList` JSON-LD) via `PageHeader`; `Organization`/`WebSite` JSON-LD on `/`.
 - [x] Internal links: exam → subject → chapter → question, chapter prev/next, footer links to every subject, papers, pricing and legal pages.
@@ -22,8 +22,8 @@ Until both hold, every page is `noindex` and `sitemap.xml` is empty. Turn it on 
 
 - [ ] **Content:** the live DB now has 433 published AI-checked practice questions. They are practice-only (NOINDEX, no public question page), but they make chapter/subject hubs indexable (≥ 5 published per chapter), so review those hub pages before turning indexing on. Individually indexable question pages need editorial or licensed, human-verified questions.
 - [ ] Known: unknown chapter/question slugs render not-found with `noindex` but HTTP 200 (streaming). Acceptable; fix later by resolving the slug before the page streams.
-- [ ] Production domain chosen; `NEXT_PUBLIC_SITE_URL` set (canonicals and sitemap URLs use it).
-- [ ] Replace `[TO FILL]` blanks in Terms/Privacy/Refund/Contact; legal sign-off; then remove `noindex: true` from those four pages.
+- [x] Production domain chosen (https://tabbyprep.in); `NEXT_PUBLIC_SITE_URL` set at build (canonicals and sitemap URLs use it).
+- [x] Legal pages final; noindex lifts automatically from `src/lib/legal.ts`.
 - [ ] Verify on staging: `curl -s https://<staging>/robots.txt`, `/sitemap.xml`; view-source on a chapter page for canonical, robots and JSON-LD. Validate JSON-LD with the Rich Results Test.
 - [ ] Spot-check that math renders server-side (KaTeX HTML present in the page source) on question pages.
 - [ ] Lighthouse on `/`, a chapter page and a question page: LCP < 2.5 s and CLS < 0.1 on mobile.

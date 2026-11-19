@@ -1,7 +1,7 @@
 # ProjectX — Ingestion Pipeline (binding; Python project `workers/`, owner W4)
 
 Scope: approved sources only (`sources.reuse_permitted and approved_at is not null`, enforced in DB trigger and again in the CLI).
-No crawling/scraping. Originals preserved byte-for-byte in R2 `SOURCE_DOCS`. Output = `source_questions` (staging) + private crops;
+No crawling/scraping. Originals preserved byte-for-byte in the `SOURCE_DOCS` bucket (Google Cloud Storage `projectx-staging-a7k2-source-docs` on GCP, `--storage gcs`; R2 is still supported). Output = `source_questions` (staging) + private crops;
 promotion creates DRAFT `questions` and enqueues `AI_CLASSIFY`. Never run inside API requests.
 
 ## 1. Project layout (Python 3.13)
@@ -12,7 +12,7 @@ workers/
     cli.py                  argparse entry (subcommands §5)
     config.py               env → Settings (pydantic)
     common/{logging.py, hashing.py, jsonio.py, models.py}   # models.py = Pydantic mirrors of contracts (§3)
-    storage/{base.py, local.py, r2.py}                       # ObjectStore protocol; local FS + boto3 S3 (R2)
+    storage/{base.py, factory.py, keys.py, local.py, r2.py, gcs.py}  # ObjectStore protocol; local FS, boto3 S3 (R2), Google Cloud Storage
     jobs/{base.py, file_store.py, pg_store.py, runner.py}    # JobStore protocol; idempotent runner
     db/{repo.py, pg_repo.py, file_repo.py}                   # IngestionRepo protocol (writes source docs/questions/keys/assets)
     extraction/{pdf.py, layout_profiles/{nta_cbt_v1.py, generic_numbered.py}, segment.py, figures.py, math_text.py}
@@ -114,7 +114,7 @@ On promotion, `promote_source_question` replaces each `asset_ref` block with `{"
 * Heartbeat after each stage; `fail(retryable=False)` for SourceNotApproved, checksum mismatch, unsupported layout; retryable for IO/DB errors.
 * Every stage logs `{stage, duration_ms, counts}` via `JobStore.log`. Re-running the same job never duplicates rows (natural keys above) or objects (deterministic keys).
 
-## 5. CLI (`python -m pxw` or `pxw`; global flags `--job-store file|postgres`, `--storage local|r2`, `--work-dir`, `--log-level`)
+## 5. CLI (`python -m pxw` or `pxw`; global flags `--job-store file|postgres`, `--storage local|r2|gcs`, `--work-dir`, `--log-level`)
 ```
 pxw ingest register --source NTA --file paper.pdf --kind QUESTION_PAPER|ANSWER_KEY --paper-slug jee-main-2024-jan-27-shift-1
                     --paper-title "…" --year 2024 [--exam-date 2024-01-27 --shift 1 --session January --paper-code …]
@@ -159,4 +159,6 @@ Guards (tests: `workers/tests/test_fetcher.py`): every source in the manifest mu
 (a robots error means deny); 5 s per-host spacing; 60 MB cap; Content-Type must be `application/pdf` and the body must start with `%PDF`.
 Downloads land in `<work-dir>/downloads/<sha256>.pdf` with a `.json` provenance sidecar (requested/final URL, time), then go
 through the normal `register` path (idempotent by sha256). The database has no source-URL column yet, so the URL lives in the sidecar only.
-Setting the real NTA source to approved (licence recorded by an admin) is a prerequisite for any NTA manifest.
+An NTA manifest needs an approved NTA source first. `NTA_MIRROR` was owner-approved on 2026-11-18 (see `CONTENT_SOURCES.md` section 3.1).
+
+Production runs use the Cloud Run Job `pxw-ingest` (the job reaches Supabase and the buckets). See `docs/DEPLOYMENT_GCP.md`, "Question ingestion".

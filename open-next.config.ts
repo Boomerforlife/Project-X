@@ -1,4 +1,4 @@
-// OpenNext (Cloudflare) configuration for the web app. See docs/DEPLOYMENT.md section 5 and docs/DEPLOY_FACTS.md 2.5.
+// Legacy, unused: OpenNext (Cloudflare) configuration from the earlier hosting plan. The web runs on Cloud Run (docs/DEPLOYMENT_GCP.md).
 //
 // Caching choices (needed for on-demand revalidation: the API calls POST /api/revalidate/ -> revalidateTag):
 //  - incremental cache: R2 (binding NEXT_INC_CACHE_R2_BUCKET)

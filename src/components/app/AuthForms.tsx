@@ -17,9 +17,8 @@ import { DATA_SOURCE } from "@/lib/site";
 import { useSearchParams } from "next/navigation";
 
 /**
- * Login / sign-up UI. The real auth mechanism is a Person 2 decision
- * (docs/api-contract-draft.md), so these forms don't submit anywhere yet —
- * the demo button is the working path.
+ * Login / sign-up UI. API mode signs in through Supabase Auth (email, and Google
+ * when NEXT_PUBLIC_AUTH_GOOGLE=on); demo mode keeps the local demo sign-in.
  */
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   if (DATA_SOURCE === "api") return <ApiAuthForm mode={mode} />;
