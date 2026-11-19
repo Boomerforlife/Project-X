@@ -9,8 +9,8 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 | Piece | Where | State |
 |---|---|---|
-| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `00008`, image `web-staging-8`) | Live, built from `main` (2026-11-20): checkout verify, tier badge, admin classification page, ad placements wired but ads off until AdSense approves |
-| API | Cloud Run `projectx-api`, revision `projectx-api-00015-njg` (image `api:staging-9`, from `main`) | Live: everything on `main`, including `/entitlements`, `/rewards`, `/admin/classify`, checkout verify. Rewarded credits stay off (`REWARDED_ADS_ENABLED` unset) |
+| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `projectx-web-00010-rqb`, image `web-staging-10`) | Live, built from `main` (2026-11-20, after PR #24/#25): question links open the exact question, new Free/Plus pricing, security headers. Rollback: route traffic to `projectx-web-00008-n2t` |
+| API | Cloud Run `projectx-api`, revision `projectx-api-00016-f8k` (image `api:staging-10`, from `main`; rollback `projectx-api-00015-njg`) | Audit fixes (`public_page`, premium filter, 1 MiB body cap) plus Live: everything on `main`, including `/entitlements`, `/rewards`, `/admin/classify`, checkout verify. Rewarded credits stay off (`REWARDED_ADS_ENABLED` unset) |
 | Database | Supabase (Mumbai) | Migrations 0001–0026 applied (0026 on 2026-11-20; counts unchanged; pre-migration JSON export of the touched tables kept outside the repo) |
 | Payments | Razorpay, **Live mode** since 2026-11-19 | Account activated, tabbyprep.in approved, live keys in Secret Manager, `BILLING_ALLOW_LIVE=true`, live webhook (4 events) |
 | Ads | AdSense publisher `ca-pub-2970121715798701` | Site submitted for review 2026-11-19; verification tag live. Ads are not switched on in any build yet |
