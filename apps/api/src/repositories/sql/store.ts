@@ -74,9 +74,11 @@ async function bundleFor(tx: Tx, q: QuestionRow): Promise<QuestionBundle> {
 
 function contentRepo(tx: Tx): ContentRepo {
   const pubWhere = `q.publication_status='PUBLISHED'`;
+  // Public (anonymous) surfaces never expose Plus-only questions: no page, no excerpt, no redirect, no sitemap entry.
+  const publicWhere = `${pubWhere} and q.access_tier = 'FREE'`;
   return {
     getPublishedBySlug: async (slug) => {
-      const q = await one<QuestionRow>(tx, `select ${Q} from public.questions q where q.slug=$1 and ${pubWhere}`, [slug]);
+      const q = await one<QuestionRow>(tx, `select ${Q} from public.questions q where q.slug=$1 and ${publicWhere}`, [slug]);
       return q ? bundleFor(tx, q) : null;
     },
     getPublishedById: async (id) => {
@@ -84,19 +86,19 @@ function contentRepo(tx: Tx): ContentRepo {
       return q ? bundleFor(tx, q) : null;
     },
     findRedirectTarget: async (old) =>
-      (await one<{ slug: string }>(tx, `select q.slug from public.slug_redirects r join public.questions q on q.id=r.question_id where r.old_slug=$1 and ${pubWhere}`, [old]))?.slug ?? null,
+      (await one<{ slug: string }>(tx, `select q.slug from public.slug_redirects r join public.questions q on q.id=r.question_id where r.old_slug=$1 and ${publicWhere}`, [old]))?.slug ?? null,
     listRelated: (q, limit) =>
       rows(
         tx,
-        `select ${Q} from public.questions q where ${pubWhere} and q.id<>$1 and q.chapter_id=$2
+        `select ${Q} from public.questions q where ${publicWhere} and q.id<>$1 and q.chapter_id=$2
          order by (case when $3::uuid is not null and q.topic_id = $3::uuid then 1 else 0 end) desc, q.is_indexable desc, q.published_at desc, q.id limit $4`,
         [q.id, q.chapter_id, q.topic_id, limit],
       ),
     countRelated: async (q) =>
-      num((await one<{ n: number }>(tx, `select count(*)::int as n from public.questions q where ${pubWhere} and q.id<>$1 and q.chapter_id=$2`, [q.id, q.chapter_id]))?.n),
+      num((await one<{ n: number }>(tx, `select count(*)::int as n from public.questions q where ${publicWhere} and q.id<>$1 and q.chapter_id=$2`, [q.id, q.chapter_id]))?.n),
     listForChapter: async (f) => {
       const p = new Params();
-      const c = [`q.chapter_id=${p.add(f.chapterId)}`, pubWhere];
+      const c = [`q.chapter_id=${p.add(f.chapterId)}`, publicWhere];
       if (f.topicId) c.push(`q.topic_id=${p.add(f.topicId)}`);
       if (f.difficulty) c.push(`q.difficulty=${p.add(f.difficulty)}::public.difficulty`);
       if (f.type) c.push(`q.question_type=${p.add(f.type)}::public.question_type`);
@@ -109,7 +111,7 @@ function contentRepo(tx: Tx): ContentRepo {
       const p = new Params();
       const tsq = `websearch_to_tsquery('english', ${p.add(f.q)})`;
       const rank = `ts_rank(q.search_tsv, ${tsq})::float8`;
-      const c = [pubWhere, `q.search_tsv @@ ${tsq}`];
+      const c = [publicWhere, `q.search_tsv @@ ${tsq}`];
       if (f.examId) c.push(`q.exam_id=${p.add(f.examId)}`);
       if (f.subjectId) c.push(`q.subject_id=${p.add(f.subjectId)}`);
       if (f.chapterId) c.push(`q.chapter_id=${p.add(f.chapterId)}`);
@@ -119,7 +121,7 @@ function contentRepo(tx: Tx): ContentRepo {
     },
     sitemap: async (after, limit) => {
       const p = new Params();
-      const c = ['q.is_indexable', 'q.sitemap_include', keysetWhere(p, after, ['q.updated_at'], 'q.id', 'asc', ['timestamptz'])];
+      const c = ['q.is_indexable', 'q.sitemap_include', "q.access_tier = 'FREE'", keysetWhere(p, after, ['q.updated_at'], 'q.id', 'asc', ['timestamptz'])];
       const r = await rows<Record<string, unknown>>(tx, `select q.id, q.slug, q.exam_id, q.updated_at, q.updated_at::text as _k0 from public.questions q where ${c.join(' and ')} order by q.updated_at asc, q.id asc limit ${p.add(limit)}`, p.values);
       return keyed(r, 1) as never;
     },

@@ -274,8 +274,9 @@ export function toQuestionCard(s: QuestionSummary, ctx: { exam: ExamId; subject:
     type: typeFromApi(s.question_type),
     stem: safeExcerpt(s.excerpt),
     ...(difficultyFromApi(s.difficulty) ? { difficulty: difficultyFromApi(s.difficulty) } : {}),
-    // AI-generated practice items are practice-only: they have no public question page.
-    publicPage: s.origin !== "AI_GENERATED",
+    // Only the API knows whether GET /public/questions/{slug} serves this question (official key or human verified).
+    // AI-checked practice items, and summaries from API builds without the field, link to practice instead of a 404.
+    publicPage: s.public_page === true && s.origin !== "AI_GENERATED",
     year: s.year,
   };
 }
@@ -293,7 +294,9 @@ export function practiceToCard(p: PracticeQuestion): QuestionCard {
     type: typeFromApi(p.question_type),
     stem: safeExcerpt(blocksToRichText(p.content).slice(0, 200)),
     ...(difficultyFromApi(p.difficulty) ? { difficulty: difficultyFromApi(p.difficulty) } : {}),
-    publicPage: p.attribution.origin !== "AI_GENERATED",
+    // A practice item carries no verification status, so it cannot claim a public page (the public endpoint refuses
+    // AI-checked questions). Verified questions still get pages on demand and through the sitemap.
+    publicPage: false,
     year: p.attribution.year,
   };
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { PlusBadge } from "@/components/billing/PlusBadge";
+
 /**
  * Problem library: the browsable problem set. Syllabus-first (grouped by chapter, in syllabus order) rather than one long
  * numbered table, so it reads as a study tool, not a coding-interview list. Filters live in the URL.
@@ -571,8 +573,8 @@ function Meta({ p, showChapter }: { p: LibProblem; showChapter?: boolean }) {
 
 function Lock() {
   return (
-    <Link href="/pricing/" className="relative z-10 inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg" title="Part of Tabby Plus">
-      <PixelIcon name="lock" className="size-3.5" /> Plus
+    <Link href="/pricing/" className="relative z-10 inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg" title="Part of Tabby Plus" aria-label="Locked: part of Tabby Plus">
+      <PixelIcon name="lock" className="size-3.5" /> <PlusBadge />
     </Link>
   );
 }

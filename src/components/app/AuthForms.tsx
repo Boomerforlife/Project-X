@@ -14,6 +14,7 @@ import { AUTH_GOOGLE, AUTH_MODE, DEV_USERS } from "@/lib/auth/config";
 import { devSignIn, emailSignIn, emailSignUp, googleSignIn, providerDisplayName } from "@/lib/auth/session";
 import * as studentApi from "@/lib/api/student";
 import { DATA_SOURCE } from "@/lib/site";
+import { safeNext } from "@/lib/auth/next";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -23,11 +24,6 @@ import { useSearchParams } from "next/navigation";
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   if (DATA_SOURCE === "api") return <ApiAuthForm mode={mode} />;
   return <DemoAuthForm mode={mode} />;
-}
-
-/** Only same-site paths: never redirect to an attacker-supplied absolute URL. */
-function safeNext(v: string | null): string {
-  return v && v.startsWith("/") && !v.startsWith("//") ? v : "/dashboard/";
 }
 
 function Shell({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {

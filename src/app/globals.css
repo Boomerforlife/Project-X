@@ -29,6 +29,8 @@
   --ok: #4ade80;
   --bad: #f87171;
   --review: #fb923c;
+  /* Tabby Plus accent: badges, the featured plan, small markers only (7.5:1 on --bg). Distinct from --review. */
+  --plus: #f472b6;
   --info: #93c5fd;
   --focus: #ffffff;
 
@@ -62,6 +64,7 @@
   --ok: #15803d;
   --bad: #b91c1c;
   --review: #c2410c;
+  --plus: #be185d; /* 5.5:1 on --bg */
   --info: #1d4ed8;
   --focus: #0b0b0b;
 
@@ -100,6 +103,7 @@
   --color-ok: var(--ok);
   --color-bad: var(--bad);
   --color-review: var(--review);
+  --color-plus: var(--plus);
   --color-info: var(--info);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;

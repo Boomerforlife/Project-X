@@ -6,7 +6,7 @@ import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { cn } from "@/lib/cn";
 import { PAPERS_VISIBLE, getPublicPapers } from "@/lib/data";
 import { EXAMS, TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
-import { pageMetadata, safeMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 
 export async function generateStaticParams() {
   return TRACKS.map((track) => ({ track }));
@@ -15,7 +15,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps<"/[track]/pyq">) {
   return safeMetadata(async () => {
     const { track } = await params;
-    if (!isTrack(track)) return {};
+    if (!isTrack(track)) return NOT_FOUND_METADATA;
     const papers = await getPublicPapers({ track, kind: "pyq" });
     const names = TRACK_INFO[track].exams.map((e) => EXAMS[e].name).join(" and ");
     return pageMetadata({

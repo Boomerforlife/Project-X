@@ -196,9 +196,19 @@ describe("content adapters on recorded API fixtures", () => {
 
   it("toQuestionCard maps summaries with the list context", () => {
     const page = load("chapter-kinematics.json", PublicChapterSchema);
-    const card = toQuestionCard(page.questions[0]!, { exam: "jee-main", subject: "physics" });
+    const s = page.questions[0]!;
+    const card = toQuestionCard({ ...s, public_page: true, origin: "PYQ" }, { exam: "jee-main", subject: "physics" });
     expect(card).toMatchObject({ exams: ["jee-main"], subject: "physics", chapter: "kinematics", publicPage: true });
     expect(card.stem.length).toBeGreaterThan(0);
+  });
+
+  it("toQuestionCard links to practice unless the API says a public page exists", () => {
+    const s = load("chapter-kinematics.json", PublicChapterSchema).questions[0]!;
+    const ctx = { exam: "jee-main", subject: "physics" } as const;
+    // Older API builds omit the field; AI-checked items report false. Neither may link to a public page (it would 404).
+    expect(toQuestionCard({ ...s, public_page: undefined }, ctx).publicPage).toBe(false);
+    expect(toQuestionCard({ ...s, public_page: false }, ctx).publicPage).toBe(false);
+    expect(toQuestionCard({ ...s, public_page: true, origin: "AI_GENERATED" }, ctx).publicPage).toBe(false);
   });
 
   it("practiceToCard maps practice questions", () => {

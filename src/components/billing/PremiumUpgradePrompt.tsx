@@ -6,7 +6,9 @@ import { ButtonLink } from "@/components/ui/Button";
 import { billingMe } from "@/lib/api/billing";
 import { apiEnabled } from "@/lib/api/env";
 import { track } from "@/lib/analytics";
+import { PAPERS_ENABLED } from "@/lib/demo/progress";
 import { useAuthStatus } from "@/lib/session/store";
+import { PlusBadge } from "./PlusBadge";
 
 const KEY = "tabby.upgradePrompt.lastShown";
 const WEEK_MS = 7 * 86_400_000;
@@ -18,11 +20,21 @@ const BLOCKED = ["/practice/", "/cbt/", "/tests/", "/pricing/", "/billing/", "/p
 
 export type UpgradeContext = "dashboard" | "results" | "progress";
 
-const COPY: Record<UpgradeContext, string> = {
-  dashboard: "Plus removes the monthly limit on full papers and CBT mocks. Practice stays free either way.",
-  results: "Want to retry papers in the CBT as often as you like? Plus removes the monthly full-paper limit.",
-  progress: "Full mocks are the best check of exam readiness. Plus makes them unlimited.",
-};
+/**
+ * Only benefits the API enforces AND this build shows. Full papers / CBT are named only when papers are switched on;
+ * otherwise Plus is the longer study plans, the full diagnostic report and every problem version.
+ */
+const COPY: Record<UpgradeContext, string> = PAPERS_ENABLED
+  ? {
+      dashboard: "Plus adds unlimited full papers and CBT mocks, longer study plans and the full diagnostic report. Practice stays free either way.",
+      results: "Want to retry papers in the CBT as often as you like? Plus removes the monthly full-paper limit.",
+      progress: "Full mocks are the best check of exam readiness. Plus makes them unlimited.",
+    }
+  : {
+      dashboard: "Plus adds study plans up to 14 days, the full chapter-by-chapter diagnostic report and every version of each library problem. Practice stays free either way.",
+      results: "Plus shows your diagnostic chapter by chapter and builds longer study plans around your weak spots.",
+      progress: "Plus turns a diagnostic into a full chapter breakdown and a study plan of up to 14 days.",
+    };
 
 function lastShown(): number {
   try {
@@ -65,10 +77,13 @@ export function PremiumUpgradePrompt({ context }: { context: UpgradeContext }) {
 
   if (!show) return null;
   return (
-    <aside aria-label="Tabby Plus" className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-fg-soft">{COPY[context]}</p>
+    <aside aria-label="Tabby Plus" className="flex flex-col gap-3 rounded-lg border border-plus/30 bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="flex items-start gap-2.5 text-sm text-fg-soft">
+        <PlusBadge className="mt-0.5" />
+        <span>{COPY[context]}</span>
+      </p>
       <div className="flex shrink-0 gap-2">
-        <ButtonLink href="/pricing/" size="sm" variant="secondary" onClick={() => track("upgrade_prompt_clicked", { context })}>
+        <ButtonLink href="/pricing/" size="sm" variant="plus" onClick={() => track("upgrade_prompt_clicked", { context })}>
           See Plus
         </ButtonLink>
         <button type="button" className="h-9 px-3 text-sm text-fg-muted hover:text-fg" onClick={() => setShow(false)}>

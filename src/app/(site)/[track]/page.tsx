@@ -8,7 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { PAPERS_VISIBLE, getChapters, getExams, getPublicPapers, getQuestionCounts, getSubjects } from "@/lib/data";
 import { EXAMS, TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
-import { pageMetadata, safeMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 export async function generateStaticParams() {
@@ -37,7 +37,7 @@ const COPY = {
 export async function generateMetadata({ params }: PageProps<"/[track]">) {
   return safeMetadata(async () => {
     const { track } = await params;
-    if (!isTrack(track)) return {};
+    if (!isTrack(track)) return NOT_FOUND_METADATA;
     // An exam with no active content (e.g. NEET before launch) is a "coming soon" page: never indexed.
     const [subjects, chapters, counts, papers] = await Promise.all([getSubjects(track), getChapters({ track }), getQuestionCounts(track), getPublicPapers({ track })]);
     // Only claim full papers when real (non-demo) papers exist; only index when some chapter has enough published questions.

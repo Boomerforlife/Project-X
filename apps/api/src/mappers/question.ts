@@ -188,6 +188,9 @@ export function toQuestionSummary(q: QuestionRow, tax: TaxIndex): QuestionSummar
     origin: q.origin,
     chapter: tax.chapterRef(chapter),
     topic: topic ? tax.topicRef(topic) : null,
+    // Same rule as toPublicQuestion: only these statuses (with a current solution) get a public question page.
+    public_page:
+      (q.verification_status === 'OFFICIAL_KEY_MATCHED' || q.verification_status === 'HUMAN_VERIFIED') && q.current_solution_id !== null,
   };
 }
 

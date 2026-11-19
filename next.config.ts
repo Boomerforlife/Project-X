@@ -89,6 +89,12 @@ const nextConfig: NextConfig = {
           ...csp,
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // HTTPS only for a year. No includeSubDomains/preload until every subdomain (www) serves HTTPS.
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+          // Legacy clickjacking guard for browsers that ignore CSP frame-ancestors.
+          { key: "X-Frame-Options", value: "DENY" },
+          // The app needs none of these. `payment` stays open for Razorpay Checkout.
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()" },
         ],
       },
     ];

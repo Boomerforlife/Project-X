@@ -70,6 +70,33 @@ describe('SQL repositories: public + practice', () => {
     expect(Array.isArray(rel.data)).toBe(true);
   });
 
+  it('summaries say whether a public page exists; Plus-only questions never reach public surfaces', async () => {
+    const slug = 'demo-constant-acceleration-distance';
+    const id = await qid(slug);
+    const all = async () => (await j(await h.req('/public/chapters/jee-main-physics-kinematics?limit=50'))).data.questions as any[];
+    const before = await all();
+    const row = before.find((x) => x.id === id);
+    // Served by GET /public/questions/{slug} (200 in the test above), so the list must say so.
+    expect(row.public_page).toBe(true);
+    for (const x of before) expect(typeof x.public_page).toBe('boolean');
+    // An unservable question must not advertise a page.
+    const [draftish] = await db.withService(async (tx) => (await tx.query<{ n: number }>(
+      `select count(*)::int as n from public.questions where publication_status='PUBLISHED' and verification_status not in ('OFFICIAL_KEY_MATCHED','HUMAN_VERIFIED')`,
+    )).rows);
+    if (draftish!.n > 0) expect(before.some((x) => x.public_page === false)).toBe(true);
+
+    await db.withService((tx) => tx.query(`update public.questions set access_tier='PREMIUM' where id=$1`, [id]));
+    try {
+      expect((await h.req(`/public/questions/${slug}`)).status).toBe(404);
+      expect((await all()).some((x) => x.id === id)).toBe(false);
+      const s = await j(await h.req('/public/search?q=particle%20acceleration'));
+      expect(s.data.some((x: any) => x.id === id)).toBe(false);
+    } finally {
+      await db.withService((tx) => tx.query(`update public.questions set access_tier='FREE' where id=$1`, [id]));
+    }
+    expect((await h.req(`/public/questions/${slug}`)).status).toBe(200);
+  });
+
   it('practice list never leaks answers (deep key scan)', async () => {
     const r = await h.req('/practice/questions?exam=jee-main&limit=50');
     const body = await j(r);
