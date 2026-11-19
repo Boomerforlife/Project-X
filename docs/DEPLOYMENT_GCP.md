@@ -7,8 +7,8 @@ Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 
 * **Identity** = service account `projectx-api@…` (bucket objectAdmin on the 3 buckets, secretAccessor on its secrets).
 * **No CDN purge**: Vercel/Next caches pages; the API sets Cache-Control; the web app is told to refresh via the revalidate webhook.
 * **Rate limit** is per instance (in memory). Add Cloud Armor only if abuse appears.
-Build: `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://cloudbuild.googleapis.com/ gcloud builds submit . --tag asia-south1-docker.pkg.dev/projectx-staging-a7k2/projectx/api:<tag> --project projectx-staging-a7k2 --region asia-south1`
-(the override is needed only if your gcloud has a regional Cloud Build endpoint configured).
+Build: `gcloud builds submit . --config cloudbuild.api.yaml --substitutions _TAG=<tag> --project projectx-staging-a7k2 --region asia-south1`
+(add `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://asia-south1-cloudbuild.googleapis.com/` and `--async` if the global endpoint drops).
 Deploy: `infra/gcp/deploy-api-staging.sh <tag> <comma-separated web origins>`.
 Verify: `<service url>/api/v1/health` returns `{"data":{"status":"ok",...,"db":"ok"}}`.
 Auth: Supabase signs logins with asymmetric keys (JWKS verified live), so `AUTH_MODE=jwks`; no JWT secret is needed.
@@ -112,3 +112,18 @@ site is served through Firebase Hosting (same GCP project; Firebase was added to
   `https://projectx-staging-a7k2.web.app/**` (keep the run.app one while it is used). Google OAuth client: JS origin
   `https://tabbyprep.in` (the redirect URI stays Supabase's `/auth/v1/callback`).
 * Search Console (for SEO later): add a Domain property and its TXT record; indexing stays off until content is publishable.
+
+## Deploy access for Owner A (2026-11-19)
+Owner A deploys with their own Google account (no shared keys or tokens): `gcloud auth login`, then
+`gcloud config set project projectx-staging-a7k2`. Granted, deploy only:
+`run.developer`, `cloudbuild.builds.editor`, `artifactregistry.reader`, `serviceusage.serviceUsageConsumer`,
+`logging.viewer`, `firebasehosting.admin` (project); `iam.serviceAccountUser` on `projectx-web@`, `projectx-api@`,
+`projectx-build@` only; `storage.objectAdmin` + `legacyBucketReader` on the `projectx-staging-a7k2_cloudbuild` bucket only.
+No access to secret values, IAM, billing, the database, other buckets or the ingestion job. Revoke in IAM & Admin -> IAM.
+All builds run as `projectx-build@` (push to the `projectx` registry, write logs, read uploaded source); the default
+compute account has Editor, so builds must not run as it (the `cloudbuild.*.yaml` files set `serviceAccount`).
+Redeploy:
+* Web: `gcloud builds submit . --config cloudbuild.web.yaml --ignore-file .gcloudignore.web --substitutions _TAG=web-staging-N,_SITE_URL=https://tabbyprep.in,_AUTH_GOOGLE=on,_SUPABASE_PUBLISHABLE_KEY=<publishable key>`
+  then `infra/gcp/deploy-web-staging.sh web-staging-N`, then `infra/gcp/firebase-hosting.sh deploy` (clears the CDN).
+* API: `gcloud builds submit . --config cloudbuild.api.yaml --substitutions _TAG=staging-N`, then `infra/gcp/deploy-api-staging.sh staging-N`.
+  Deploy the API before the web build (the web build prerenders against the live API).
