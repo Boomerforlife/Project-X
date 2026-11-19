@@ -11,6 +11,7 @@ import { getChapter, getPublicQuestions, getQuestionPage, getRelatedQuestions, g
 import { TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
 import { sourceLabel } from "@/lib/source";
+import { SITE } from "@/lib/site";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 
 export async function generateStaticParams() {
@@ -40,11 +41,14 @@ export async function generateMetadata({ params }: PageProps<"/[track]/questions
     const p = await params;
     const data = await load(p.track, p.slug);
     if (data.kind !== "ok") return NOT_FOUND_METADATA;
-    const { q, s, c, track } = data;
+    const { q, s, c, track, sol } = data;
     const plain = richTextToPlain(q.stem);
+    // Previous-year questions are images (no text stem): name them by their paper instead of an empty excerpt.
+    const label = plain.length >= 20 ? (plain.length > 60 ? plain.slice(0, 57).trimEnd() + "…" : plain) : sourceLabel(q.source);
+    const worked = (sol?.steps.length ?? 0) > 0 ? " Worked solution included." : " Official answer key included.";
     return pageMetadata({
-      title: `${c.name} question: ${plain.length > 60 ? plain.slice(0, 57).trimEnd() + "…" : plain}`,
-      description: `${TRACK_INFO[track].name} ${s.name} · ${c.name}. ${plain.slice(0, 120)}${plain.length > 120 ? "…" : ""} Worked solution included.`,
+      title: `${c.name} question: ${label}`,
+      description: `${TRACK_INFO[track].name} ${s.name} · ${c.name}. ${plain.length >= 20 ? `${plain.slice(0, 120)}${plain.length > 120 ? "…" : ""}` : sourceLabel(q.source) + "."}${worked}`,
       path: `/${track}/questions/${q.slug}/`,
       // Disputed or solution-less questions stay out of the index until resolved.
       noindex: !isQuestionIndexable(q),
@@ -156,7 +160,14 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
 }
 
 function SourceLabel({ q }: { q: Question }) {
-  return <span className="text-xs text-fg-muted">{sourceLabel(q.source)}</span>;
+  if (q.source.kind !== "pyq") return <span className="text-xs text-fg-muted">{sourceLabel(q.source)}</span>;
+  // Previous-year question: credit the publisher (Terms, "Previous-year questions and official answer keys").
+  const body = q.exams.some((e) => e === "jee-advanced") ? "JAB / IIT (jeeadv.ac.in)" : "the National Testing Agency (NTA)";
+  return (
+    <span className="text-xs text-fg-muted">
+      {sourceLabel(q.source)} · Question paper and answer key published by {body}. Reproduced for practice; {SITE.name} is not affiliated with the exam body.
+    </span>
+  );
 }
 
 function answerText(q: Question, a: AnswerKey) {

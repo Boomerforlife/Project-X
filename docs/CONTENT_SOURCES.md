@@ -183,6 +183,36 @@ Review and publish go through the admin API (`apps/api/src/routes/admin`):
 Rows without `difficulty` or `solution` import fine but cannot be published until a reviewer adds them (the validator
 warns about both).
 
+### 7.1 Official-key previous-year questions without AI (2026-11-20)
+
+The owner chose not to use Gemini / AI tagging. Previous-year questions that have an OFFICIAL answer key are published by
+the Cloud Run Job `pyq-official` (`apps/api/src/jobs/pyq-official.ts`, same image and secrets as the API):
+
+1. **Chapter** (`PYQ_STEP=tag`): a deterministic keyword classifier (`apps/api/src/content/chapter-keywords.ts`) scores
+   each JEE Main chapter of the question's known subject from its OCR text and assigns one only when it clearly wins.
+   Measured on the 433 already-tagged questions: 100 % precision at 60 % coverage; on the real drafts it tagged 1,523 of
+   3,708 (41 %); a hand check of ~150 samples put real-draft precision at roughly 93–95 %. Each assignment writes
+   `audit_log` (`question.auto_tag_chapter`, matched terms and scores), so a batch can be reviewed or undone:
+   `select entity_id, details from audit_log where action='question.auto_tag_chapter'`.
+   The other drafts keep `chapter_id = null` for a person (`/admin/questions/`).
+2. **Publish** (`PYQ_STEP=publish`): `publishOfficialAnswerOnly` creates a solution version with provenance `OFFICIAL`,
+   `final_answer` = the official key and no steps; approves it with no reviewer; sets `OFFICIAL_KEY_MATCHED` (true: the
+   answer *is* the official key); copies the question and option images to the public bucket; publishes through the
+   same requirement check and DB guard as the admin publish; writes `audit_log` (`question.publish_official_answer_only`).
+   Only `verification_status = PENDING` drafts qualify, so dropped / multi-answer keys (held in
+   `HUMAN_REVIEW_REQUIRED`) are never published.
+3. **Difficulty** stays null ("not rated yet"; migration 0027 allows this only for OFFICIAL_KEY_MATCHED PYQs). Rate it
+   later from attempts with `difficulty_source = 'STATS'` (not built yet; see LAUNCH_READINESS).
+4. PYQs do not join problem families (migration 0027): their OCR text makes poor library titles. They appear in chapter
+   pages, chapter / subject practice, mistakes, bookmarks and their own public question pages (NOINDEX for now).
+
+Run it (PowerShell: quote the comma list or gcloud receives one mangled variable):
+```
+gcloud run jobs update pyq-official --region asia-south1 --update-env-vars 'PYQ_DRY_RUN=true,PYQ_STEP=both,PYQ_LIMIT=5000'
+gcloud run jobs execute pyq-official --region asia-south1 --wait
+```
+Undo one question: `POST /admin/questions/{id}/unpublish` (or `/archive`). Fix a wrong chapter: `PATCH /admin/questions/{id}`.
+
 ## 8. Constraints found in the schema
 
 * `questions` has no provenance columns, so `source_ref`, `licence`, `external_id` and `notes` live in `audit_log`.
