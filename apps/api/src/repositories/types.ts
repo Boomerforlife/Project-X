@@ -329,6 +329,8 @@ export interface ReviewEventRow {
 export interface VerificationRunRow {
   id: string;
   question_id: string;
+  /** The solution version this run checked (null when that version was deleted). Optional: older rows / fixtures may omit it. */
+  solution_version_id?: string | null;
   rules_version: string;
   outcome: VerificationOutcome | null;
   resulting_status: VerificationStatus | null;
@@ -635,8 +637,9 @@ export interface AdminRepo {
   moveAssetToPublic(assetId: string, r2Key: string): Promise<void>;
   insertReviewEvent(e: Omit<ReviewEventRow, 'id' | 'created_at'>): Promise<void>;
   insertAudit(a: {
-    actor_id: string;
-    actor_type: 'ADMIN' | 'USER';
+    /** null for WORKER (automated) actions. */
+    actor_id: string | null;
+    actor_type: 'ADMIN' | 'USER' | 'WORKER';
     action: string;
     entity_type: string;
     entity_id: string | null;
