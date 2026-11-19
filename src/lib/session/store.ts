@@ -27,7 +27,7 @@ import { dayKey, daysAgo } from "@/lib/demo/dates";
 import { EXAMS } from "@/lib/exams";
 import type { Attempt, AttemptSection, DemoState, DemoUser, MistakeCategory, MistakeRecord } from "@/lib/demo/types";
 import * as api from "@/lib/api/student";
-import { publicQuestion } from "@/lib/api/public";
+import { practiceQuestions, publicQuestion } from "@/lib/api/public";
 import type { AttemptResult, MistakeItem, PatchMeInput, PublicSolution, SessionDetail, SessionListItem } from "@/lib/api/schemas";
 import { toQuestion as publicToQuestion, solutionFromApi } from "@/lib/api/adapters/content";
 import { fromAnswerResponse, toAnswerResponse, toPracticeQuestion } from "@/lib/api/adapters/practice";
@@ -85,10 +85,15 @@ export function useDemo(): DemoState | null {
 export function getDemoState() {
   return state;
 }
+const noopSubscribe = () => () => {};
+
 export function useAuthStatus(): { status: AuthStatus; message: string } {
   const v = useSyncExternalStore(subscribe, () => uiVersion, () => 0);
   void v;
-  return { status, message: statusMessage };
+  // During hydration report what the server rendered ("loading"). The session may already be resolved in this module by
+  // then; returning it straight away made the first client render differ from the HTML (React #418 on /pricing/).
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  return hydrated ? { status, message: statusMessage } : { status: "loading", message: "" };
 }
 export function useSubmitState(attemptId: string): SubmitState | null {
   useSyncExternalStore(subscribe, () => uiVersion, () => 0);
@@ -503,13 +508,30 @@ function startSingle(opts: StartOpts): string {
 }
 
 /** Public question page -> practice: load the question (no solution is kept) and start a single attempt. */
-export async function startSingleBySlug(slug: string, exam: ExamId): Promise<string> {
+export async function startSingleBySlug(slug: string, exam: ExamId, hint: { subject?: SubjectId; chapter?: string } = {}): Promise<string> {
   let r = await publicQuestion(slug);
   if (r.status === "moved") r = await publicQuestion(r.slug);
-  if (r.status !== "ok") throw new Error("Question not found");
-  const q = publicToQuestion(r.data);
+  // Verified questions come from their public page. AI-checked practice items have none (404), so find them in the
+  // practice list, which serves every published free question without its answer.
+  const q = r.status === "ok" ? publicToQuestion(r.data) : await findPracticeQuestion(slug, exam, hint);
+  if (!q) throw new Error("Question not found");
   registry.putQuestions([q]); // deliberately not putSolution: the answer is revealed only via an attempt
   return startSingle({ exam: q.exams[0] ?? exam, mode: "learning", title: "Single question", questionIds: [q.id], scope: { source: "single" } });
+}
+
+/** Looks a question up by slug in GET /practice/questions, narrowed to its chapter when known (one or two pages). */
+async function findPracticeQuestion(slug: string, exam: ExamId, hint: { subject?: SubjectId; chapter?: string }): Promise<Question | null> {
+  await registry.loadTaxonomy();
+  const ch = hint.subject && hint.chapter ? registry.apiChapter(exam, hint.subject, hint.chapter) : null;
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const r = await practiceQuestions({ exam: examToApi(exam), ...(ch ? { chapter: ch.apiSlug } : {}), limit: 50, ...(cursor ? { cursor } : {}) });
+    const hit = r.data.find((x) => x.slug === slug);
+    if (hit) return toPracticeQuestion(hit);
+    cursor = r.meta?.page?.next_cursor ?? undefined;
+    if (!cursor || r.data.length === 0) break;
+  }
+  return null;
 }
 
 /* ------------------------------------------------------- demo papers (flagged) */

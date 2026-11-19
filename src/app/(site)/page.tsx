@@ -7,10 +7,10 @@ import { ButtonLink } from "@/components/ui/Button";
 import type { VerificationStatus } from "@/contracts";
 import { cn } from "@/lib/cn";
 import type { Chapter, Subject } from "@/contracts";
-import { getChapters, getSubjects } from "@/lib/data";
+import { PAPERS_VISIBLE, getChapters, getSubjects } from "@/lib/data";
 import { EXAM_LIST } from "@/lib/exams";
 import { pageMetadata, siteJsonLd } from "@/lib/seo";
-import { SITE } from "@/lib/site";
+import { DATA_SOURCE, SITE } from "@/lib/site";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 export const metadata = {
@@ -55,15 +55,17 @@ function Hero() {
             <span className="caret-block">Improve</span>
           </h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-fg-muted">
-            Practise JEE and NEET questions chapter by chapter, sit full papers in an exam-style CBT, read clear step-by-step solutions,
-            and keep the mistakes worth revisiting in one place.
+            {PAPERS_VISIBLE
+              ? "Practise JEE and NEET questions chapter by chapter, sit full papers in an exam-style CBT, read clear step-by-step solutions, and keep the mistakes worth revisiting in one place."
+              : "Practise JEE questions chapter by chapter, read clear step-by-step solutions, and keep the mistakes worth revisiting in one place."}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <ButtonLink href="/signup/" size="lg" pixel>
-              Try the demo
+              {DATA_SOURCE === "api" ? "Start practising free" : "Try the demo"}
             </ButtonLink>
-            <ButtonLink href="/jee/pyq/" size="lg" variant="secondary">
-              See the papers
+            {/* Papers stay hidden until they exist; until then the second action goes to real content. */}
+            <ButtonLink href={PAPERS_VISIBLE ? "/jee/pyq/" : "/jee/"} size="lg" variant="secondary">
+              {PAPERS_VISIBLE ? "See the papers" : "Browse chapters"}
             </ButtonLink>
           </div>
         </div>
@@ -277,22 +279,34 @@ function ExamsSection({ subjects, chapters }: { subjects: Subject[]; chapters: C
                 {subs.map((s) => (
                   <li key={s.id} className="flex items-center gap-2">
                     <span aria-hidden className={cn("size-1.5", SUBJECT_STYLE[s.id].bg)} />
-                    <Link href={`/${e.track}/${s.id}/`} className={cn("hover:underline", SUBJECT_STYLE[s.id].text)}>
-                      {s.name}
-                    </Link>
+                    {n > 0 ? (
+                      <Link href={`/${e.track}/${s.id}/`} className={cn("hover:underline", SUBJECT_STYLE[s.id].text)}>
+                        {s.name}
+                      </Link>
+                    ) : (
+                      <span className={SUBJECT_STYLE[s.id].text}>{s.name}</span>
+                    )}
                   </li>
                 ))}
               </ul>
               <div className="mt-auto flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-5 text-sm">
-                <Link href={`/${e.track}/`} className="text-fg-soft hover:text-fg">
-                  {n} chapters <span aria-hidden>→</span>
-                </Link>
-                <Link href={`/${e.track}/pyq/`} className="text-fg-soft hover:text-fg">
-                  Papers <span aria-hidden>→</span>
-                </Link>
-                <Link href={`/tests/?exam=${e.id}`} className="text-fg-soft hover:text-fg">
-                  Mock tests <span aria-hidden>→</span>
-                </Link>
+                {n > 0 ? (
+                  <Link href={`/${e.track}/`} className="text-fg-soft hover:text-fg">
+                    {n} chapters <span aria-hidden>→</span>
+                  </Link>
+                ) : (
+                  <span className="text-fg-muted">Coming soon</span>
+                )}
+                {PAPERS_VISIBLE && n > 0 ? (
+                  <>
+                    <Link href={`/${e.track}/pyq/`} className="text-fg-soft hover:text-fg">
+                      Papers <span aria-hidden>→</span>
+                    </Link>
+                    <Link href={`/tests/?exam=${e.id}`} className="text-fg-soft hover:text-fg">
+                      Mock tests <span aria-hidden>→</span>
+                    </Link>
+                  </>
+                ) : null}
               </div>
             </div>
           );

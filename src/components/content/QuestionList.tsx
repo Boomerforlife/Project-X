@@ -1,7 +1,20 @@
 import Link from "next/link";
 import type { Question, QuestionCard } from "@/contracts";
 import { DifficultyChip, TypeChip, VerificationBadge } from "@/components/ui/Badges";
+import { DATA_SOURCE } from "@/lib/site";
 import { RichText } from "./RichText";
+
+/**
+ * Practice link for a question without a public page. API mode identifies it by slug plus its exam/subject/chapter so
+ * the launcher can find it in the practice list (AI-checked questions are not served by the public question endpoint).
+ * Mock mode keeps the fixture id.
+ */
+function practiceHref(q: QuestionCard): string {
+  if (DATA_SOURCE !== "api") return `/practice/new/?q=${encodeURIComponent(q.id)}`;
+  const p = new URLSearchParams({ slug: q.slug, subject: q.subject, chapter: q.chapter });
+  if (q.exams[0]) p.set("exam", q.exams[0]);
+  return `/practice/new/?${p.toString()}`;
+}
 
 /** Server-rendered question previews — crawlable links into public question pages. */
 export function QuestionList({ questions, chapterNames, track = "jee" }: { questions: (QuestionCard & { verification?: Question["verification"] })[]; chapterNames?: Map<string, string>; track?: string }) {
@@ -32,7 +45,7 @@ export function QuestionList({ questions, chapterNames, track = "jee" }: { quest
               </Link>
             ) : (
               // Not eligible for a public page: previewed here, practised inside the app.
-              <Link href={`/practice/new/?q=${q.id}`} className="group flex gap-4 p-5 transition-colors hover:bg-surface">
+              <Link href={practiceHref(q)} className="group flex gap-4 p-5 transition-colors hover:bg-surface">
                 {body}
               </Link>
             )}

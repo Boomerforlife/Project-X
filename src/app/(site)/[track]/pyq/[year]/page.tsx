@@ -3,7 +3,7 @@ import { PaperCard } from "@/components/content/PaperCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { getPublicPapers } from "@/lib/data";
 import { TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
-import { pageMetadata, safeMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 
 /** Year landing pages exist only for years that have papers. */
 export async function generateStaticParams() {
@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: PageProps<"/[track]/pyq/[year
   return safeMetadata(async () => {
     const { track, year } = await params;
     const d = await load(track, year);
-    if (!d) return {};
+    if (!d) return NOT_FOUND_METADATA;
     const name = TRACK_INFO[d.track].name;
     return pageMetadata({
       title: `${name} ${year} papers`,

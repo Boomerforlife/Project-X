@@ -249,7 +249,7 @@ function Hub({ s }: { s: S }) {
         </section>
       )}
 
-      {/* Study plan entry: the diagnostic is free; the plan is Tabby Plus. */}
+      {/* Study plan entry: the diagnostic and a basic plan are free; longer plans and the full report are Tabby Plus. */}
       <Link
         href="/study-plans/"
         className="surface-flat group mt-14 flex items-center gap-4 p-4 transition-colors hover:border-line-strong sm:p-5"
@@ -321,14 +321,14 @@ function Launcher({ s }: { s: DemoState & { user: NonNullable<DemoState["user"]>
       void startPractice({ exam: q.exams.includes(userExam) ? userExam : q.exams[0], mode: "learning", title: "Single question", questionIds: [q.id], scope: { source: "single" } }).then((id) => router.replace(`/practice/session/?id=${id}`));
     } else if (slugParam) {
       let live = true;
-      startSingleBySlug(slugParam, userExam)
+      startSingleBySlug(slugParam, exam, { subject, chapter: chapterSlug })
         .then((id) => live && router.replace(`/practice/session/?id=${id}`))
         .catch(() => live && setError("We couldn't open that question for practice."));
       return () => {
         live = false;
       };
     }
-  }, [qParam, slugParam, router, userExam]);
+  }, [qParam, slugParam, router, userExam, exam, subject, chapterSlug]);
 
   if (qParam || slugParam) {
     return error ? (

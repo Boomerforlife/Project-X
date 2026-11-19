@@ -4,6 +4,7 @@
  * Diagnostic + study plan (basic plan free, full plan Tabby Plus). Setup -> diagnostic (the normal test-mode player, no kitty, no hints) -> report ->
  * day-by-day plan. Copy is plain instruction: no readiness %, no rank, no motivational lines.
  */
+import { PlusBadge } from "@/components/billing/PlusBadge";
 import { useAds } from "@/components/ads/AdsProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -397,11 +398,7 @@ function ReportBody({ report }: { report: ReportView }) {
 }
 
 function PlusTag() {
-  return (
-    <span className="inline-flex h-6 items-center gap-1 rounded-sm border border-line px-2 font-pixel text-[10px] uppercase tracking-wider text-fg-muted">
-      <PixelIcon name="star" className="size-3" /> Plus
-    </span>
-  );
+  return <PlusBadge />;
 }
 
 function LockedCard({ title, body }: { title: string; body: string }) {

@@ -17,6 +17,17 @@ describe('envelope, errors, headers', () => {
     expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');
     expect(r.headers.get('Cache-Control')).toBe('no-store');
   });
+  it('JSON bodies over the global cap are refused with 413 before any handler runs', async () => {
+    const { req } = memoryHarness();
+    const t = await token(IDS.user);
+    const big = JSON.stringify({ client_attempt_id: crypto.randomUUID(), question_id: IDS.qSingle, pad: 'x'.repeat(1024 * 1024 + 10) });
+    const r = await req('/practice/attempts', { method: 'POST', token: t, body: big, headers: { 'Content-Type': 'application/json' } });
+    expect(r.status).toBe(413);
+    expect((await j(r)).error.code).toBe('PAYLOAD_TOO_LARGE');
+    // A normal-sized body still reaches validation.
+    const ok = await req('/practice/attempts', { method: 'POST', token: t, json: { nope: true } });
+    expect(ok.status).toBe(400);
+  });
   it('unknown route -> NOT_FOUND envelope; validation -> VALIDATION_ERROR with issues', async () => {
     const { req } = memoryHarness();
     const a = await req('/nope');

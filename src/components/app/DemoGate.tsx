@@ -38,7 +38,8 @@ export function DemoGate({
   const signedOut = API && auth.status === "signedOut";
   useEffect(() => {
     if (needsOnboarding) router.replace("/onboarding/");
-    else if (signedOut) router.replace(loginHref(path));
+    // Keep the query string (e.g. /practice/new/?slug=…) so the student lands back on the question they picked.
+    else if (signedOut) router.replace(loginHref(path + window.location.search));
   }, [needsOnboarding, signedOut, router, path]);
   if (API && auth.status === "error") return <LoadError message={auth.message} />;
   if (s === null || needsOnboarding || signedOut) return <>{fallback}</>;

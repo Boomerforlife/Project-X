@@ -34,6 +34,9 @@ export function pageMetadata({
  * (API unreachable) the page body renders the route error boundary instead, and
  * the metadata is a safe noindex so an error page is never indexed.
  */
+/** Metadata for a route that will call notFound(): a 404 title, never indexed (instead of inheriting the home title). */
+export const NOT_FOUND_METADATA: Metadata = { title: "Page not found", robots: { index: false, follow: true } };
+
 export async function safeMetadata(build: () => Promise<Metadata>): Promise<Metadata> {
   try {
     return await build();

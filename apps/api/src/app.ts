@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { bodyLimit } from 'hono/body-limit';
 import { edgeCacheMiddleware } from '@projectx/edge';
 import type { AppDeps } from './deps';
 import type { AppEnv } from './lib/http';
@@ -16,11 +17,18 @@ import { registerAdminRoutes } from './routes/admin/index';
 import { registerPublic, registerSystem } from './routes/public';
 import { registerPractice, registerStudent } from './routes/student';
 
+/** Largest JSON body any route accepts (admin content edits are the biggest, well under this). */
+export const JSON_BODY_LIMIT = 1024 * 1024;
+
 export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   const store = deps.store ?? createSqlStore(deps.db);
   const root = new OpenAPIHono<AppEnv>();
   root.use('*', requestContext(deps, store));
   root.use('*', corsMiddleware(deps));
+  // Global request-body cap for JSON routes (Cloud Run alone allows 32 MB). /uploads streams raw images with its own
+  // 5 MiB check and the Razorpay webhook caps itself at 256 KB, both below or outside this limit.
+  const capped = bodyLimit({ maxSize: JSON_BODY_LIMIT, onError: (c) => errorResponse(c as never, 'PAYLOAD_TOO_LARGE', 413, 'Request body too large') });
+  root.use('/api/v1/*', (c, next) => (c.req.path === '/api/v1/uploads' ? next() : capped(c, next)));
   if (deps.config.CACHE_MODE === 'cache_api') root.use('/api/v1/*', edgeCacheMiddleware());
 
   const v1 = new OpenAPIHono<AppEnv>({

@@ -66,6 +66,16 @@ export async function entitlements(): Promise<Entitlements | null> {
   }
 }
 
+/** The anonymous (free-tier) view, for public pages such as /pricing/. Never sends a token, so it is safe to cache. */
+export async function freeTierEntitlements(): Promise<Entitlements | null> {
+  if (!apiEnabled()) return DEMO_ENTITLEMENTS;
+  try {
+    return (await apiFetch("/entitlements", { schema: EntitlementsSchema })).data;
+  } catch {
+    return null;
+  }
+}
+
 export const rewardOffers = () => authed("/rewards/offers", { schema: RewardOffersSchema });
 export const startReward = (code: string) => authed(`/rewards/offers/${encodeURIComponent(code)}/start`, { schema: RewardStartSchema, method: "POST", body: {} });
 export const claimReward = (body: RewardClaimBody) => authed("/rewards/claim", { schema: RewardClaimResultSchema, method: "POST", body });

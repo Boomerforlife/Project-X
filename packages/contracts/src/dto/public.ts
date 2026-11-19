@@ -76,6 +76,12 @@ export const QuestionSummarySchema = z
     origin: QuestionOriginSchema,
     chapter: ChapterRefSchema,
     topic: TopicRefSchema.nullable(),
+    /**
+     * True when GET /public/questions/{slug} serves this question (official-key matched or human verified, with a
+     * current solution). AI-checked practice items are false: link them to practice, not to a public page.
+     * Optional so older API builds (field absent) parse; clients treat absent as false.
+     */
+    public_page: z.boolean().optional(),
   })
   .openapi('QuestionSummary');
 export type QuestionSummary = z.infer<typeof QuestionSummarySchema>;

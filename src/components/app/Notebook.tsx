@@ -68,7 +68,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
         // The server picks sessions from your mistakes / bookmarks; a single question is opened by its slug.
         id =
           ids.length === 1
-            ? await startSingleBySlug(first.slug, exam)
+            ? await startSingleBySlug(first.slug, exam, { subject: first.subject, chapter: first.chapter })
             : await startPractice({ exam, mode: "learning", title, questionIds: [], count: Math.min(20, ids.length), scope: { source: kind === "bookmarks" ? "bookmarks" : "mistakes" } });
       } else {
         id = await startPractice({ exam, mode: "learning", title, questionIds: ids.slice(0, 25), scope: { source: kind === "review" ? "review" : kind } });

@@ -11,7 +11,7 @@ import { getChapter, getPublicQuestions, getQuestionPage, getRelatedQuestions, g
 import { TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
 import { sourceLabel } from "@/lib/source";
-import { pageMetadata, safeMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 
 export async function generateStaticParams() {
   const params = (await getPublicQuestions()).map((q) => ({ track: trackOf(q.exams[0]), slug: q.slug }));
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: PageProps<"/[track]/questions
   return safeMetadata(async () => {
     const p = await params;
     const data = await load(p.track, p.slug);
-    if (data.kind !== "ok") return {};
+    if (data.kind !== "ok") return NOT_FOUND_METADATA;
     const { q, s, c, track } = data;
     const plain = richTextToPlain(q.stem);
     return pageMetadata({

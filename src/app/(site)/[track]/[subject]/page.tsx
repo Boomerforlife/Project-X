@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { getChapters, getQuestionCounts, getSubjects } from "@/lib/data";
 import { TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
-import { pageMetadata, safeMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 export async function generateStaticParams() {
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: PageProps<"/[track]/[subject]
   return safeMetadata(async () => {
     const { track, subject } = await params;
     const d = await load(track, subject);
-    if (!d) return {};
+    if (!d) return NOT_FOUND_METADATA;
     const name = TRACK_INFO[d.track].name;
     const [chapters, counts] = await Promise.all([getChapters({ subject: d.s.id, track: d.track }), getQuestionCounts(d.track)]);
     return pageMetadata({

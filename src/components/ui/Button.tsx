@@ -2,13 +2,15 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost";
+type Variant = "primary" | "secondary" | "ghost" | "plus";
 type Size = "sm" | "md" | "lg";
 
 const VARIANT: Record<Variant, string> = {
   primary: "bg-fg text-bg hover:bg-fg-soft active:translate-y-px",
   secondary: "border border-line-strong text-fg hover:border-fg hover:bg-surface-2",
   ghost: "text-fg-soft hover:text-fg hover:bg-surface-2",
+  // Tabby Plus purchase actions only (pricing, upgrade prompts). --bg text on --plus is >= 5.5:1 in both themes.
+  plus: "bg-plus text-bg hover:bg-plus/85 active:translate-y-px",
 };
 
 const SIZE: Record<Size, string> = {

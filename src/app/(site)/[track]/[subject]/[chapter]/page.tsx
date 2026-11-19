@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import { PAPERS_VISIBLE, getChapter, getChapters, getQuestionCounts, getQuestions, getSubjects } from "@/lib/data";
 import { TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
 import { isChapterIndexable } from "@/lib/indexing";
-import { pageMetadata, safeMetadata } from "@/lib/seo";
+import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 const PREVIEW = 12;
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: PageProps<"/[track]/[subject]
   return safeMetadata(async () => {
     const { track, subject, chapter } = await params;
     const d = await load(track, subject, chapter);
-    if (!d) return {};
+    if (!d) return NOT_FOUND_METADATA;
     const counts = await getQuestionCounts(d.track);
     const name = TRACK_INFO[d.track].name;
     return pageMetadata({
