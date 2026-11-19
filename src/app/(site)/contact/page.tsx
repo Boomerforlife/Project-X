@@ -1,14 +1,15 @@
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Blank, LegalBody, LegalSection } from "@/components/legal/Legal";
+import { Fact, LegalBody, LegalSection, OperatorLine } from "@/components/legal/Legal";
+import { LEGAL, LEGAL_COMPLETE } from "@/lib/legal";
 import { pageMetadata } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 
-// Draft: not indexed until legal review is complete.
+// Not indexed until every business fact in src/lib/legal.ts is filled in.
 export const metadata = pageMetadata({
   title: "Contact",
   description: `How to reach ${SITE.name} support and the grievance officer.`,
   path: "/contact/",
-  noindex: true,
+  noindex: !LEGAL_COMPLETE,
 });
 
 export default function ContactPage() {
@@ -26,30 +27,34 @@ export default function ContactPage() {
       <LegalBody>
         <LegalSection title="Support">
           <p>
-            Email: <Blank label="Support email" />
+            Email: <Fact k="supportEmail" label="Support email" />
           </p>
+          {LEGAL.phone ? <p>Phone: {LEGAL.phone}</p> : null}
           <p>
-            Phone (optional): <Blank label="Phone, optional" />
+            We reply within 2 working days. For payment issues, include your receipt number (Account, then Billing). To
+            report a mistake in a question, use the report button on that question.
           </p>
-          <p>For payment issues include your receipt number (Account, then Billing).</p>
         </LegalSection>
 
         <LegalSection title="Grievance officer">
+          <p>For complaints about the service or about your personal data, contact our grievance officer:</p>
           <p>
-            Name: <Blank label="Grievance officer name" />
+            {LEGAL.grievanceOfficer ? (
+              <>
+                Name: {LEGAL.grievanceOfficer}
+                <br />
+              </>
+            ) : null}
+            Email: <Fact k="grievanceEmail" label="Grievance officer email" />
           </p>
-          <p>
-            Email: <Blank label="Grievance officer email" />
-          </p>
+          <p>We acknowledge complaints within 48 hours and resolve them within {LEGAL.grievanceResponseDays} days.</p>
         </LegalSection>
 
-        <LegalSection title="Registered office">
+        <LegalSection title="Operator">
           <p>
-            <Blank label="Registered company name" />
+            <OperatorLine />
           </p>
-          <p>
-            <Blank label="Registered address" />
-          </p>
+          {LEGAL.established ? <p>Established {LEGAL.established}.</p> : null}
         </LegalSection>
       </LegalBody>
     </>
