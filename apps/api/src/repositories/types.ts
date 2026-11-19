@@ -605,7 +605,8 @@ export interface NewSolution {
   common_mistakes: string[];
   provenance: SolutionProvenance;
   based_on_version_id: string | null;
-  author_id: string;
+  /** null for worker-created versions (e.g. the official answer-only solution). */
+  author_id: string | null;
   edit_note: string;
 }
 

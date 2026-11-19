@@ -207,6 +207,11 @@ function SolutionBlock({ q, sol }: { q: Question; sol: Solution | null }) {
         <div>
           <p className="font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">Solution</p>
           {sol.extras?.summary && <p className="mt-3 leading-relaxed text-fg-soft">{sol.extras.summary}</p>}
+          {sol.steps.length === 0 && !sol.extras?.summary && (
+            <p className="mt-3 text-sm text-fg-muted">
+              A worked solution for this question isn&rsquo;t written yet. The answer above is the exam body&rsquo;s official final answer key.
+            </p>
+          )}
           <ol className="mt-3 space-y-4">
             {sol.steps.map((st, i) => (
               <li key={i} className="grid grid-cols-[1.75rem_1fr] gap-2">

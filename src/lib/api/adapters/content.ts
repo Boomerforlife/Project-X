@@ -230,7 +230,8 @@ export function solutionFromApi(
   return {
     questionId,
     answer,
-    answerProvenance: provenance ?? (verification === "official_key_checked" ? "official_key" : "derived"),
+    // A solution whose provenance is OFFICIAL is the exam body's own key, whatever the caller could tell from the list.
+    answerProvenance: sol.provenance === "OFFICIAL" ? "official_key" : (provenance ?? (verification === "official_key_checked" ? "official_key" : "derived")),
     steps: sol.steps.map(toStep),
     generatedBy: GENERATED_BY[sol.provenance],
     verification: { status: verification },

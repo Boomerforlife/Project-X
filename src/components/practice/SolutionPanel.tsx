@@ -46,6 +46,11 @@ export function SolutionPanel({ question, solution }: { question: Question; solu
       </div>
       <div className="px-5 py-5">
         <p className="font-pixel text-[0.65rem] uppercase tracking-[0.2em] text-fg-muted">Solution</p>
+        {solution.steps.length === 0 && (
+          <p className="mt-3 text-sm text-fg-muted">
+            A worked solution for this question isn&rsquo;t written yet. The answer above is the exam body&rsquo;s official final answer key.
+          </p>
+        )}
         <ol className="mt-3 space-y-4">
           {solution.steps.map((st, i) => (
             <li key={i} className="grid grid-cols-[1.75rem_1fr] gap-2">

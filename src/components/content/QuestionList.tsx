@@ -30,6 +30,8 @@ export function QuestionList({ questions, chapterNames, track = "jee" }: { quest
               </p>
               <div className="flex flex-wrap gap-2">
                 {chapterNames && <span className="text-xs text-fg-muted">{chapterNames.get(q.chapter)}</span>}
+                {/* Only previous-year questions carry a year. */}
+                {q.year ? <span className="rounded-sm border border-line px-1.5 py-0.5 text-[11px] text-fg-muted">PYQ {q.year}</span> : null}
                 <TypeChip type={q.type} />
                 {q.difficulty && <DifficultyChip difficulty={q.difficulty} />}
                 {q.verification && <VerificationBadge status={q.verification.status} />}
