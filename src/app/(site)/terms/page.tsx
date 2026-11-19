@@ -119,6 +119,40 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
+        <LegalSection title="Accuracy of official answer keys">
+          <p>
+            Where a question is marked with the official key, the answer shown is the final answer key as published by the
+            exam body for that paper, linked to the question by the exam body&rsquo;s own question and option identifiers.
+            Exam bodies sometimes drop questions or accept more than one answer; such questions are held back for review
+            rather than shown with a guessed answer. The question image is a copy of the published paper and may contain
+            printing or scanning defects.
+          </p>
+          <p>
+            Chapter tags on previous-year questions are assigned by us (partly by automatic keyword matching) to help you
+            practise; they are not part of the official paper and may occasionally be wrong. Difficulty is shown only once it
+            has been measured from students&rsquo; attempts. If you find an error, use &ldquo;Report&rdquo; on the question or
+            write to us; we correct or withdraw questions found to be wrong.
+          </p>
+        </LegalSection>
+
+        <LegalSection title="Copyright complaints and takedown">
+          <p>
+            We respect the rights of authors and publishers. If you believe material on {SITE.name} infringes your rights,
+            send a notice to{" "}
+            <a className="underline" href={`mailto:${LEGAL.grievanceEmail}`}>
+              {LEGAL.grievanceEmail}
+            </a>{" "}
+            with: your name and contact details; the work you own; the exact page addresses on {SITE.name}; and a statement
+            that the information is accurate and that you are the owner or authorised to act for the owner.
+          </p>
+          <p>
+            We aim to acknowledge a notice within 24 hours and to act on it within 15 days. Where a notice concerns
+            previous-year papers, we may unpublish the questions concerned while we review it. Nothing on {SITE.name} is
+            offered for sale as exam-body material: previous-year questions are free to practise, and paid passes cover our
+            own features (study plans, reports and practice tools).
+          </p>
+        </LegalSection>
+
         <LegalSection title="Acceptable use">
           <ul>
             <li>Do not share your account or resell access to it.</li>

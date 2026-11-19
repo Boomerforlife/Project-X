@@ -73,8 +73,13 @@ export async function SiteFooter() {
       </div>
       <div className="border-t border-line">
         <p className="mx-auto max-w-6xl px-4 py-5 text-xs text-fg-subtle sm:px-6">
-          JEE Main and NEET UG are conducted by the National Testing Agency, and JEE Advanced by the IITs. {SITE.name} is an independent
-          practice platform and is not affiliated with either.
+          JEE Main and NEET UG are conducted by the National Testing Agency (NTA), and JEE Advanced by the IITs under the Joint Admission
+          Board. {SITE.name} is an independent practice platform and is not affiliated with, or endorsed by, any of them. Previous-year
+          question papers and official answer keys belong to their publishers and are credited on each question; see the{" "}
+          <Link href="/terms/" className="underline-offset-2 hover:underline">
+            terms
+          </Link>{" "}
+          for credits and how to request removal.
         </p>
       </div>
     </footer>

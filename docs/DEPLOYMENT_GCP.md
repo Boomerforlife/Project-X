@@ -1,8 +1,15 @@
 # Deployment on Google Cloud (replaces the Cloudflare Workers/R2 plan for the API)
 Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 (INR 450; alerts only, it does not stop spending).
 * **API** = Cloud Run service `projectx-api`, image built by Cloud Build from the root `Dockerfile` (entry `apps/api/src/server.ts`).
-* **Storage** = 3 private Cloud Storage buckets (`…-source-docs`, `…-public-assets`, `…-user-uploads`), public access prevention enforced.
-  Opening `public-assets` for approved images is a separate, deliberate step.
+* **Storage** = 3 Cloud Storage buckets (`…-source-docs`, `…-public-assets`, `…-user-uploads`). `source-docs` and `user-uploads` are private
+  (public access prevention enforced). `public-assets` was opened on 2026-11-20, when the first image questions were published:
+  public access prevention off and `allUsers` has `roles/storage.legacyObjectReader` (read a known object; listing the bucket is
+  still refused). Only the publish path copies images there. To close it again: remove that binding and run
+  `gcloud storage buckets update gs://projectx-staging-a7k2-public-assets --public-access-prevention` (image questions then break).
+* **Jobs** (Cloud Run Jobs, API image, same env and secrets as the service, no Razorpay keys): `pyq-official` (publish official-key
+  PYQs without AI, `docs/CONTENT_SOURCES.md` §7.1) and `publish-official` (AI route, unused). Both default to dry run.
+  After changing the API image, point the jobs at it: `gcloud run jobs update <job> --image=<api image>`.
+  PowerShell: quote env lists (`--update-env-vars 'A=1,B=2'`); unquoted, gcloud receives one variable `A="1 B=2"`.
 * **Secrets** = Secret Manager: `database-url` (you set it with `infra/gcp/set-database-url.ps1`), `signing-secret`, `ip-hash-secret`, `web-revalidate-secret`.
 * **Identity** = service account `projectx-api@…` (bucket objectAdmin on the 3 buckets, secretAccessor on its secrets).
 * **Caching**: Next caches pages and is told to refresh via the revalidate webhook; the API sets Cache-Control; Firebase Hosting's CDN (in front of the web) is cleared by a new Hosting release (`infra/gcp/firebase-hosting.sh deploy`).
