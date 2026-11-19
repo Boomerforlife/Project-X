@@ -25,9 +25,14 @@ export const GAM_SAMPLE_REWARDED_UNIT = "/22639388115/rewarded_web_example";
 
 const clean = (v: string | undefined) => (v ?? "").trim();
 
+/** TabbyPrep AdSense publisher id (AdSense account, approved site tabbyprep.in). */
+export const ADSENSE_PUBLISHER_ID = "ca-pub-2970121715798701";
+
 export const ADS_CONFIG = {
   mode: mode(process.env.NEXT_PUBLIC_ADS),
-  client: clean(process.env.NEXT_PUBLIC_ADSENSE_CLIENT),
+  // Defaults to the TabbyPrep publisher id (public by design) so site verification and ads.txt work in every build.
+  // Ads still load only when NEXT_PUBLIC_ADS is test or live.
+  client: clean(process.env.NEXT_PUBLIC_ADSENSE_CLIENT) || ADSENSE_PUBLISHER_ID,
   slots: {
     display: clean(process.env.NEXT_PUBLIC_ADSENSE_SLOT_DISPLAY),
     infeed: clean(process.env.NEXT_PUBLIC_ADSENSE_SLOT_INFEED),
