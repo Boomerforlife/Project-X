@@ -20,6 +20,7 @@ import {
   PublicPaymentLinkSchema,
   RefundOrderBody,
   RevokeEntitlementBody,
+  VerifyPaymentBody,
 } from '@projectx/contracts';
 import type { AppDeps } from '../deps';
 import { ApiError } from '../lib/errors';
@@ -113,6 +114,20 @@ export function registerBilling(app: App, g: Guards): void {
     request: { params: IdParam }, data: OrderSchema,
   })(g);
   app.openapi(myOrder, async (c: Ctx) => send(c, 200, await billing.getMyOrder(billingDeps(c), requireUser(c).id, valid(c, 'param', IdParam).id)));
+
+  const verify = defineRoute({
+    method: 'post', path: '/billing/orders/{id}/verify', summary: 'Verify a Checkout payment (signature + provider record)', tags: ['billing'],
+    description:
+      'Send the razorpay_order_id, razorpay_payment_id and razorpay_signature from the Checkout handler. Access is granted only if the ' +
+      'signature is valid AND Razorpay reports the payment captured for this order and amount; otherwise the order is returned unchanged ' +
+      'and the webhook completes it. Safe to call repeatedly.',
+    access: 'user', cache: 'PRIVATE', rl: 'RL_WRITE',
+    request: { params: IdParam, body: { content: { 'application/json': { schema: VerifyPaymentBody } }, required: true } },
+    data: OrderSchema,
+  })(g);
+  app.openapi(verify, async (c: Ctx) =>
+    send(c, 200, await billing.verifyCheckout(billingDeps(c), requireUser(c).id, valid(c, 'param', IdParam).id, valid(c, 'json', VerifyPaymentBody))),
+  );
 
   const createLink = defineRoute({
     method: 'post', path: '/billing/payment-links', summary: 'Create an "ask a parent to pay" link (7 days)', tags: ['billing'],

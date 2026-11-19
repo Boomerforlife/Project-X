@@ -1,5 +1,6 @@
 "use client";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -196,6 +197,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
           })}
         </ul>
       )}
+      <AdSlot placement="notebook-bottom" />
     </div>
   );
 }

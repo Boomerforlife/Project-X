@@ -114,12 +114,44 @@ describe('diagnostic', () => {
 });
 
 describe('study plan (Plus)', () => {
-  it('free users cannot create a plan', async () => {
+  it('free users cannot create a plan beyond the free limits (default 14 days)', async () => {
     const u = await user();
     const d = await takeDiagnostic(u);
     const r = await h.req('/plans', { method: 'POST', token: u.t, json: { client_request_id: crypto.randomUUID(), diagnostic_session_id: d.session.id } });
     expect(r.status).toBe(403);
-    expect((await j(r)).error.details.reason).toBe('PREMIUM_REQUIRED');
+    const e = (await j(r)).error;
+    expect(e.details.reason).toBe('PREMIUM_REQUIRED');
+    expect(e.details.max_days).toBe(7);
+    expect(e.details.max_daily_minutes).toBe(60);
+    const long = await h.req('/plans', { method: 'POST', token: u.t, json: { client_request_id: crypto.randomUUID(), diagnostic_session_id: d.session.id, days: 7, daily_minutes: 90 } });
+    expect(long.status).toBe(403);
+  });
+
+  it('free users get a working basic plan (7 days, up to 60 minutes) linked to real questions', async () => {
+    const u = await user();
+    const d = await takeDiagnostic(u);
+    const created = await h.req('/plans', { method: 'POST', token: u.t, json: { client_request_id: crypto.randomUUID(), diagnostic_session_id: d.session.id, days: 7, daily_minutes: 60 } });
+    expect(created.status).toBe(201);
+    const plan = (await j(created)).data;
+    expect(plan.plan_days).toHaveLength(7);
+    const cur = (await j(await h.req('/plans/current', { token: u.t }))).data;
+    expect(cur.locked).toBe(false);
+    const item = cur.plan_days.flatMap((x: { items: { key: string; kind: string }[] }) => x.items).find((i: { kind: string }) => ['PRACTICE', 'TIMED', 'MISTAKES'].includes(i.kind));
+    if (item) {
+      const s1 = await h.req(`/plans/${plan.id}/items/${item.key}/start`, { method: 'POST', token: u.t });
+      expect(s1.status).toBe(200);
+      const b = (await j(s1)).data;
+      // The session holds real published questions from the database, never premium ones for a free user.
+      const ids = (b.session?.questions ?? []).map((q: { id: string }) => q.id);
+      if (ids.length) {
+        const rows = await sql<{ n: string; prem: string }>(
+          `select count(*)::text as n, count(*) filter (where access_tier = 'PREMIUM')::text as prem from questions where id = any($1::uuid[]) and publication_status = 'PUBLISHED'`,
+          [ids],
+        );
+        expect(Number(rows[0]!.n)).toBe(ids.length);
+        expect(rows[0]!.prem).toBe('0');
+      }
+    }
   });
 
   it('builds a plan, re-plans on read, starts items idempotently, and goes read-only when Plus lapses', async () => {
@@ -155,7 +187,7 @@ describe('study plan (Plus)', () => {
     }
 
     // A second plan archives the first; only one stays active.
-    const second = await h.req('/plans', { method: 'POST', token: u.t, json: { client_request_id: crypto.randomUUID(), diagnostic_session_id: d.session.id, daily_minutes: 30, days: 7 } });
+    const second = await h.req('/plans', { method: 'POST', token: u.t, json: { client_request_id: crypto.randomUUID(), diagnostic_session_id: d.session.id, daily_minutes: 90, days: 14 } });
     expect(second.status).toBe(201);
     const active = await sql<{ n: string }>(`select count(*)::text as n from study_plans where user_id=$1 and status='ACTIVE'`, [u.id]);
     expect(active[0]!.n).toBe('1');

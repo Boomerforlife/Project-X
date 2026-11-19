@@ -1,5 +1,8 @@
 # Launch readiness
 
+> 2026-11-19: monetisation, ads, rewarded credits, free basic plans and admin question classification are on branch
+> `feat/monetization-ads-difficulty`. Status, credentials, manual steps and the launch checklist: `docs/MONETIZATION_HANDOVER.md`.
+
 Snapshot 2026-11-17, branch `main`. Each item sits in exactly one bucket.
 Setup steps are in `docs/PRODUCTION_SETUP.md`, SEO in `docs/SEO_LAUNCH_CHECKLIST.md`, and content policy in `docs/CONTENT_SOURCES.md`.
 

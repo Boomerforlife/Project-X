@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SiteContentAd } from "@/components/ads/SiteContentAd";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 
@@ -13,6 +14,11 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         <SiteHeader />
       </Suspense>
       <main id="main">{children}</main>
+      {/* Public content pages only (subject/chapter hubs, PYQ hubs, resources); the policy keeps it off the landing,
+          pricing, payment and legal pages. Sits after the content, never inside it. */}
+      <Suspense fallback={null}>
+        <SiteContentAd />
+      </Suspense>
       <Suspense fallback={null}>
         <SiteFooter />
       </Suspense>

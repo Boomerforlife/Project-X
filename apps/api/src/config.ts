@@ -43,6 +43,13 @@ const EnvSchema = z.object({
   FREE_FULL_PAPERS_PER_MONTH: z.coerce.number().int().min(0).max(100).default(2),
   // Problem set: distinct variants per problem a free user can open; Plus is unlimited.
   FREE_VARIANTS_PER_PROBLEM: z.coerce.number().int().min(1).max(50).default(3),
+  // Free "basic" study plan: the longest plan and the most minutes a day a free user may create. Plus has no cap.
+  FREE_PLAN_MAX_DAYS: z.coerce.number().int().refine((v) => v === 7 || v === 14).default(7),
+  FREE_PLAN_MAX_DAILY_MINUTES: z.coerce.number().int().refine((v) => [30, 60, 90, 120].includes(v)).default(60),
+  // ---- ads. ADS_ENABLED: free users are eligible for display ads (the web still needs its AdSense ids to show any).
+  // REWARDED_ADS_ENABLED: issue rewarded-ad nonces / accept claims (needs Google Ad Manager rewarded unit on the web).
+  ADS_ENABLED: bool.default(true),
+  REWARDED_ADS_ENABLED: bool.default(false),
   WEB_BASE_URL: z.string().url().optional(),
 });
 

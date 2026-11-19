@@ -1,5 +1,6 @@
 "use client";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import { PremiumUpgradePrompt } from "@/components/billing/PremiumUpgradePrompt";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -326,6 +327,8 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
       <div className="mt-10">
         <PremiumUpgradePrompt context="results" />
       </div>
+      {/* After the whole review (never between a question and its solution). */}
+      <AdSlot placement="results-bottom" />
     </div>
   );
 }

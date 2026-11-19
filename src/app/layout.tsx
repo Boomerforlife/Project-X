@@ -3,10 +3,12 @@ import { Suspense } from "react";
 import { Inter, Silkscreen, Space_Grotesk } from "next/font/google";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+import { AdsProvider } from "@/components/ads/AdsProvider";
 import { AppReady, NavProgress } from "@/components/layout/AppChrome";
 import { LoadingScreen } from "@/components/states/Loading";
-import { THEME_SCRIPT } from "@/components/theme/Theme";
+import { THEME_SCRIPT } from "@/components/theme/theme-script";
 import { Toaster } from "@/components/ui/Toast";
+import { ADS_CONFIG } from "@/lib/ads/config";
 import { DATA_SOURCE, INDEXABLE, SITE } from "@/lib/site";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -21,6 +23,9 @@ export const metadata: Metadata = {
   applicationName: SITE.name,
   robots: INDEXABLE ? undefined : { index: false, follow: true },
   formatDetection: { telephone: false },
+  // AdSense site ownership. Emitted whenever a publisher id is set, even with ads off, so Google can verify the site
+  // before any ad is shown. The ad script itself loads lazily, only where the placement policy allows.
+  ...(/^ca-pub-\d{10,20}$/.test(ADS_CONFIG.client) ? { other: { "google-adsense-account": ADS_CONFIG.client } } : {}),
 };
 
 export const viewport: Viewport = {
@@ -48,7 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={null}>
           <NavProgress />
         </Suspense>
-        {children}
+        <AdsProvider>{children}</AdsProvider>
         <Toaster />
         <AppReady />
         {DATA_SOURCE === "mock" && <MockRibbon />}

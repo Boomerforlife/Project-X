@@ -17,10 +17,21 @@ export interface RazorpayRefund {
   status: string;
 }
 
+export interface RazorpayPayment {
+  id: string;
+  order_id: string | null;
+  amount: number;
+  currency: string;
+  /** created | authorized | captured | refunded | failed */
+  status: string;
+}
+
 export interface RazorpayClient {
   readonly keyId: string;
   createOrder(input: { amount: number; currency: 'INR'; receipt: string; notes: Record<string, string> }): Promise<RazorpayOrder>;
   refundPayment(paymentId: string, input: { notes: Record<string, string> }): Promise<RazorpayRefund>;
+  /** GET /payments/{id}: the provider's own record, used to confirm a checkout before granting access. */
+  fetchPayment(paymentId: string): Promise<RazorpayPayment>;
 }
 
 export class RazorpayError extends Error {
@@ -43,11 +54,11 @@ export function createRazorpayClient(opts: {
   const f = opts.fetch ?? fetch;
   const base = opts.baseUrl ?? 'https://api.razorpay.com/v1';
   const auth = `Basic ${btoa(`${opts.keyId}:${opts.keySecret}`)}`;
-  async function call<T>(path: string, body: unknown): Promise<T> {
+  async function call<T>(path: string, body: unknown, method: 'GET' | 'POST' = 'POST'): Promise<T> {
     const res = await f(`${base}${path}`, {
-      method: 'POST',
-      headers: { Authorization: auth, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      method,
+      headers: method === 'POST' ? { Authorization: auth, 'Content-Type': 'application/json' } : { Authorization: auth },
+      ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
       signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000),
     });
     const text = await res.text();
@@ -67,6 +78,7 @@ export function createRazorpayClient(opts: {
     keyId: opts.keyId,
     createOrder: (input) => call<RazorpayOrder>('/orders', input),
     refundPayment: (paymentId, input) => call<RazorpayRefund>(`/payments/${encodeURIComponent(paymentId)}/refund`, input),
+    fetchPayment: (paymentId) => call<RazorpayPayment>(`/payments/${encodeURIComponent(paymentId)}`, null, 'GET'),
   };
 }
 
@@ -91,4 +103,13 @@ export function timingSafeEqualHex(a: string, b: string): boolean {
 export async function verifyWebhookSignature(rawBody: Uint8Array, signature: string | undefined, secret: string): Promise<boolean> {
   if (!signature || !/^[a-f0-9]{64}$/i.test(signature)) return false;
   return timingSafeEqualHex(await hmacSha256Hex(secret, rawBody), signature.toLowerCase());
+}
+
+/**
+ * Standard Checkout handler: razorpay_signature = hex HMAC-SHA256(`${razorpay_order_id}|${razorpay_payment_id}`, key secret).
+ * https://razorpay.com/docs/payments/server-integration/nodejs/integration-steps/#15-verify-payment-signature
+ */
+export async function verifyCheckoutSignature(orderId: string, paymentId: string, signature: string, keySecret: string): Promise<boolean> {
+  if (!/^[a-f0-9]{64}$/i.test(signature)) return false;
+  return timingSafeEqualHex(await hmacSha256Hex(keySecret, `${orderId}|${paymentId}`), signature.toLowerCase());
 }

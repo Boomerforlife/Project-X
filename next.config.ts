@@ -33,18 +33,21 @@ function buildCspHeaders(): { key: string; value: string }[] {
   // Razorpay Checkout (pricing, /billing/*, /pay/*): script + iframe + its telemetry endpoint.
   const razorpay = ["https://checkout.razorpay.com", "https://api.razorpay.com", "https://lumberjack.razorpay.com"];
   for (const o of razorpay) connect.add(o);
+  // Google AdSense (display) and Google Publisher Tag (rewarded, Ad Manager). Only loaded for free users on allowed pages.
+  const google = ["https://*.googlesyndication.com", "https://*.doubleclick.net", "https://*.google.com", "https://*.adtrafficquality.google", "https://*.googletagservices.com"];
+  for (const o of google) connect.add(o);
 
   const enforced = ["frame-ancestors 'none'", "base-uri 'self'", "object-src 'none'", "form-action 'self'"].join("; ");
 
   const reportOnly = [
     "default-src 'self'",
-    "script-src 'self' https://checkout.razorpay.com", // no 'unsafe-inline': inline scripts will be reported (expected until nonce/hash is in place)
+    `script-src 'self' https://checkout.razorpay.com ${google.join(" ")}`, // no 'unsafe-inline': inline scripts will be reported (expected until nonce/hash is in place)
     "style-src 'self' 'unsafe-inline'", // React style attributes + KaTeX
     // Question/solution images are served from the public-assets custom domain (origin not known to the web build).
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:", // next/font and KaTeX fonts are self-hosted
     `connect-src ${[...connect].join(" ")}`,
-    "frame-src https://api.razorpay.com https://checkout.razorpay.com",
+    `frame-src https://api.razorpay.com https://checkout.razorpay.com ${google.join(" ")}`,
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "frame-ancestors 'none'",

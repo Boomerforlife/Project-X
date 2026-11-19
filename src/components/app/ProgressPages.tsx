@@ -1,5 +1,6 @@
 "use client";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import { BillingSection } from "@/components/billing/BillingSection";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -205,6 +206,7 @@ function Progress({ s }: { s: S }) {
       </section>
 
       <Wardrobe s={s} />
+      <AdSlot placement="notebook-bottom" />
     </div>
   );
 }

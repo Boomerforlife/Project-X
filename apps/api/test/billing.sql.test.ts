@@ -41,6 +41,9 @@ class FakeRazorpay implements RazorpayClient {
     this.n += 1;
     return { id: `order_${this.n}_${Math.random().toString(36).slice(2, 8)}`, amount: input.amount, currency: 'INR', receipt: input.receipt, status: 'created' };
   }
+  async fetchPayment(_paymentId: string): Promise<never> {
+    throw new Error('not used in this suite (see monetization.sql.test.ts)');
+  }
   async refundPayment(paymentId: string, input: { notes: Record<string, string> }) {
     this.refunds.push({ paymentId, notes: input.notes });
     return { id: 'rfnd_1', payment_id: paymentId, amount: 0, status: 'processed' };

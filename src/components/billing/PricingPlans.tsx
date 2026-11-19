@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Primitives";
 import { billingMe, createOrder, formatInr, perMonth } from "@/lib/api/billing";
 import { apiEnabled } from "@/lib/api/env";
 import { isApiError } from "@/lib/api/errors";
+import { verifyPayment } from "@/lib/api/monetization";
 import { openCheckout } from "@/lib/billing/checkout";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/cn";
@@ -168,9 +169,17 @@ export function PlanButton({
     try {
       requestId.current ??= crypto.randomUUID();
       const order = await createOrder({ client_request_id: requestId.current, plan_code: plan.code });
-      const r = await openCheckout(order, { description: `${plan.name} · ${plan.duration_days} days` });
+      let verifying: Promise<unknown> | null = null;
+      const r = await openCheckout(order, {
+        description: `${plan.name} · ${plan.duration_days} days`,
+        // Server-side verification (signature + Razorpay's record). Failure is fine: the webhook still completes it.
+        onPayment: (p) => {
+          verifying = verifyPayment(order.order_id, p).catch(() => undefined);
+        },
+      });
       if (r === "submitted") {
         track("checkout_submitted", { plan: plan.code });
+        if (verifying) await Promise.race([verifying, new Promise((res) => setTimeout(res, 8000))]);
         router.push(`/billing/success/?order=${order.order_id}`);
       } else {
         track("checkout_dismissed", { plan: plan.code });

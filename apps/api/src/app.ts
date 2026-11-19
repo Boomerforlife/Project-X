@@ -7,6 +7,9 @@ import { createRoleResolver } from './middleware/guards';
 import { createSqlStore } from './repositories/sql/store';
 import { registerAnalytics } from './analytics/routes';
 import { registerBilling } from './billing/routes';
+import { registerClassify } from './classify/routes';
+import { registerEntitlements } from './entitlements/routes';
+import { registerRewards } from './rewards/routes';
 import { registerPlans } from './plans/routes';
 import { registerProblems } from './problems/routes';
 import { registerAdminRoutes } from './routes/admin/index';
@@ -54,6 +57,9 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   registerAnalytics(v1, guards);
   registerProblems(v1, guards);
   registerPlans(v1, guards);
+  registerEntitlements(v1, guards);
+  registerRewards(v1, guards);
+  registerClassify(v1, guards);
 
   root.route('/api/v1', v1);
   root.onError(onError);

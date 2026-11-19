@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { ExamId } from "@/contracts";
+import { TierBadge } from "@/components/billing/TierBadge";
 import { ThemeToggle } from "@/components/theme/Theme";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
@@ -155,7 +156,7 @@ function AccountMenu() {
         <div id={id} role="menu" className="rise absolute right-0 top-11 z-50 w-64 rounded-xl border border-line-strong bg-surface p-1.5 shadow-[var(--shadow-pop)]">
           <div className="border-b border-line px-2.5 pb-2.5 pt-1.5">
             <p className="text-sm font-medium">{s.user.name}</p>
-            <p className="text-xs text-fg-muted">Demo account · {EXAMS[s.user.exam].name}</p>
+            <p className="text-xs text-fg-muted">{DATA_SOURCE === "mock" ? "Demo account · " : ""}{EXAMS[s.user.exam].name}</p>
           </div>
           <div className="py-1">
             {links.map((l) => (
@@ -199,6 +200,7 @@ export function HeaderActions({ variant = "site" }: { variant?: NavVariant }) {
               Dashboard
             </Link>
           )}
+          <TierBadge className="mr-1" />
           <ExamSwitcher />
           <AccountMenu />
         </>
@@ -281,7 +283,7 @@ export function MobileNav({ variant = "site" }: { variant?: NavVariant }) {
                     <Avatar name={s.user.name} />
                     <div>
                       <p className="text-sm font-medium">{s.user.name}</p>
-                      <p className="text-xs text-fg-muted">Demo account</p>
+                      {DATA_SOURCE === "mock" ? <p className="text-xs text-fg-muted">Demo account</p> : <TierBadge className="mt-1" />}
                     </div>
                   </div>
                   <ExamSwitcher compact />

@@ -1,4 +1,6 @@
 import type { Db, SqlTx } from '@projectx/db';
+import { planWithinLimits, type PlanLimits } from '../entitlements/policy';
+import { premiumRequired } from '../problems/access';
 import {
   assembleDiagnostic,
   buildPlan,
@@ -390,7 +392,7 @@ async function planInput(tx: SqlTx, userId: string, plus: boolean, diag: Session
   };
 }
 
-export async function createPlan(db: Db, store: Store, deps: Deps, userId: string, body: CreatePlanBody): Promise<{ created: boolean; data: StudyPlan }> {
+export async function createPlan(db: Db, store: Store, deps: Deps, userId: string, body: CreatePlanBody, plus = true): Promise<{ created: boolean; data: StudyPlan }> {
   const { session, chapterIds } = await loadDiagnostic(store, userId, body.diagnostic_session_id);
   if (session.status === 'ACTIVE') throw validation('Submit the diagnostic first', [{ path: 'diagnostic_session_id', message: 'diagnostic still in progress' }]);
   return db.withService(async (tx) => {
@@ -399,7 +401,8 @@ export async function createPlan(db: Db, store: Store, deps: Deps, userId: strin
     const now = deps.clock();
     const startsOn = istDate(now);
     const seed = `${session.id}:${body.client_request_id}`;
-    const input = await planInput(tx, userId, true, session, { chapter_ids: chapterIds, daily_minutes: body.daily_minutes, days: body.days, seed, startsOn, createdAt: now }, now);
+    // Free (basic) plans only schedule problems a free user can open; Plus plans see the whole bank.
+    const input = await planInput(tx, userId, plus, session, { chapter_ids: chapterIds, daily_minutes: body.daily_minutes, days: body.days, seed, startsOn, createdAt: now }, now);
     const days = buildPlan(input);
     await tx.query(`update public.study_plans set status = 'ARCHIVED' where user_id = $1 and exam_id = $2 and status = 'ACTIVE'`, [userId, session.exam_id]);
     const { rows } = await tx.query<PlanRow>(
@@ -461,14 +464,14 @@ async function refreshCompletion(tx: SqlTx, p: PlanRow, now: Date): Promise<bool
   return changed;
 }
 
-export async function currentPlan(db: Db, deps: Deps, userId: string, plus: boolean, exam: string): Promise<StudyPlan> {
+export async function currentPlan(db: Db, deps: Deps, userId: string, plus: boolean, exam: string, freeLimits?: PlanLimits): Promise<StudyPlan> {
   return db.withService(async (tx) => {
     const p = await activePlan(tx, userId, exam);
     if (!p) throw notFound('Plan');
     const now = deps.clock();
     const todayIndex = Math.max(0, Math.min(p.days, daysBetween(ymd(p.starts_on), istDate(now))));
-    // Plus lapsed: return the plan exactly as it was, read-only.
-    if (!plus) return toDto(tx, p, todayIndex, true);
+    // Without Plus a basic plan (inside the free limits) keeps working; a bigger plan from a lapsed Plus is read-only.
+    if (!plus && !(freeLimits && planWithinLimits(p, freeLimits))) return toDto(tx, p, todayIndex, true);
     await refreshCompletion(tx, p, now);
     if (todayIndex < p.days) {
       // Same transaction (no nested store call: a single-connection pool would deadlock).
@@ -488,10 +491,11 @@ export async function currentPlan(db: Db, deps: Deps, userId: string, plus: bool
  * Start an item: create (or reuse) its practice session and remember it. PROBLEMS and REVIEW_DIAGNOSTIC only get a start time
  * (the client opens the problems / the diagnostic results). Idempotent: a started item returns its existing session.
  */
-export async function startItem(db: Db, store: Store, deps: Deps, user: AuthUser, planId: string, key: string): Promise<{ item: PlanItem; session: { session: ReturnType<typeof sessionSummary>; questions: Awaited<ReturnType<typeof buildPracticeQuestions>> } | null }> {
+export async function startItem(db: Db, store: Store, deps: Deps, user: AuthUser, planId: string, key: string, access: { plus: boolean; freeLimits: PlanLimits } = { plus: true, freeLimits: { maxDays: 14, maxDailyMinutes: 120 } }): Promise<{ item: PlanItem; session: { session: ReturnType<typeof sessionSummary>; questions: Awaited<ReturnType<typeof buildPracticeQuestions>> } | null }> {
   const loaded = await db.withService(async (tx) => {
     const p = await activePlan(tx, user.id, '', planId);
     if (!p || p.status !== 'ACTIVE') throw notFound('Plan');
+    if (!access.plus && !planWithinLimits(p, access.freeLimits)) throw premiumRequired('This plan is longer than the free plan; renew Tabby Plus to continue it');
     const it = p.plan_days.flatMap((d) => d.items).find((x) => x.key === key);
     if (!it) throw notFound('Plan item');
     return { p, it, exam: await examSlug(tx, p.exam_id), meta: await chapterMeta(tx, p.chapter_ids) };

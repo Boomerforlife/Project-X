@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Diagnostic + study plan (Tabby Plus). Setup -> diagnostic (the normal test-mode player, no kitty, no hints) -> report ->
+ * Diagnostic + study plan (basic plan free, full plan Tabby Plus). Setup -> diagnostic (the normal test-mode player, no kitty, no hints) -> report ->
  * day-by-day plan. Copy is plain instruction: no readiness %, no rank, no motivational lines.
  */
+import { useAds } from "@/components/ads/AdsProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -284,7 +285,7 @@ function SetupView({ s }: { s: S }) {
 
         <div className="space-y-2">
           <PlusNote>We aim for about 30% Easy, 50% Medium and 20% Hard. If a level runs short, the gap goes to the nearest level and the report says so.</PlusNote>
-          <PlusNote>The diagnostic and its summary are free. The full chapter breakdown and the day-by-day plan are part of Tabby Plus.</PlusNote>
+          <PlusNote>The diagnostic, its summary and a basic one-week plan are free. The full chapter breakdown and longer plans are part of Tabby Plus.</PlusNote>
         </div>
 
         <Button size="lg" pixel onClick={start} disabled={busy || chosen.length === 0} className="w-full sm:w-auto">
@@ -419,10 +420,16 @@ function LockedCard({ title, body }: { title: string; body: string }) {
 }
 
 function ReportScreen({ s, report, onPlan, onRestart }: { s: S; report: ReportView; onPlan: () => void; onRestart: () => void }) {
-  const [minutes, setMinutes] = useState<"30" | "60" | "90" | "120">("60");
-  const [days, setDays] = useState<"7" | "14">("14");
+  // Free users get a basic plan inside the server's limits (GET /entitlements); Plus gets every length. The API enforces it.
+  const { entitlements: ent } = useAds();
+  const maxDays = report.plus ? 14 : (ent?.limits.plan_max_days ?? 7);
+  const maxMinutes = report.plus ? 120 : (ent?.limits.plan_max_daily_minutes ?? 60);
+  const minuteOptions = (["30", "60", "90", "120"] as const).filter((m) => Number(m) <= maxMinutes);
+  const dayOptions = (["7", "14"] as const).filter((d) => Number(d) <= maxDays);
+  const [minutes, setMinutes] = useState<"30" | "60" | "90" | "120">(minuteOptions.includes("60") ? "60" : (minuteOptions[0] ?? "30"));
+  const [days, setDays] = useState<"7" | "14">(dayOptions.includes("14") ? "14" : "7");
   const [busy, setBusy] = useState(false);
-  const [needsPlus, setNeedsPlus] = useState(!report.plus);
+  const [needsPlus, setNeedsPlus] = useState(false);
 
   const build = async () => {
     setBusy(true);
@@ -445,15 +452,21 @@ function ReportScreen({ s, report, onPlan, onRestart }: { s: S; report: ReportVi
 
       <section aria-labelledby="build-h" className="mt-12">
         <h2 id="build-h" className="flex items-center gap-2 text-2xl font-semibold">
-          Build your plan <PlusTag />
+          Build your plan {!report.plus && <span className="text-sm font-normal text-fg-muted">· free basic plan</span>}
         </h2>
+        {!report.plus && !needsPlus && (
+          <p className="mt-2 max-w-2xl text-sm text-fg-muted">
+            Free plans run up to {maxDays === 7 ? "1 week" : "2 weeks"} at up to {maxMinutes} minutes a day, using the problems on the free tier. Longer plans,
+            longer days and every problem are part of Tabby Plus <PlusTag />.
+          </p>
+        )}
         {needsPlus ? (
           <LockedCard title="Day-by-day plans are part of Tabby Plus" body="Your plan picks practice sessions, specific problems and mistakes to redo, and adjusts after every session." />
         ) : (
           <Card className="mt-4 flex flex-wrap items-end gap-8 p-6">
             <div>
               <p className="text-sm font-medium">Time each day</p>
-              <Segmented className="mt-3" label="Minutes a day" value={minutes} onChange={setMinutes} options={(["30", "60", "90", "120"] as const).map((m) => ({ id: m, label: `${m} min` }))} />
+              <Segmented className="mt-3" label="Minutes a day" value={minutes} onChange={setMinutes} options={minuteOptions.map((m) => ({ id: m, label: `${m} min` }))} />
             </div>
             <div>
               <p className="text-sm font-medium">Length</p>
@@ -462,10 +475,7 @@ function ReportScreen({ s, report, onPlan, onRestart }: { s: S; report: ReportVi
                 label="Plan length"
                 value={days}
                 onChange={setDays}
-                options={[
-                  { id: "7", label: "1 week" },
-                  { id: "14", label: "2 weeks" },
-                ]}
+                options={dayOptions.map((d) => ({ id: d, label: d === "7" ? "1 week" : "2 weeks" }))}
               />
             </div>
             <Button size="lg" pixel onClick={build} disabled={busy}>

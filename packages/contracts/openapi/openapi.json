@@ -4843,6 +4843,9 @@
                   },
                   "resets_on": {
                     "$ref": "#/components/schemas/DateString"
+                  },
+                  "rewarded": {
+                    "type": "integer"
                   }
                 },
                 "required": [
@@ -5006,6 +5009,28 @@
           "PAID",
           "FAILED",
           "REFUNDED"
+        ]
+      },
+      "VerifyPaymentBody": {
+        "type": "object",
+        "properties": {
+          "razorpay_order_id": {
+            "type": "string",
+            "pattern": "^order_[A-Za-z0-9]{6,40}$"
+          },
+          "razorpay_payment_id": {
+            "type": "string",
+            "pattern": "^pay_[A-Za-z0-9]{6,40}$"
+          },
+          "razorpay_signature": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$"
+          }
+        },
+        "required": [
+          "razorpay_order_id",
+          "razorpay_payment_id",
+          "razorpay_signature"
         ]
       },
       "PaymentLink": {
@@ -6083,6 +6108,655 @@
         "required": [
           "item",
           "session"
+        ]
+      },
+      "Entitlements": {
+        "type": "object",
+        "properties": {
+          "tier": {
+            "type": "string",
+            "enum": [
+              "FREE",
+              "PLUS"
+            ]
+          },
+          "plus_until": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "ad_free": {
+                "type": "boolean"
+              },
+              "cbt_unlimited": {
+                "type": "boolean"
+              },
+              "premium_problems": {
+                "type": "boolean"
+              },
+              "unlimited_variants": {
+                "type": "boolean"
+              },
+              "solution_extras": {
+                "type": "boolean"
+              },
+              "study_plan": {
+                "type": "boolean"
+              },
+              "study_plan_full": {
+                "type": "boolean"
+              },
+              "diagnostic_full_report": {
+                "type": "boolean"
+              }
+            }
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "full_papers_per_month": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "full_papers_used": {
+                "type": "integer"
+              },
+              "full_papers_rewarded": {
+                "type": "integer"
+              },
+              "variants_per_problem": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "plan_max_days": {
+                "type": "integer"
+              },
+              "plan_max_daily_minutes": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "full_papers_per_month",
+              "full_papers_used",
+              "full_papers_rewarded",
+              "variants_per_problem",
+              "plan_max_days",
+              "plan_max_daily_minutes"
+            ]
+          },
+          "ads": {
+            "type": "object",
+            "properties": {
+              "eligible": {
+                "type": "boolean"
+              },
+              "rewarded_enabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "eligible",
+              "rewarded_enabled"
+            ]
+          },
+          "payments_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tier",
+          "plus_until",
+          "features",
+          "limits",
+          "ads",
+          "payments_enabled"
+        ]
+      },
+      "RewardOffers": {
+        "type": "object",
+        "properties": {
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RewardOffer"
+            }
+          }
+        },
+        "required": [
+          "offers"
+        ]
+      },
+      "RewardOffer": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "benefit": {
+            "type": "string",
+            "enum": [
+              "FULL_PAPER_CREDIT"
+            ]
+          },
+          "amount": {
+            "type": "integer"
+          },
+          "min_seconds": {
+            "type": "integer"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/RewardUnavailableReason"
+          },
+          "granted_today": {
+            "type": "integer"
+          },
+          "granted_this_month": {
+            "type": "integer"
+          },
+          "daily_cap": {
+            "type": "integer"
+          },
+          "monthly_cap": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "description",
+          "benefit",
+          "amount",
+          "min_seconds",
+          "available",
+          "reason",
+          "granted_today",
+          "granted_this_month",
+          "daily_cap",
+          "monthly_cap"
+        ]
+      },
+      "RewardUnavailableReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "DISABLED",
+          "PLUS",
+          "NOT_NEEDED",
+          "DAILY_CAP",
+          "MONTHLY_CAP",
+          null
+        ]
+      },
+      "RewardStart": {
+        "type": "object",
+        "properties": {
+          "nonce": {
+            "type": "string"
+          },
+          "expires_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "min_seconds": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nonce",
+          "expires_at",
+          "min_seconds"
+        ]
+      },
+      "RewardClaimResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "GRANTED",
+              "NOT_GRANTED"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "CLOSED",
+              "NO_FILL",
+              "ERROR",
+              "TOO_FAST",
+              "EXPIRED",
+              "ALREADY_USED",
+              "CAP_REACHED",
+              "PLUS",
+              null
+            ]
+          },
+          "offer": {
+            "$ref": "#/components/schemas/RewardOffer"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "offer"
+        ]
+      },
+      "RewardClaimBody": {
+        "type": "object",
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{48}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "GRANTED",
+              "CLOSED",
+              "NO_FILL",
+              "ERROR"
+            ]
+          }
+        },
+        "required": [
+          "nonce",
+          "outcome"
+        ]
+      },
+      "ClassifyList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClassifyItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/DifficultyCounts"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "counts"
+        ]
+      },
+      "ClassifyItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "exam": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "subject": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "chapter": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "topic": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name"
+            ]
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/Difficulty"
+          },
+          "difficulty_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "ADMIN",
+              "AI",
+              "IMPORT",
+              null
+            ]
+          },
+          "difficulty_set_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "question_type": {
+            "$ref": "#/components/schemas/QuestionType"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/QuestionOrigin"
+          },
+          "publication_status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "ARCHIVED"
+            ]
+          },
+          "verification_status": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "shift": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "question_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paper": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "has_answer_key": {
+            "type": "boolean"
+          },
+          "answer_key_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "row_version": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "exam",
+          "subject",
+          "chapter",
+          "topic",
+          "difficulty",
+          "difficulty_source",
+          "difficulty_set_at",
+          "question_type",
+          "origin",
+          "publication_status",
+          "verification_status",
+          "year",
+          "shift",
+          "question_number",
+          "paper",
+          "excerpt",
+          "has_answer_key",
+          "answer_key_source",
+          "row_version",
+          "updated_at"
+        ]
+      },
+      "DifficultyCounts": {
+        "type": "object",
+        "properties": {
+          "EASY": {
+            "type": "integer"
+          },
+          "MEDIUM": {
+            "type": "integer"
+          },
+          "HARD": {
+            "type": "integer"
+          },
+          "UNCLASSIFIED": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "EASY",
+          "MEDIUM",
+          "HARD",
+          "UNCLASSIFIED"
+        ]
+      },
+      "DifficultyFilter": {
+        "type": "string",
+        "enum": [
+          "EASY",
+          "MEDIUM",
+          "HARD",
+          "UNCLASSIFIED"
+        ]
+      },
+      "BulkClassifyResult": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "updated",
+          "skipped"
+        ]
+      },
+      "BulkClassifyBody": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/DifficultyFilter"
+          },
+          "chapter": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "topic": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Slug"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "ClassifyPreview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicContentBlock"
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "$ref": "#/components/schemas/OptionLabel"
+                },
+                "content": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicContentBlock"
+                  }
+                }
+              },
+              "required": [
+                "label",
+                "content"
+              ]
+            }
+          },
+          "answer_key": {
+            "$ref": "#/components/schemas/AnswerKey"
+          },
+          "answer_key_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correct_labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OptionLabel"
+            }
+          },
+          "solution_versions": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "content",
+          "options",
+          "answer_key",
+          "answer_key_source",
+          "correct_labels",
+          "solution_versions"
         ]
       }
     },
@@ -14537,6 +15211,134 @@
         }
       }
     },
+    "/billing/orders/{id}/verify": {
+      "post": {
+        "summary": "Verify a Checkout payment (signature + provider record)",
+        "description": "Send the razorpay_order_id, razorpay_payment_id and razorpay_signature from the Checkout handler. Access is granted only if the signature is valid AND Razorpay reports the payment captured for this order and amount; otherwise the order is returned unchanged and the webhook completes it. Safe to call repeatedly.",
+        "tags": [
+          "billing"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPaymentBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Order"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/billing/payment-links": {
       "post": {
         "summary": "Create an \"ask a parent to pay\" link (7 days)",
@@ -16668,8 +17470,8 @@
     },
     "/plans": {
       "post": {
-        "summary": "Build a study plan from a submitted diagnostic (Plus)",
-        "description": "Archives any active plan for the same exam. 403 PREMIUM_REQUIRED without Plus.",
+        "summary": "Build a study plan from a submitted diagnostic (free: basic plan; Plus: any length)",
+        "description": "Archives any active plan for the same exam. Free users may build plans up to FREE_PLAN_MAX_DAYS days and FREE_PLAN_MAX_DAILY_MINUTES minutes a day (403 PREMIUM_REQUIRED beyond that).",
         "tags": [
           "plans"
         ],
@@ -16924,7 +17726,7 @@
     },
     "/plans/{id}/items/{key}/start": {
       "post": {
-        "summary": "Start a plan item (creates or reuses its practice session) (Plus)",
+        "summary": "Start a plan item (creates or reuses its practice session)",
         "tags": [
           "plans"
         ],
@@ -17037,6 +17839,963 @@
           },
           "500": {
             "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entitlements": {
+      "get": {
+        "summary": "What this viewer gets: tier, features, limits, ad eligibility",
+        "description": "Signed out: the free tier with nothing used. Fails closed to FREE if billing data cannot be read.",
+        "tags": [
+          "billing"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Entitlements"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rewards/offers": {
+      "get": {
+        "summary": "Optional rewarded-ad offers and whether each is available now",
+        "tags": [
+          "rewards"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RewardOffers"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rewards/offers/{code}/start": {
+      "post": {
+        "summary": "The student chose to watch: issue a single-use nonce",
+        "tags": [
+          "rewards"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$"
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RewardStart"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rewards/claim": {
+      "post": {
+        "summary": "Report the rewarded ad outcome; grants only on GRANTED within the rules",
+        "description": "outcome GRANTED only after GPT rewardedSlotGranted. CLOSED / NO_FILL / ERROR record that no reward was earned.",
+        "tags": [
+          "rewards"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RewardClaimBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/RewardClaimResult"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/classify/questions": {
+      "get": {
+        "summary": "Browse questions for classification (any status) with difficulty counts",
+        "description": "difficulty accepts EASY, MEDIUM, HARD, UNCLASSIFIED (comma separated). Stable order: exam, year, paper, question number.",
+        "tags": [
+          "admin",
+          "classify"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Slug"
+            },
+            "required": false,
+            "name": "exam",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Slug"
+            },
+            "required": false,
+            "name": "subject",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Slug"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "none"
+                  ]
+                }
+              ]
+            },
+            "required": false,
+            "name": "chapter",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/DifficultyFilter"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            },
+            "required": false,
+            "name": "difficulty",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1978,
+              "maximum": 2100
+            },
+            "required": false,
+            "name": "year",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/QuestionType"
+            },
+            "required": false,
+            "name": "question_type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "PUBLISHED",
+                "ARCHIVED"
+              ]
+            },
+            "required": false,
+            "name": "publication_status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/QuestionOrigin"
+            },
+            "required": false,
+            "name": "origin",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ClassifyList"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/classify/bulk": {
+      "post": {
+        "summary": "Set difficulty / chapter / topic on up to 200 questions",
+        "description": "One transaction. Rows that would break a rule are skipped with a reason; the rest are updated and audit-logged.",
+        "tags": [
+          "admin",
+          "classify"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkClassifyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BulkClassifyResult"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/classify/questions/{id}/preview": {
+      "get": {
+        "summary": "Question with original crops (10-minute signed image URLs) and answer key",
+        "tags": [
+          "admin",
+          "classify"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ClassifyPreview"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/preview/{token}": {
+      "get": {
+        "summary": "Signed question image for the admin preview",
+        "tags": [
+          "admin",
+          "classify"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1500
+            },
+            "required": true,
+            "name": "token",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image bytes",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid or expired token",
             "content": {
               "application/json": {
                 "schema": {

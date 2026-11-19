@@ -13,7 +13,14 @@ function Check($what) { if ($LASTEXITCODE -ne 0) { throw "FAILED: $what" } }
 function Save-Secret($name, $prompt, $pattern) {
   $secure = Read-Host $prompt -AsSecureString
   $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)).Trim()
-  if ($plain -notmatch $pattern) { throw "That does not look like a valid value for $name" }
+  if ($plain -notmatch $pattern) {
+    # Describe the problem without ever printing the value.
+    $why = if ($plain.Length -eq 0) { 'nothing was received (the paste may not have gone in: try right-click to paste, then Enter)' }
+           elseif ($plain -match '\s') { "it contains a space or line break ($($plain.Length) characters)" }
+           elseif ($plain -match '[^A-Za-z0-9_]') { "it contains symbols other than letters/digits ($($plain.Length) characters)" }
+           else { "it is $($plain.Length) characters long" }
+    throw "That does not look like a valid value for ${name}: $why. Nothing was saved for it; run the script again."
+  }
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ("rzp-" + [Guid]::NewGuid().ToString('N') + ".txt")
   try {
     [IO.File]::WriteAllText($tmp, $plain)

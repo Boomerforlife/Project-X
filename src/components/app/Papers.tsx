@@ -1,5 +1,6 @@
 "use client";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import { QuotaExceededError } from "@/lib/billing/quota";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -135,6 +136,7 @@ function PapersHubInner() {
           ))}
         </ul>
       </section>
+      <AdSlot placement="tests-list" />
     </div>
   );
 }

@@ -3,15 +3,12 @@
 import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/ui/Icon";
+import { THEME_KEY } from "./theme-script";
 
 export type ThemePref = "dark" | "light" | "system";
-const KEY = "tabby-theme";
+const KEY = THEME_KEY;
 
-/**
- * Runs before first paint (inlined in <head>) so there is no flash of the
- * wrong theme. Dark is the product default.
- */
-export const THEME_SCRIPT = `(function(){try{var p=localStorage.getItem("${KEY}")||"dark";var t=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p;document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme="dark";}})();`;
+export { THEME_SCRIPT } from "./theme-script";
 
 const listeners = new Set<() => void>();
 

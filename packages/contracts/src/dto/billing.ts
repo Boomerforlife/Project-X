@@ -100,7 +100,13 @@ export const BillingMeSchema = z
     launch_eligible: z.boolean(),
     entitlements: z.array(EntitlementSchema),
     quota: z.object({
-      full_papers: z.object({ used: z.int(), limit: z.int().nullable(), resets_on: DateStringSchema }),
+      full_papers: z.object({
+        used: z.int(),
+        limit: z.int().nullable(),
+        resets_on: DateStringSchema,
+        /** Extra papers earned from rewarded ads this month (included in limit). Optional for older API versions. */
+        rewarded: z.int().optional(),
+      }),
     }),
     payments_enabled: z.boolean(),
   })

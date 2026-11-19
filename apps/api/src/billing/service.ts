@@ -4,7 +4,9 @@
  *
  * Invariants:
  *  - Amounts come from billing_plans (+ a validated promo). Never from the client.
- *  - Only the signed Razorpay webhook marks an order PAID and grants access; checkout success pages just poll.
+ *  - Only a server-verified Razorpay event marks an order PAID and grants access: the signed webhook, or the checkout
+ *    handler's signature (HMAC with the key secret) confirmed against Razorpay's own payment record (verifyCheckout).
+ *    A browser "success" callback on its own never grants anything.
  *  - Webhook handling is idempotent (billing_events primary key = Razorpay event id) and atomic (one transaction).
  *  - Passes stack from the current access end; revoking a pass pulls later stacked passes earlier.
  */
@@ -23,7 +25,7 @@ import type {
 import type { AppConfig } from '../config';
 import type { Logger } from '../deps';
 import { ApiError, notFound, validation } from '../lib/errors';
-import { RazorpayError, verifyWebhookSignature, type RazorpayClient } from './razorpay';
+import { RazorpayError, verifyCheckoutSignature, verifyWebhookSignature, type RazorpayClient } from './razorpay';
 
 export interface BillingDeps {
   db: Db;
@@ -142,7 +144,7 @@ function paymentsUnavailable(): ApiError {
 // Access + quota
 // ---------------------------------------------------------------------------------------------------------------------
 
-async function plusUntil(tx: Tx, userId: string): Promise<Date | null> {
+export async function plusUntil(tx: Tx, userId: string): Promise<Date | null> {
   const r = await one<{ until: string | null }>(
     tx,
     `select max(ends_at) as until from public.billing_entitlements where user_id=$1 and revoked_at is null`,
@@ -164,7 +166,7 @@ async function launchEligible(tx: Tx, userId: string, now: Date): Promise<boolea
 }
 
 /** First day of the current month in IST, and the first day of next month. */
-async function quotaPeriod(tx: Tx, now: Date): Promise<{ period: string; resets: string }> {
+export async function quotaPeriod(tx: Tx, now: Date): Promise<{ period: string; resets: string }> {
   const r = await one<{ period: string; resets: string }>(
     tx,
     `select to_char(date_trunc('month', ($1::timestamptz at time zone 'Asia/Kolkata')), 'YYYY-MM-DD') as period,
@@ -172,6 +174,17 @@ async function quotaPeriod(tx: Tx, now: Date): Promise<{ period: string; resets:
     [now.toISOString()],
   );
   return r!;
+}
+
+/** Extra full papers earned from rewarded ads in a quota period (migration 0026). */
+export async function rewardedFullPapers(tx: Tx, userId: string, period: string): Promise<number> {
+  const r = await one<{ n: number }>(
+    tx,
+    `select coalesce(sum(amount), 0)::int as n from public.ad_reward_claims
+      where user_id=$1 and benefit='FULL_PAPER_CREDIT' and status='GRANTED' and period=$2::date`,
+    [userId, period],
+  );
+  return Number(r?.n ?? 0);
 }
 
 export async function isPlus(d: BillingDeps, userId: string): Promise<boolean> {
@@ -198,6 +211,7 @@ export async function getMe(d: BillingDeps, userId: string): Promise<BillingMe> 
       `select count(*)::int as n from public.billing_full_paper_usage where user_id=$1 and period=$2::date`,
       [userId, period],
     );
+    const rewarded = await rewardedFullPapers(tx, userId, period);
     return {
       tier: plus ? 'PLUS' : 'FREE',
       plus_until: plus && until ? until.toISOString() : null,
@@ -213,8 +227,9 @@ export async function getMe(d: BillingDeps, userId: string): Promise<BillingMe> 
       quota: {
         full_papers: {
           used: Number(used?.n ?? 0),
-          limit: plus || !d.config.billingEnabled ? null : d.config.FREE_FULL_PAPERS_PER_MONTH,
+          limit: plus || !d.config.billingEnabled ? null : d.config.FREE_FULL_PAPERS_PER_MONTH + rewarded,
           resets_on: resets,
+          rewarded,
         },
       },
       payments_enabled: d.config.billingEnabled,
@@ -238,7 +253,7 @@ export async function assertFullPaperAllowed(d: BillingDeps, userId: string, cli
     const used = Number(
       (await one<{ n: number }>(tx, `select count(*)::int as n from public.billing_full_paper_usage where user_id=$1 and period=$2::date`, [userId, period]))?.n ?? 0,
     );
-    const limit = d.config.FREE_FULL_PAPERS_PER_MONTH;
+    const limit = d.config.FREE_FULL_PAPERS_PER_MONTH + (await rewardedFullPapers(tx, userId, period));
     if (used >= limit) {
       throw new ApiError('QUOTA_EXCEEDED', `Free plan includes ${limit} full papers a month`, {
         details: { metric: 'full_papers', used, limit, resets_on: resets },
@@ -293,7 +308,17 @@ async function priceOrder(
   if (p.valid_from && new Date(p.valid_from) > now) throw bad('PROMO_NOT_STARTED');
   if (p.valid_to && new Date(p.valid_to) < now) throw bad('PROMO_EXPIRED');
   if (p.plan_codes && !p.plan_codes.includes(plan.code)) throw bad('PROMO_NOT_FOR_PLAN');
-  if (p.max_redemptions !== null && p.redeemed >= p.max_redemptions) throw bad('PROMO_EXHAUSTED');
+  if (p.max_redemptions !== null) {
+    // Redemptions are counted at payment time, so also count other people's open checkouts (last 30 minutes) with this
+    // code: otherwise N concurrent checkouts could all pass the cap. The promo row is locked (for update) above.
+    const open = await one<{ n: number }>(
+      tx,
+      `select count(*)::int as n from public.billing_orders
+        where promo_code=$1 and status='CREATED' and user_id is distinct from $2 and created_at > $3::timestamptz - interval '30 minutes'`,
+      [p.code, userId, now.toISOString()],
+    );
+    if (p.redeemed + Number(open?.n ?? 0) >= p.max_redemptions) throw bad('PROMO_EXHAUSTED');
+  }
   if (p.new_users_only && (await hasPaidBefore(tx, userId))) throw bad('PROMO_NEW_USERS_ONLY');
   if (await one(tx, `select 1 from public.billing_promo_redemptions where code=$1 and user_id=$2`, [p.code, userId])) throw bad('PROMO_ALREADY_USED');
   const price = Number(plan.price_paise);
@@ -553,6 +578,7 @@ export type WebhookOutcome =
   | 'amount_mismatch'
   | 'failed_marked'
   | 'refunded'
+  | 'partial_refund'
   | 'refund_unknown_payment'
   | 'ignored';
 
@@ -649,13 +675,43 @@ export async function handleWebhook(
           outcome = 'refund_unknown_payment';
           break;
         }
-        if (o.status === 'PAID') {
-          await tx.query(`update public.billing_orders set status='REFUNDED', refunded_at=$2 where id=$1`, [o.id, now.toISOString()]);
-          const ent = await one<{ id: string }>(tx, `select id from public.billing_entitlements where order_id=$1`, [o.id]);
-          if (ent) await revoke(tx, ent.id, now, 'refund');
-          await audit(tx, null, 'SYSTEM', 'billing.order_refunded', 'billing_order', o.id, { refund_id: ev.payload?.refund?.entity?.id });
+        const refund = ev.payload?.refund?.entity;
+        // The same refund can arrive under a different event id (Razorpay retries); count each refund id once.
+        const seen = refund?.id
+          ? await one(
+              tx,
+              `select 1 from public.billing_events where id <> $1 and type='refund.processed' and payload #>> '{payload,refund,entity,id}' = $2 limit 1`,
+              [eventId, refund.id],
+            )
+          : null;
+        if (seen) {
+          outcome = 'duplicate';
+          break;
         }
-        outcome = 'refunded';
+        if (o.status === 'PAID') {
+          // A missing amount is treated as a full refund (the previous behaviour, and the safe side for the student).
+          const amount = refund?.amount != null ? Number(refund.amount) : Number(o.amount_paise);
+          const r = await one<{ refunded_paise: number }>(
+            tx,
+            `update public.billing_orders set refunded_paise = refunded_paise + $2 where id=$1 returning refunded_paise`,
+            [o.id, amount],
+          );
+          if (Number(r!.refunded_paise) >= Number(o.amount_paise)) {
+            await tx.query(`update public.billing_orders set status='REFUNDED', refunded_at=$2 where id=$1`, [o.id, now.toISOString()]);
+            const ent = await one<{ id: string }>(tx, `select id from public.billing_entitlements where order_id=$1`, [o.id]);
+            if (ent) await revoke(tx, ent.id, now, 'refund');
+            await audit(tx, null, 'SYSTEM', 'billing.order_refunded', 'billing_order', o.id, { refund_id: refund?.id });
+            outcome = 'refunded';
+          } else {
+            // Partial refund (goodwill / pro-rata): money goes back, access stays. Recorded for accounting.
+            await audit(tx, null, 'SYSTEM', 'billing.order_partially_refunded', 'billing_order', o.id, {
+              refund_id: refund?.id,
+              amount_paise: amount,
+              refunded_paise: Number(r!.refunded_paise),
+            });
+            outcome = 'partial_refund';
+          }
+        } else outcome = 'refunded';
         break;
       }
       default:
@@ -663,6 +719,65 @@ export async function handleWebhook(
     }
     await tx.query(`update public.billing_events set processed_at=$2, outcome=$3 where id=$1`, [eventId, now.toISOString(), outcome]);
     return { outcome };
+  });
+}
+
+/**
+ * Checkout handler path (Razorpay Standard Checkout). The browser posts the three values Razorpay gave it; access is
+ * granted only when (1) the signature is a valid HMAC of `order_id|payment_id` with our key secret, (2) the order is this
+ * user's, and (3) Razorpay's own payment record says captured, for this order, for the exact amount. If the payment is
+ * only authorized (or Razorpay can't be reached) nothing is granted here and the webhook finishes the job.
+ * Shares markPaid with the webhook: the order row is locked and re-checked, so the two paths can't double grant.
+ */
+export async function verifyCheckout(
+  d: BillingDeps,
+  userId: string,
+  orderId: string,
+  body: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string },
+): Promise<Order> {
+  if (!d.config.billingEnabled || !d.razorpay || !d.config.RAZORPAY_KEY_SECRET) throw paymentsUnavailable();
+  const o = await d.db.withService((tx) =>
+    one<OrderRow & { plan_name: string }>(
+      tx,
+      `select o.*, p.name as plan_name from public.billing_orders o join public.billing_plans p on p.code=o.plan_code where o.id=$1 and o.user_id=$2`,
+      [orderId, userId],
+    ),
+  );
+  if (!o) throw notFound('Order');
+  if (o.razorpay_order_id !== body.razorpay_order_id) throw validation('Payment does not belong to this order', { reason: 'ORDER_MISMATCH' });
+  if (!(await verifyCheckoutSignature(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature, d.config.RAZORPAY_KEY_SECRET))) {
+    d.logger.warn('billing checkout signature invalid', { order_id: o.id });
+    throw validation('Payment signature is invalid', { reason: 'INVALID_SIGNATURE' });
+  }
+  if (o.status !== 'CREATED' && o.status !== 'FAILED') return orderDto(o, o.plan_name);
+
+  let payment: { id: string; order_id: string | null; amount: number; currency: string; status: string };
+  try {
+    payment = await d.razorpay.fetchPayment(body.razorpay_payment_id);
+  } catch (e) {
+    d.logger.warn('razorpay fetchPayment failed; leaving it to the webhook', { order_id: o.id, error: e instanceof Error ? e.message : String(e) });
+    return orderDto(o, o.plan_name);
+  }
+  if (payment.order_id !== body.razorpay_order_id) throw validation('Payment does not belong to this order', { reason: 'ORDER_MISMATCH' });
+  if (payment.status !== 'captured') return orderDto(o, o.plan_name);
+
+  const now = d.clock();
+  return d.db.withService(async (tx) => {
+    const eventId = `checkout:${payment.id}`;
+    const inserted = await one<{ id: string }>(
+      tx,
+      `insert into public.billing_events (id, type, razorpay_order_id, razorpay_payment_id, payload) values ($1,'checkout.verified',$2,$3,$4::jsonb)
+       on conflict (id) do nothing returning id`,
+      [eventId, body.razorpay_order_id, payment.id, JSON.stringify({ payment: { id: payment.id, amount: payment.amount, currency: payment.currency, status: payment.status } })],
+    );
+    const outcome = await markPaid(tx, body.razorpay_order_id, { id: payment.id, amount: payment.amount, currency: payment.currency }, now, d.logger);
+    if (inserted) await tx.query(`update public.billing_events set processed_at=$2, outcome=$3 where id=$1`, [eventId, now.toISOString(), outcome]);
+    const after = (await one<OrderRow & { plan_name: string }>(
+      tx,
+      `select o.*, p.name as plan_name from public.billing_orders o join public.billing_plans p on p.code=o.plan_code where o.id=$1`,
+      [o.id],
+    ))!;
+    return orderDto(after, after.plan_name);
   });
 }
 

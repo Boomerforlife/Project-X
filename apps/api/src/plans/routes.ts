@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
+import { planLimits } from '../entitlements/policy';
 import {
   CreateDiagnosticBody,
   CreatePlanBody,
@@ -48,8 +49,8 @@ export function registerPlans(app: App, g: Guards): void {
   });
 
   const create = defineRoute({
-    method: 'post', path: '/plans', summary: 'Build a study plan from a submitted diagnostic (Plus)', tags: ['plans'],
-    description: 'Archives any active plan for the same exam. 403 PREMIUM_REQUIRED without Plus.',
+    method: 'post', path: '/plans', summary: 'Build a study plan from a submitted diagnostic (free: basic plan; Plus: any length)', tags: ['plans'],
+    description: 'Archives any active plan for the same exam. Free users may build plans up to FREE_PLAN_MAX_DAYS days and FREE_PLAN_MAX_DAILY_MINUTES minutes a day (403 PREMIUM_REQUIRED beyond that).',
     access: 'user', cache: 'PRIVATE', rl: 'RL_WRITE',
     request: { body: { content: { 'application/json': { schema: CreatePlanBody } }, required: true } },
     status: 201, replay200: true, data: StudyPlanSchema,
@@ -57,8 +58,15 @@ export function registerPlans(app: App, g: Guards): void {
   app.openapi(create, async (c: Ctx) => {
     const user = requireUser(c);
     const body = valid(c, 'json', CreatePlanBody);
-    if (!(await viewerPlus(c, user.id))) throw premiumRequired('Study plans are part of Tabby Plus');
-    const r = await plans.createPlan(deps(c).db, store(c), deps(c), user.id, body);
+    const plus = await viewerPlus(c, user.id);
+    const lim = planLimits(plus ? 'PLUS' : 'FREE', deps(c).config);
+    if (!plus && (body.days > lim.maxDays || body.daily_minutes > lim.maxDailyMinutes)) {
+      throw premiumRequired(`The free plan covers up to ${lim.maxDays} days at ${lim.maxDailyMinutes} minutes a day`, {
+        max_days: lim.maxDays,
+        max_daily_minutes: lim.maxDailyMinutes,
+      });
+    }
+    const r = await plans.createPlan(deps(c).db, store(c), deps(c), user.id, body, plus);
     return send(c, r.created ? 201 : 200, r.data, r.created ? {} : { meta: { replayed: true } });
   });
 
@@ -71,17 +79,17 @@ export function registerPlans(app: App, g: Guards): void {
     const user = requireUser(c);
     const { exam } = valid(c, 'query', ExamQuery);
     const plus = await viewerPlus(c, user.id);
-    return send(c, 200, await plans.currentPlan(deps(c).db, deps(c), user.id, plus, exam));
+    return send(c, 200, await plans.currentPlan(deps(c).db, deps(c), user.id, plus, exam, planLimits('FREE', deps(c).config)));
   });
 
   const start = defineRoute({
-    method: 'post', path: '/plans/{id}/items/{key}/start', summary: 'Start a plan item (creates or reuses its practice session) (Plus)', tags: ['plans'],
+    method: 'post', path: '/plans/{id}/items/{key}/start', summary: 'Start a plan item (creates or reuses its practice session)', tags: ['plans'],
     access: 'user', cache: 'PRIVATE', rl: 'RL_WRITE', request: { params: PlanItemParam }, data: PlanItemStartedSchema,
   })(g);
   app.openapi(start, async (c: Ctx) => {
     const user = requireUser(c);
     const { id, key } = valid(c, 'param', PlanItemParam);
-    if (!(await viewerPlus(c, user.id))) throw premiumRequired('Study plans are part of Tabby Plus');
-    return send(c, 200, await plans.startItem(deps(c).db, store(c), deps(c), user, id, key));
+    const plus = await viewerPlus(c, user.id);
+    return send(c, 200, await plans.startItem(deps(c).db, store(c), deps(c), user, id, key, { plus, freeLimits: planLimits('FREE', deps(c).config) }));
   });
 }

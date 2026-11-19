@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Difficulty, ExamId, SubjectId } from "@/contracts";
+import { AdSlot, useInfeedPositions } from "@/components/ads/AdSlot";
 import { RichText } from "@/components/content/RichText";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { DifficultyChip, TypeChip } from "@/components/ui/Badges";
@@ -359,6 +360,8 @@ function usePaged(filters: Omit<LibFilters, "offset" | "limit">, s: DemoState, l
 
 function FlatList({ filters, s, opening, onOpen, filtered, onClear }: ListProps & { filtered: boolean; onClear: () => void }) {
   const { items, total, error, more, loadMore, retry } = usePaged(filters, s);
+  // In-feed ad units go BETWEEN rows (never inside one), so the list is split into chunks only when a unit will render.
+  const cuts = useInfeedPositions(items?.length ?? 0, "library-infeed");
   if (error && !items) return <ListError onRetry={retry} />;
   if (!items) return <RowsSkeleton />;
   if (items.length === 0) return <Empty filtered={filtered} onClear={onClear} />;
@@ -367,11 +370,16 @@ function FlatList({ filters, s, opening, onOpen, filtered, onClear }: ListProps 
       <p className="mb-2 text-sm text-fg-muted" aria-live="polite">
         {total} problem{total === 1 ? "" : "s"}
       </p>
-      <ul className="surface divide-y divide-line overflow-hidden p-0">
-        {items.map((p) => (
-          <ProblemRow key={p.number} p={p} showChapter opening={opening === p.number} onOpen={() => onOpen(p)} />
-        ))}
-      </ul>
+      {chunks(items, cuts).map((chunk, ci) => (
+        <div key={ci}>
+          {ci > 0 && <AdSlot placement="library-infeed" />}
+          <ul className="surface divide-y divide-line overflow-hidden p-0">
+            {chunk.map((p) => (
+              <ProblemRow key={p.number} p={p} showChapter opening={opening === p.number} onOpen={() => onOpen(p)} />
+            ))}
+          </ul>
+        </div>
+      ))}
       {items.length < total && (
         <div className="mt-4 flex justify-center">
           <Button variant="secondary" size="sm" onClick={loadMore} disabled={more}>
@@ -407,13 +415,17 @@ function ChapterGroups({ exam, filters, s, opening, onOpen, filtered, onClear }:
       .filter((g) => g.chapters.length > 0);
   }, [items, exam, filters.subject]);
 
+  // One in-feed unit between subject sections at most (never inside a chapter's list).
+  const cuts = useInfeedPositions(groups.length, "library-infeed", { every: 1, max: 1 });
+
   if (error && !items) return <ListError onRetry={retry} />;
   if (!items) return <RowsSkeleton />;
   if (items.length === 0) return <Empty filtered={filtered} onClear={onClear} />;
   return (
     <div className="mt-6 space-y-10">
-      {groups.map((g) => (
+      {groups.map((g, gi) => (
         <div key={g.sub}>
+          {cuts.includes(gi - 1) && <AdSlot placement="library-infeed" className="mt-0" />}
           {!filters.subject && <h3 className={cn("mb-3 font-display text-lg font-semibold", SUBJECT_STYLE[g.sub].text)}>{catalog.subject(g.sub)?.name ?? g.sub}</h3>}
           <ul className="surface divide-y divide-line overflow-hidden p-0">
             {g.chapters.map((c, i) => (
@@ -601,4 +613,17 @@ function Empty({ filtered, onClear }: { filtered: boolean; onClear: () => void }
       )}
     </div>
   );
+}
+
+/** Split rows after the given indexes (in-feed ad positions). */
+function chunks<T>(rows: T[], cuts: number[]): T[][] {
+  if (cuts.length === 0) return [rows];
+  const out: T[][] = [];
+  let start = 0;
+  for (const c of cuts) {
+    out.push(rows.slice(start, c + 1));
+    start = c + 1;
+  }
+  out.push(rows.slice(start));
+  return out.filter((c) => c.length > 0);
 }

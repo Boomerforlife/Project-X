@@ -7,6 +7,96 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      ad_reward_claims: {
+        Row: {
+          id: string
+          user_id: string
+          rule_code: string
+          nonce: string
+          status: string
+          benefit: string
+          amount: number
+          period: string
+          issued_at: string
+          expires_at: string
+          resolved_at: string | null
+          outcome: string | null
+        };
+        Insert: {
+          id?: string
+          user_id: string
+          rule_code: string
+          nonce: string
+          status?: string
+          benefit: string
+          amount: number
+          period: string
+          issued_at?: string
+          expires_at: string
+          resolved_at?: string | null
+          outcome?: string | null
+        };
+        Update: {
+          id?: string
+          user_id?: string
+          rule_code?: string
+          nonce?: string
+          status?: string
+          benefit?: string
+          amount?: number
+          period?: string
+          issued_at?: string
+          expires_at?: string
+          resolved_at?: string | null
+          outcome?: string | null
+        };
+        Relationships: [];
+      };
+      ad_reward_rules: {
+        Row: {
+          code: string
+          benefit: string
+          amount: number
+          daily_cap: number
+          monthly_cap: number
+          min_seconds: number
+          label: string
+          description: string
+          active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        };
+        Insert: {
+          code: string
+          benefit: string
+          amount: number
+          daily_cap: number
+          monthly_cap: number
+          min_seconds?: number
+          label: string
+          description: string
+          active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        };
+        Update: {
+          code?: string
+          benefit?: string
+          amount?: number
+          daily_cap?: number
+          monthly_cap?: number
+          min_seconds?: number
+          label?: string
+          description?: string
+          active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        };
+        Relationships: [];
+      };
       ai_runs: {
         Row: {
           id: string
@@ -307,6 +397,7 @@ export type Database = {
           failed_at: string | null
           refunded_at: string | null
           receipt: string
+          refunded_paise: number
         };
         Insert: {
           id?: string
@@ -328,6 +419,7 @@ export type Database = {
           failed_at?: string | null
           refunded_at?: string | null
           receipt: string
+          refunded_paise?: number
         };
         Update: {
           id?: string
@@ -349,6 +441,7 @@ export type Database = {
           failed_at?: string | null
           refunded_at?: string | null
           receipt?: string
+          refunded_paise?: number
         };
         Relationships: [];
       };
@@ -1235,6 +1328,9 @@ export type Database = {
           first_published_at: string | null
           archived_at: string | null
           family_id: string | null
+          difficulty_source: string | null
+          difficulty_set_by: string | null
+          difficulty_set_at: string | null
         };
         Insert: {
           id?: string
@@ -1280,6 +1376,9 @@ export type Database = {
           first_published_at?: string | null
           archived_at?: string | null
           family_id?: string | null
+          difficulty_source?: string | null
+          difficulty_set_by?: string | null
+          difficulty_set_at?: string | null
         };
         Update: {
           id?: string
@@ -1325,6 +1424,9 @@ export type Database = {
           first_published_at?: string | null
           archived_at?: string | null
           family_id?: string | null
+          difficulty_source?: string | null
+          difficulty_set_by?: string | null
+          difficulty_set_at?: string | null
         };
         Relationships: [];
       };

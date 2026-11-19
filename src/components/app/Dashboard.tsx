@@ -1,5 +1,6 @@
 "use client";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import { PremiumUpgradePrompt } from "@/components/billing/PremiumUpgradePrompt";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -196,6 +197,8 @@ function Dashboard({ s, user }: { s: DemoState; user: DemoUser }) {
 
       <Performance s={s} user={user} onStart={start} />
       <Momentum s={s} user={user} />
+      {/* Below everything that matters on the dashboard; free tier only, nothing renders for Plus. */}
+      <AdSlot placement="dashboard-bottom" />
     </div>
   );
 }
