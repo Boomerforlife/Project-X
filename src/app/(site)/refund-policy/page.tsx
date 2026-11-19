@@ -13,7 +13,7 @@ export const metadata = pageMetadata({
 });
 
 export default function RefundPolicyPage() {
-  const days = LEGAL.refundWindowDays;
+  const days: number = LEGAL.refundWindowDays;
   const window = days ? `${days} day${days === 1 ? "" : "s"}` : null;
   return (
     <>
