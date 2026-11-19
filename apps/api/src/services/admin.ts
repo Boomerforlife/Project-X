@@ -586,6 +586,32 @@ export function publishUnmet(q: QuestionRow, options: readonly OptionRow[], curr
   return unmet;
 }
 
+/** Copies every image the question, its options and its current solution use into PUBLIC_ASSETS (idempotent, content-addressed). */
+async function copyAssetsToPublic(r: ServiceRepos, deps: Pick<AppDeps, 'storage' | 'logger'>, q: QuestionRow, options: OptionRow[], current: SolutionRow | null): Promise<void> {
+  const ids = collectAssetIds(q.structured_content);
+  for (const o of options) collectAssetIds(o.content, ids);
+  if (current) {
+    for (const s of parseSteps(current.steps)) collectAssetIds(s.blocks, ids);
+    for (const a of current.alternatives as { steps?: unknown[] }[]) if (Array.isArray(a.steps)) for (const s of parseSteps(a.steps)) collectAssetIds(s.blocks, ids);
+  }
+  if (ids.size === 0) return;
+  const assets = await r.content.assetsByIds([...ids]);
+  const missing = [...ids].filter((x) => !assets.some((a) => a.id === x));
+  if (missing.length) throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet: missing.map((m) => `image asset ${m} does not exist`) } });
+  for (const a of assets) {
+    if (a.bucket === 'PUBLIC_ASSETS') continue;
+    const ext = a.mime_type === 'image/png' ? 'png' : a.mime_type === 'image/jpeg' ? 'jpg' : 'webp';
+    const key = r2Keys.publicAsset(a.sha256, ext);
+    try {
+      await copyObject(deps.storage.SOURCE_DOCS, a.r2_key, deps.storage.PUBLIC_ASSETS, key, { cacheControl: 'public, max-age=31536000, immutable' });
+    } catch (e) {
+      deps.logger.error('asset copy failed', { asset_id: a.id, error: String(e) });
+      throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet: [`image asset ${a.id} could not be copied to public storage`] } });
+    }
+    await r.admin.moveAssetToPublic(a.id, key);
+  }
+}
+
 export async function publish(c: AdminCtx, id: string, body: PublishBody): Promise<AdminQuestion> {
   const out = await c.store.service(async (r) => {
     const q = await mustGet(r, id);
@@ -596,30 +622,7 @@ export async function publish(c: AdminCtx, id: string, body: PublishBody): Promi
     const unmet = publishUnmet(q, options, current);
     if (unmet.length) throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet } });
 
-    // copy referenced assets to PUBLIC_ASSETS (idempotent, content-addressed)
-    const ids = collectAssetIds(q.structured_content);
-    for (const o of options) collectAssetIds(o.content, ids);
-    if (current) {
-      for (const s of parseSteps(current.steps)) collectAssetIds(s.blocks, ids);
-      for (const a of current.alternatives as { steps?: unknown[] }[]) if (Array.isArray(a.steps)) for (const s of parseSteps(a.steps)) collectAssetIds(s.blocks, ids);
-    }
-    if (ids.size > 0) {
-      const assets = await r.content.assetsByIds([...ids]);
-      const missing = [...ids].filter((x) => !assets.some((a) => a.id === x));
-      if (missing.length) throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet: missing.map((m) => `image asset ${m} does not exist`) } });
-      for (const a of assets) {
-        if (a.bucket === 'PUBLIC_ASSETS') continue;
-        const ext = a.mime_type === 'image/png' ? 'png' : a.mime_type === 'image/jpeg' ? 'jpg' : 'webp';
-        const key = r2Keys.publicAsset(a.sha256, ext);
-        try {
-          await copyObject(c.deps.storage.SOURCE_DOCS, a.r2_key, c.deps.storage.PUBLIC_ASSETS, key, { cacheControl: 'public, max-age=31536000, immutable' });
-        } catch (e) {
-          c.deps.logger.error('asset copy failed', { asset_id: a.id, error: String(e) });
-          throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet: [`image asset ${a.id} could not be copied to public storage`] } });
-        }
-        await r.admin.moveAssetToPublic(a.id, key);
-      }
-    }
+    await copyAssetsToPublic(r, c.deps, q, options, current);
     const after = await save(r, q, body.expected_row_version, { publication_status: 'PUBLISHED' });
     await event(r, c, q, after, 'PUBLISH', null, q.current_solution_id);
     await audit(r, c, 'question.publish', 'question', id, {});
@@ -627,6 +630,65 @@ export async function publish(c: AdminCtx, id: string, body: PublishBody): Promi
   });
   purge(c, out.tags);
   return out.dto;
+}
+
+export type AutoPublishResult = { id: string; published: true; tags: string[] } | { id: string; published: false; reason: string };
+
+/**
+ * Worker-only publication of a previous-year question whose AI solution matches the exam body's official answer key
+ * (owner decision 2026-11-20, docs/CONTENT_SOURCES.md). No human is involved, so nothing here claims one:
+ *   - eligible only if the latest verification run PASSED with resulting status OFFICIAL_KEY_MATCHED, for a named AI
+ *     solution whose final answer equals the OFFICIAL key (AI_PIPELINE rule 4: the AI critique and SymPy did not fail);
+ *   - the solution is marked APPROVED with reviewed_by = null and verification_status stays OFFICIAL_KEY_MATCHED
+ *     (never HUMAN_VERIFIED); no review_event is written (those record human decisions); audit_log says WORKER;
+ *   - publishing is the same path as the admin endpoint: requirements check, image copy to PUBLIC_ASSETS, and the
+ *     database publication guard re-checks everything in the same transaction.
+ * Indexability is not touched (stays as stored); search exposure is a separate decision.
+ */
+export async function autoPublishOfficialMatch(store: Store, deps: Pick<AppDeps, 'storage' | 'logger'>, id: string): Promise<AutoPublishResult> {
+  try {
+    return await store.service(async (r): Promise<AutoPublishResult> => {
+      const q = await r.admin.getQuestion(id);
+      if (!q) return { id, published: false, reason: 'NOT_FOUND' };
+      if (q.publication_status !== 'DRAFT') return { id, published: false, reason: `NOT_DRAFT:${q.publication_status}` };
+      if (q.verification_status !== 'OFFICIAL_KEY_MATCHED') return { id, published: false, reason: `STATUS:${q.verification_status}` };
+      if (q.answer_key_source !== 'OFFICIAL' || !q.answer_key) return { id, published: false, reason: 'NO_OFFICIAL_KEY' };
+      const runs = await r.admin.verificationRuns(id);
+      const latest = runs.map((x) => x.run).sort((a, b) => iso(b.started_at).localeCompare(iso(a.started_at)))[0];
+      if (!latest || latest.outcome !== 'PASSED' || latest.resulting_status !== 'OFFICIAL_KEY_MATCHED' || !latest.solution_version_id) {
+        return { id, published: false, reason: 'LATEST_RUN_NOT_OFFICIAL_MATCH' };
+      }
+      const sol = await r.admin.getSolution(latest.solution_version_id);
+      if (!sol || sol.question_id !== id) return { id, published: false, reason: 'SOLUTION_MISSING' };
+      if (sol.review_status === 'REJECTED' || sol.review_status === 'SUPERSEDED') return { id, published: false, reason: `SOLUTION_${sol.review_status}` };
+      if (!answerKeysEqual(q.answer_key, sol.final_answer)) return { id, published: false, reason: 'KEY_MISMATCH' };
+
+      await r.admin.setSolutionReview(sol.id, 'APPROVED', null);
+      await r.admin.supersedeApproved(id, sol.id);
+      const withSolution = await save(r, q, q.row_version, { current_solution_id: sol.id });
+      const options = await r.admin.optionsFor(id);
+      const current = await r.admin.getSolution(sol.id);
+      const unmet = publishUnmet(withSolution, options, current);
+      if (unmet.length) throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet } });
+      await copyAssetsToPublic(r, deps, withSolution, options, current);
+      const after = await save(r, withSolution, withSolution.row_version, { publication_status: 'PUBLISHED' });
+      await r.admin.insertAudit({
+        actor_id: null,
+        actor_type: 'WORKER',
+        action: 'question.auto_publish_official_match',
+        entity_type: 'question',
+        entity_id: id,
+        request_id: null,
+        ip_hash: null,
+        details: { solution_version_id: sol.id, verification_run_id: latest.id, rules_version: latest.rules_version },
+      });
+      return { id, published: true, tags: purgeTagsFor(after) };
+    });
+  } catch (e) {
+    // The transaction rolled back: nothing about this question changed.
+    const reason = e instanceof ApiError ? `${e.code}${e.details ? `:${JSON.stringify(e.details)}` : ''}` : String(e);
+    return { id, published: false, reason: reason.slice(0, 500) };
+  }
 }
 
 async function transition(

@@ -13,8 +13,10 @@ const externalNpm = {
 };
 
 await build({
-  entryPoints: ['src/server.ts'],
-  outfile: 'dist/server.mjs',
+  // server: the Cloud Run service. publish-official: a Cloud Run Job (docs/CONTENT_SOURCES.md, owner decision 2026-11-20).
+  entryPoints: { server: 'src/server.ts', 'publish-official': 'src/jobs/publish-official.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.mjs' },
   bundle: true,
   platform: 'node',
   target: 'node22',

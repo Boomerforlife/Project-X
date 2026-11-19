@@ -76,7 +76,7 @@ export class MemoryState {
   uploads: UploadRow[] = [];
   roles = new Map<string, AppRole[]>();
   reviewEvents: ReviewEventRow[] = [];
-  audit: { actor_id: string; action: string; entity_type: string; entity_id: string | null; details: unknown; request_id: string | null }[] = [];
+  audit: { actor_id: string | null; action: string; entity_type: string; entity_id: string | null; details: unknown; request_id: string | null }[] = [];
   jobs: JobRow[] = [];
   jobPayloads = new Map<string, Record<string, unknown>>();
   jobEvents = new Map<string, JobEventRow[]>();

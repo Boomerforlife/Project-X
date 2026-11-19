@@ -43,7 +43,15 @@ refuse a source that is not approved.
 ## 3. Official papers (NTA, JEE Advanced)
 
 NTA and the JEE Advanced board (JAB) papers need written permission or a legal sign-off before use.
-Being publicly downloadable is not a licence. Current state (2026-11-19):
+Being publicly downloadable is not a licence.
+
+**Owner decision, 2026-11-20:** the owner chose to publish NTA and JAB previous-year questions without a written
+permission or legal opinion, accepting that risk. Mitigations: every question shows its paper; the Terms
+("Previous-year questions and official answer keys") credit NTA / JAB, disclaim ownership and affiliation, and give a
+rights-holder contact for credit or removal requests, which are to be acted on promptly (unpublish with
+`POST /admin/questions/{id}/unpublish`).
+
+Current state (2026-11-19):
 
 * `NTA_MIRROR` (NTA's own CBT papers via a mirror) was **approved by the owner on 2026-11-18**, under the rules in section 3.1. The `NTA` source is used for the JEE Main 2026 April papers.
 * A source that is not approved is refused by the importer and by the document ingestion (exit code 3);

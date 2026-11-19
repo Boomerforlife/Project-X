@@ -443,7 +443,7 @@ function adminRepo(tx: Tx): AdminRepo {
     enqueueJob: async (j) =>
       (await one<{ id: string }>(tx, `select app_private.enqueue_pipeline_job($1::public.job_kind,$2,$3::jsonb,$4,now(),$5,$6,$7) as id`, [j.kind, j.idempotency_key, JSON.stringify(j.payload), j.priority ?? 100, j.question_id ?? null, j.source_document_id ?? null, j.created_by]))!.id,
     verificationRuns: async (qid) => {
-      const runs = await rows<never>(tx, `select id, question_id, rules_version, outcome, resulting_status, reasons, started_at, finished_at from public.verification_runs where question_id=$1 order by started_at desc`, [qid]);
+      const runs = await rows<never>(tx, `select id, question_id, solution_version_id, rules_version, outcome, resulting_status, reasons, started_at, finished_at from public.verification_runs where question_id=$1 order by started_at desc`, [qid]);
       const out = [];
       for (const run of runs as { id: string }[]) {
         const checks = await rows<never>(tx, `select verification_run_id, kind, result, details, ai_run_id from public.verification_checks where verification_run_id=$1 order by created_at`, [run.id]);

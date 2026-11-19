@@ -97,6 +97,28 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
+        <LegalSection title="Previous-year questions and official answer keys">
+          <p>
+            Previous-year questions from JEE Main and NEET UG are reproduced from question papers and final answer keys
+            published by the National Testing Agency (NTA), Ministry of Education, Government of India. JEE Advanced
+            questions are reproduced from papers published by the Joint Admission Board (JAB) and the organising IIT on
+            jeeadv.ac.in. Each question shows the paper it comes from. These question papers and answer keys remain the
+            property of their publishers; we claim no ownership of them.
+          </p>
+          <p>
+            &ldquo;Official key&rdquo; on a question means its answer matches the exam body&rsquo;s published final key. The
+            step-by-step solutions are ours, not the exam body&rsquo;s. {SITE.name} is an independent practice platform and is not
+            affiliated with, endorsed by or connected to NTA, JAB or any IIT.
+          </p>
+          <p>
+            If you hold rights in any material on {SITE.name} and want it credited differently or removed, write to{" "}
+            <a className="underline" href={`mailto:${LEGAL.grievanceEmail}`}>
+              {LEGAL.grievanceEmail}
+            </a>{" "}
+            with the page address. We act on such requests promptly.
+          </p>
+        </LegalSection>
+
         <LegalSection title="Acceptable use">
           <ul>
             <li>Do not share your account or resell access to it.</li>
