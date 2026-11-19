@@ -248,7 +248,7 @@ function ClosingCta() {
         </div>
         <div className="flex items-center gap-6">
           <ButtonLink href="/signup/" size="lg" pixel>
-            Try the demo
+            {DATA_SOURCE === "api" ? "Start practising free" : "Try the demo"}
           </ButtonLink>
           <Kitty pose="sleep" className="hidden h-20 w-auto text-fg-subtle sm:block" />
         </div>
