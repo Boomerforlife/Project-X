@@ -1,6 +1,6 @@
 # Launch readiness
 
-Snapshot **2026-11-19**, branch `main`. This is the one status page; each item sits in exactly one bucket.
+Snapshot **2026-11-20**, branch `main`. This is the one status page; each item sits in exactly one bucket.
 Details live elsewhere: deploy and operations `docs/DEPLOYMENT_GCP.md`, per-service setup `docs/PRODUCTION_SETUP.md`,
 billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LAUNCH_CHECKLIST.md`, content policy
 `docs/CONTENT_SOURCES.md`.
@@ -9,9 +9,9 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 | Piece | Where | State |
 |---|---|---|
-| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, image `web-staging-7`) | Live. Built from `main` before the monetisation merge: no ad placements, no admin classification page yet |
-| API | Cloud Run `projectx-api`, revision `projectx-api-00014-lz5` (image `api:staging-8`) | Live: auth, practice, problems, plans, billing, analytics. Not yet: `/entitlements`, `/rewards`, `/admin/classify` |
-| Database | Supabase (Mumbai) | Migrations 0001–0025 applied. **0026 is in the repo, not applied** |
+| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `00008`, image `web-staging-8`) | Live, built from `main` (2026-11-20): checkout verify, tier badge, admin classification page, ad placements wired but ads off until AdSense approves |
+| API | Cloud Run `projectx-api`, revision `projectx-api-00015-njg` (image `api:staging-9`, from `main`) | Live: everything on `main`, including `/entitlements`, `/rewards`, `/admin/classify`, checkout verify. Rewarded credits stay off (`REWARDED_ADS_ENABLED` unset) |
+| Database | Supabase (Mumbai) | Migrations 0001–0026 applied (0026 on 2026-11-20; counts unchanged; pre-migration JSON export of the touched tables kept outside the repo) |
 | Payments | Razorpay, **Live mode** since 2026-11-19 | Account activated, tabbyprep.in approved, live keys in Secret Manager, `BILLING_ALLOW_LIVE=true`, live webhook (4 events) |
 | Ads | AdSense publisher `ca-pub-2970121715798701` | Site submitted for review 2026-11-19; verification tag live. Ads are not switched on in any build yet |
 | Sign-in | Supabase Auth | Email and Google |
@@ -36,7 +36,6 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 | Item | Blocked by |
 |---|---|
-| Ad placements, rewarded credits, admin classification on the live site | Apply migration 0026, then deploy the API and web from `main` (`MONETIZATION_HANDOVER.md` §6) |
 | Showing ads | AdSense site approval (review takes days to weeks), then ad unit ids and `NEXT_PUBLIC_ADS=live` in the web build |
 | Publishing the 7,357 draft PYQs | Chapter, difficulty and solutions per question; licence position per source (`CONTENT_SOURCES.md`) |
 | Hard questions | Classification: the published bank has no Hard questions yet |
@@ -49,7 +48,7 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 2. Decide whether the Plus passes granted by the Test-mode purchases (valid to mid-December) stay or are revoked.
 3. When AdSense approves the site: create the display, in-feed and multiplex units and send their ids (`MONETIZATION_HANDOVER.md` §5).
 4. Rewarded ads: create a Google Ad Manager account and rewarded unit, or leave them off.
-5. Classify difficulty for the draft PYQs in `/admin/questions/` once 0026 is applied.
+5. Give your account the ADMIN or REVIEWER role (`insert into user_roles …`, `PRODUCTION_SETUP.md` §1.6) and classify the draft PYQs in `/admin/questions/`.
 
 ## Needs legal
 
@@ -60,8 +59,8 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 ## For Owner B
 
-1. Apply migration `0026_classification_rewards_billing_fixes.sql` (additive; rollback SQL in its comments).
-2. Redeploy the API, then the web, from `main`; add the ad build args from `MONETIZATION_HANDOVER.md` §5 to `Dockerfile.web` / `cloudbuild.web.yaml` (the publisher id now defaults in `src/lib/ads/config.ts`, so verification and `ads.txt` work without them).
+1. Done 2026-11-20 (by Owner A): migration 0026 applied, API (`staging-9`) and web (`web-staging-8`) deployed from `main`.
+2. Add the ad build args from `MONETIZATION_HANDOVER.md` §5 to `Dockerfile.web` / `cloudbuild.web.yaml` before AdSense units can be switched on (the publisher id defaults in `src/lib/ads/config.ts`, so verification and `ads.txt` already work). `deploy-api-staging.sh` now keeps `BILLING_ALLOW_LIVE=true` while live keys are stored.
 3. The removed `.env.local` is still in public git history; confirm the Vercel OIDC token in it has expired.
 4. Open known issues: two source questions with byte-identical images share one `question_assets` row (needs a join table); problem excerpts lose LaTeX for some auto titles (contract item C1); per-chapter totals on `/problems/summary` (C4).
 5. Point `www.tabbyprep.in` at Firebase Hosting (`CNAME www projectx-staging-a7k2.web.app`).

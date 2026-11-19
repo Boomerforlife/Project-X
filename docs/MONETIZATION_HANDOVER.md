@@ -2,7 +2,7 @@
 
 Merged to `main` on 2026-11-19 (built on `feat/monetization-ads-difficulty`). Domain: `tabbyprep.in`. Deploy steps: `docs/DEPLOYMENT_GCP.md`.
 
-> **Status 2026-11-19 (evening).** Razorpay is **Live** (real payments) on the API that is already deployed (revision `projectx-api-00014-lz5`, `BILLING_ALLOW_LIVE=true`, live webhook). The rest of this work (migration 0026, `/entitlements`, `/rewards`, `/admin/classify`, checkout verify, ad placements) is on `main` but **not yet deployed**: apply 0026, then redeploy the API and web (section 6). AdSense site review was requested 2026-11-19; the verification tag and legal pages are live. Section 0 below is the audit as found before this work.
+> **Status 2026-11-19 (evening).** Razorpay is **Live** (real payments) on the API that is already deployed (revision `projectx-api-00014-lz5`, `BILLING_ALLOW_LIVE=true`, live webhook). **Deployed 2026-11-20:** migration 0026 applied (counts unchanged), API `staging-9` (revision `projectx-api-00015-njg`) and web `web-staging-8` from `main`, so `/entitlements`, `/rewards`, `/admin/classify`, checkout verify and the ad placements are live; ads stay off until AdSense approves and unit ids are set; rewarded credits stay off. AdSense site review was requested 2026-11-19; the verification tag and legal pages are live. Section 0 below is the audit as found before this work.
 
 ## 0. What I found first (audit)
 
@@ -154,8 +154,9 @@ To turn rewarded on, deploy the API with `REWARDED_ADS_ENABLED=true infra/gcp/de
 
 ## 8. Launch checklist
 - [x] Merged into `main` (2026-11-19)
-- [ ] Migration 0026 applied after a backup; counts unchanged
-- [ ] API + web redeployed from `main` (Owner B), web with the ad build args
+- [x] Migration 0026 applied after a JSON export of the touched tables; counts unchanged (2026-11-20)
+- [x] API + web redeployed from `main` (2026-11-20)
+- [ ] Web rebuilt with the ad build args once AdSense units exist
 - [x] tabbyprep.in live via Firebase Hosting, Supabase Auth URLs set (www still to fix)
 - [x] Legal pages final (operator FIFO, 5-day refund), live 2026-11-19
 - [x] Razorpay Test keys + webhook → real test purchase granted Plus (2026-11-19)
