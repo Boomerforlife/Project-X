@@ -734,9 +734,9 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 - Cache tag/purge plumbing including the web revalidate webhook.
 - Python ingestion on synthetic PDFs; AI pipeline on the mock Gemini client; SymPy checker.
 
-**Live (2026-11-19; see `DEPLOYMENT_GCP.md` and `LAUNCH_READINESS.md`):**
+**Live (2026-11-20; see `DEPLOYMENT_GCP.md` and `LAUNCH_READINESS.md`):**
 - Web and API run on Cloud Run; the site is served at https://tabbyprep.in through Firebase Hosting; Supabase (Mumbai) is the database and auth.
-- About 433 published questions and 7,357 draft PYQs (JEE Main 2019-2026, JEE Advanced, NEET) are imported. Indexing is still off until content is publishable.
+- 1,956 published questions: 433 AI-checked practice items and 1,523 JEE Main previous-year questions with the official NTA key (answer-only, published without AI; `CONTENT_SOURCES.md` §7.1). 5,834 drafts remain. Indexing is still off.
 - Razorpay one-time prepaid Plus passes are live (real payments) since 2026-11-19. AdSense placements are built but ads are not switched on in the web build (publisher account under review); rewarded ads via Google Ad Manager are off by default. See `MONETIZATION_HANDOVER.md`.
 
 **Still unverified or open:**

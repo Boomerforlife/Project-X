@@ -24,7 +24,8 @@ function safeEqual(a: string, b: string) {
 }
 
 export async function POST(request: Request) {
-  const secret = process.env.REVALIDATE_SECRET;
+  // Trimmed: a trailing CR/LF in the stored secret made every purge fail (2026-11-20).
+  const secret = process.env.REVALIDATE_SECRET?.trim();
   // Disabled unless the secret is long enough to resist guessing.
   if (!secret || secret.length < 32) return Response.json({ error: "Not found" }, { status: 404 });
 
