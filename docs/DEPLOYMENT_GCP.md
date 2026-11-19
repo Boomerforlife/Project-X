@@ -113,13 +113,16 @@ site is served through Firebase Hosting (same GCP project; Firebase was added to
   `https://tabbyprep.in` (the redirect URI stays Supabase's `/auth/v1/callback`).
 * Search Console (for SEO later): add a Domain property and its TXT record; indexing stays off until content is publishable.
 
-## Deploy access for Owner A (2026-11-19)
-Owner A deploys with their own Google account (no shared keys or tokens): `gcloud auth login`, then
-`gcloud config set project projectx-staging-a7k2`. Granted, deploy only:
+## Access for Owner A (2026-11-19)
+Owner A uses their own Google account (no shared keys or tokens): `gcloud auth login`, then
+`gcloud config set project projectx-staging-a7k2`. Full access since 2026-11-19: `editor`, `secretmanager.admin`
+(reads secret values) and `resourcemanager.projectIamAdmin` on the project. `owner` itself cannot be granted from the CLI
+on a project outside an organization (SOLO_MUST_INVITE_OWNERS): send it from IAM & Admin -> IAM -> Grant access; Owner A
+accepts the emailed invite. The earlier deploy-only grants below are still in place:
 `run.developer`, `cloudbuild.builds.editor`, `artifactregistry.reader`, `serviceusage.serviceUsageConsumer`,
 `logging.viewer`, `firebasehosting.admin` (project); `iam.serviceAccountUser` on `projectx-web@`, `projectx-api@`,
 `projectx-build@` only; `storage.objectAdmin` + `legacyBucketReader` on the `projectx-staging-a7k2_cloudbuild` bucket only.
-No access to secret values, IAM, billing, the database, other buckets or the ingestion job. Revoke in IAM & Admin -> IAM.
+Revoke in IAM & Admin -> IAM.
 All builds run as `projectx-build@` (push to the `projectx` registry, write logs, read uploaded source); the default
 compute account has Editor, so builds must not run as it (the `cloudbuild.*.yaml` files set `serviceAccount`).
 Redeploy:
