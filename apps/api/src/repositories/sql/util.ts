@@ -37,12 +37,20 @@ export function keyed<T extends Record<string, unknown>>(rows: T[], nKeys: numbe
   });
 }
 
-/** Row-value keyset predicate. `cols` are SQL expressions comparable to the cursor key (same order). */
+/**
+ * Row-value keyset predicate. `cols` are SQL expressions comparable to the cursor key (same order).
+ *
+ * Cursor keys are bound as `text` and cast in SQL (`$n::text::timestamptz`), never as `$n::timestamptz`. With the
+ * latter Postgres types the parameter as timestamptz and postgres.js serializes it via `new Date(x).toISOString()`,
+ * which truncates microseconds to milliseconds. The cursor then sorts *before* every row sharing the boundary
+ * timestamp, and the rest of that batch is silently skipped (bulk publishes share one `published_at`).
+ */
 export function keysetWhere(p: Params, after: PageCursor | null, cols: string[], idCol: string, dir: 'asc' | 'desc', casts: string[]): string {
   if (!after) return 'true';
   const op = dir === 'asc' ? '>' : '<';
   const left = [...cols, idCol].join(', ');
-  const right = [...after.k.map((v, i) => `${p.add(v)}::${casts[i] ?? 'text'}`), `${p.add(after.id)}::uuid`].join(', ');
+  const key = (v: string | number | null, cast: string) => (cast === 'text' ? `${p.add(v)}::text` : `${p.add(v === null ? null : String(v))}::text::${cast}`);
+  const right = [...after.k.map((v, i) => key(v, casts[i] ?? 'text')), `${p.add(after.id)}::uuid`].join(', ');
   return `(${left}) ${op} (${right})`;
 }
 
