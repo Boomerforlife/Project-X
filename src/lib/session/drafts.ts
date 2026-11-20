@@ -23,7 +23,7 @@ export type Draft = {
   savedAt: string;
   responses: Record<string, DraftResponse>;
   /** Session UI settings (so a reload before B4 still knows the mode/limit). */
-  mode?: "learning" | "test";
+  mode?: "learning" | "test" | "cbt";
   durationSec?: number | null;
   title?: string;
 };

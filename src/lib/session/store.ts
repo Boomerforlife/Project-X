@@ -316,7 +316,9 @@ function buildAttempt(session: SessionLike, allItems: SessionDetail["items"]): A
   const exam = examFromApi(items[0]?.question.exam.slug ?? "") ?? state.user?.exam ?? "jee-main";
   const draft = userId ? readDraft(userId, session.id) : null;
   const completed = session.status !== "ACTIVE";
-  const mode = session.ui_mode ?? draft?.mode ?? "learning";
+  // The server only knows learning/test; a CBT attempt is a test the browser shows in the exam shell.
+  const mode = draft?.mode === "cbt" ? "cbt" : (session.ui_mode ?? draft?.mode ?? "learning");
+  const paper = session.mode === "PYQ_PAPER" ? (session.paper ?? null) : null;
   const responses: Record<string, Response> = {};
   let firstOpen = -1;
   items.forEach((item, i) => {
@@ -348,8 +350,9 @@ function buildAttempt(session: SessionLike, allItems: SessionDetail["items"]): A
     id: session.id,
     exam,
     mode,
-    kind: "practice",
-    title: draft?.title ?? titleFor(session.mode, questions),
+    kind: session.mode === "PYQ_PAPER" ? "paper" : "practice",
+    ...(paper ? { paperId: paper.slug } : {}),
+    title: draft?.title ?? paper?.title ?? titleFor(session.mode, questions),
     scope: { source: scopeFromMode(session.mode) },
     questionIds: ids,
     sections: sectionsFor(exam, ids),
@@ -555,7 +558,54 @@ function saveLocalPapers() {
   }
 }
 
+/** What starting an API paper needs, remembered from the paper list (GET /public/papers). */
+const paperInfo = new Map<string, { exam: ExamId; title: string; durationSec: number }>();
+export function rememberPapers(list: { slug: string; title: string; exam: ExamId; durationMin: number }[]) {
+  for (const p of list) paperInfo.set(p.slug, { exam: p.exam, title: p.title, durationSec: p.durationMin * 60 });
+}
+
+/** API papers (flag "on"): a full paper is a PYQ_PAPER server session; the Free monthly allowance is enforced there. */
+async function startServerPaper(slug: string, mode: "cbt" | "test" | "learning", retryOf?: string): Promise<string> {
+  const prev = retryOf ? state.attempts[retryOf] : undefined;
+  const info = paperInfo.get(slug) ?? (prev ? { exam: prev.exam, title: prev.title, durationSec: prev.durationSec ?? 3 * 3600 } : null);
+  if (!info) throw new Error(`Unknown paper ${slug}`);
+  const timed = mode !== "learning";
+  try {
+    const created = await api.createSession({
+      client_request_id: newClientId(),
+      mode: "PYQ_PAPER",
+      exam: examToApi(info.exam),
+      paper: slug,
+      ui_mode: timed ? "test" : "learning",
+      ...(timed ? { time_limit_sec: info.durationSec } : {}),
+    });
+    const a = buildAttempt(
+      { ...created.session, completed_at: null },
+      created.questions.map((question) => ({ question, attempt: null })),
+    );
+    const attempt: Attempt = {
+      ...a,
+      mode,
+      kind: "paper",
+      paperId: slug,
+      title: info.title,
+      durationSec: timed ? info.durationSec : null,
+      ...(retryOf ? { retryOf } : {}),
+      startedAt: created.session.started_at,
+    };
+    if (userId) writeDraft(userId, attempt.id, { v: 1, current: 0, elapsedSec: 0, savedAt: new Date().toISOString(), responses: {}, mode, durationSec: attempt.durationSec, title: attempt.title });
+    patchState((s) => ({ ...s, attempts: { ...s.attempts, [attempt.id]: attempt } }));
+    track("session_started", { mode });
+    return attempt.id;
+  } catch (e) {
+    if (isApiError(e) && e.code === "QUOTA_EXCEEDED") throw new QuotaExceededError(e.details as QuotaDetails);
+    handleError(e, "start");
+    throw e;
+  }
+}
+
 export async function startPaper(paperId: string, mode: "cbt" | "test" | "learning", retryOf?: string): Promise<string> {
+  if (flags.papers === "on") return startServerPaper(paperId, mode, retryOf);
   if (flags.papers !== "demo") throw new Error("Papers are not available yet.");
   const p = catalog.paper(paperId);
   if (!p) throw new Error(`Unknown paper ${paperId}`);

@@ -57,7 +57,8 @@ function taxonomyRepo(tx: Tx): TaxonomyRepo {
     publishedCounts: async () =>
       (await rows<{ chapter_id: string; topic_id: string | null; n: number }>(
         tx,
-        `select chapter_id, topic_id, count(*)::int as n from public.questions where publication_status='PUBLISHED' and chapter_id is not null group by chapter_id, topic_id`,
+        `select chapter_id, topic_id, count(*)::int as n from public.questions where publication_status='PUBLISHED' and chapter_id is not null
+           and chapter_id in (select ch.id from public.chapters ch where ch.is_active) group by chapter_id, topic_id`,
       )).map((r) => ({ ...r, n: num(r.n) })),
   };
 }
@@ -75,7 +76,10 @@ async function bundleFor(tx: Tx, q: QuestionRow): Promise<QuestionBundle> {
 function contentRepo(tx: Tx): ContentRepo {
   const pubWhere = `q.publication_status='PUBLISHED'`;
   // Public (anonymous) surfaces never expose Plus-only questions: no page, no excerpt, no redirect, no sitemap entry.
-  const publicWhere = `${pubWhere} and q.access_tier = 'FREE'`;
+  // Questions in an inactive chapter ("Not yet tagged", migration 0028) are published for full papers only: they stay
+  // out of every public list, page, count and non-paper practice set. Sessions still load them by id (pubWhere).
+  const listed = `q.chapter_id in (select ch.id from public.chapters ch where ch.is_active)`;
+  const publicWhere = `${pubWhere} and q.access_tier = 'FREE' and ${listed}`;
   return {
     getPublishedBySlug: async (slug) => {
       const q = await one<QuestionRow>(tx, `select ${Q} from public.questions q where q.slug=$1 and ${publicWhere}`, [slug]);
@@ -128,7 +132,7 @@ function contentRepo(tx: Tx): ContentRepo {
     listPractice: async (f, after, limit) => {
       const p = new Params();
       // Public list: premium questions are never listed (their content is Plus-only).
-      const c = [pubWhere, `q.exam_id=${p.add(f.examId)}`, 'q.chapter_id is not null', 'q.subject_id is not null', 'q.answer_key is not null', `q.access_tier = 'FREE'`];
+      const c = [pubWhere, listed, `q.exam_id=${p.add(f.examId)}`, 'q.chapter_id is not null', 'q.subject_id is not null', 'q.answer_key is not null', `q.access_tier = 'FREE'`];
       if (f.subjectId) c.push(`q.subject_id=${p.add(f.subjectId)}`);
       if (f.chapterId) c.push(`q.chapter_id=${p.add(f.chapterId)}`);
       if (f.topicId) c.push(`q.topic_id=${p.add(f.topicId)}`);
@@ -146,6 +150,32 @@ function contentRepo(tx: Tx): ContentRepo {
     assetsByIds: (ids) => rows<AssetRow>(tx, `select ${ASSET} from public.question_assets a where a.id in ${uuidSet(1)}`, [jsonList(ids)]),
     papersByIds: (ids) => rows(tx, `select ${PAPER} from public.exam_papers p where p.id in ${uuidSet(1)}`, [jsonList(ids)]),
     paperBySlug: (slug) => one(tx, `select ${PAPER} from public.exam_papers p where p.slug=$1`, [slug]),
+    completePapers: async (examId) => {
+      const papers = await rows<PaperRow & { question_count: number }>(
+        tx,
+        `select ${PAPER}, count(*) filter (where q.publication_status='PUBLISHED')::int as question_count
+           from public.exam_papers p join public.questions q on q.paper_id = p.id
+          where p.exam_id = $1
+          group by p.id
+         having count(*) filter (where q.publication_status='PUBLISHED') > 0
+            and count(*) filter (where q.answer_key is not null and q.publication_status<>'PUBLISHED') = 0
+          order by p.exam_date desc nulls last, p.shift desc nulls last, p.slug`,
+        [examId],
+      );
+      if (papers.length === 0) return [];
+      const secs = await rows<{ paper_id: string; subject_id: string; n: number }>(
+        tx,
+        `select q.paper_id, q.subject_id, count(*)::int as n from public.questions q
+          where q.paper_id in ${uuidSet(1)} and q.publication_status='PUBLISHED' and q.subject_id is not null
+          group by q.paper_id, q.subject_id`,
+        [jsonList(papers.map((x) => x.id))],
+      );
+      return papers.map((x) => ({
+        ...x,
+        question_count: num(x.question_count),
+        sections: secs.filter((s) => s.paper_id === x.id).map((s) => ({ subject_id: s.subject_id, n: num(s.n) })),
+      }));
+    },
   };
 }
 
@@ -154,6 +184,8 @@ function practiceRepo(tx: Tx): PracticeRepo {
     selectQuestionIds: async (c) => {
       const p = new Params();
       const w = [`q.publication_status='PUBLISHED'`, `q.exam_id=${p.add(c.examId)}`, 'q.chapter_id is not null', 'q.subject_id is not null', 'q.answer_key is not null'];
+      // A full paper includes its paper-only questions (inactive "Not yet tagged" chapter); every other set leaves them out.
+      if (c.mode !== 'PYQ_PAPER') w.push(`q.chapter_id in (select ch.id from public.chapters ch where ch.is_active)`);
       if (c.mode === 'SUBJECT' && c.subjectId) w.push(`q.subject_id=${p.add(c.subjectId)}`);
       if (c.mode === 'CHAPTER' && c.chapterId) w.push(`q.chapter_id=${p.add(c.chapterId)}`);
       if (c.mode === 'TOPIC' && c.topicId) w.push(`q.topic_id=${p.add(c.topicId)}`);

@@ -14,7 +14,7 @@ import type { CosmeticId, DemoState } from "./types";
 
 const API = DATA_SOURCE === "api";
 /** Papers/CBT (and anything built on them) are hidden in API mode unless the demo flag is on. */
-export const PAPERS_ENABLED = !API || flags.papers === "demo";
+export const PAPERS_ENABLED = !API || flags.papers === "demo" || flags.papers === "on";
 export const LEADERBOARD_ENABLED = !API || flags.leaderboard === "demo";
 
 /**

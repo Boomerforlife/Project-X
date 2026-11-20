@@ -116,6 +116,11 @@ export class MemoryState {
   published(): QuestionRow[] {
     return this.questions.filter((q) => q.publication_status === 'PUBLISHED');
   }
+  /** Published and in an active chapter: what public lists, pages, counts and non-paper practice may show. */
+  listed(): QuestionRow[] {
+    const active = new Set(this.taxonomy.chapters.filter((c) => c.is_active).map((c) => c.id));
+    return this.published().filter((q) => q.chapter_id !== null && active.has(q.chapter_id));
+  }
 }
 
 // ------------------------------------------------------------------ keyset paging
@@ -145,7 +150,7 @@ function taxonomyRepo(s: MemoryState): TaxonomyRepo {
     load: async () => structuredClone(s.taxonomy),
     publishedCounts: async () => {
       const m = new Map<string, { chapter_id: string; topic_id: string | null; n: number }>();
-      for (const q of s.published()) {
+      for (const q of s.listed()) {
         if (!q.chapter_id) continue;
         const k = `${q.chapter_id}|${q.topic_id ?? ''}`;
         const cur = m.get(k) ?? { chapter_id: q.chapter_id, topic_id: q.topic_id, n: 0 };
@@ -158,7 +163,7 @@ function taxonomyRepo(s: MemoryState): TaxonomyRepo {
 }
 
 function contentRepo(s: MemoryState): ContentRepo {
-  const pub = (slug: string) => s.published().find((q) => q.slug === slug);
+  const pub = (slug: string) => s.listed().find((q) => q.slug === slug);
   const optionsOf = (ids: string[]) => s.options.filter((o) => ids.includes(o.question_id));
   return {
     getPublishedBySlug: async (slug) => {
@@ -171,20 +176,20 @@ function contentRepo(s: MemoryState): ContentRepo {
     },
     findRedirectTarget: async (old) => {
       const id = s.redirects.get(old);
-      const q = id ? s.published().find((x) => x.id === id) : undefined;
+      const q = id ? s.listed().find((x) => x.id === id) : undefined;
       return q?.slug ?? null;
     },
     listRelated: async (q, limit) => {
-      const cands = s.published().filter((x) => x.id !== q.id && x.chapter_id === q.chapter_id && x.chapter_id !== null);
+      const cands = s.listed().filter((x) => x.id !== q.id && x.chapter_id === q.chapter_id && x.chapter_id !== null);
       const score = (x: QuestionRow) => (q.topic_id && x.topic_id === q.topic_id ? 1 : 0);
       return cands
         .sort((a, b) => score(b) - score(a) || Number(b.is_indexable) - Number(a.is_indexable) || (b.published_at?.getTime() ?? 0) - (a.published_at?.getTime() ?? 0))
         .slice(0, limit);
     },
-    countRelated: async (q) => s.published().filter((x) => x.id !== q.id && x.chapter_id === q.chapter_id && x.chapter_id !== null).length,
+    countRelated: async (q) => s.listed().filter((x) => x.id !== q.id && x.chapter_id === q.chapter_id && x.chapter_id !== null).length,
     listForChapter: async (f) => {
       const rows = s
-        .published()
+        .listed()
         .filter(
           (q) =>
             q.chapter_id === f.chapterId &&
@@ -198,7 +203,7 @@ function contentRepo(s: MemoryState): ContentRepo {
     search: async (f) => {
       const words = f.q.toLowerCase().split(/\s+/).filter(Boolean);
       const rows = s
-        .published()
+        .listed()
         .filter((q) => (!f.examId || q.exam_id === f.examId) && (!f.subjectId || q.subject_id === f.subjectId) && (!f.chapterId || q.chapter_id === f.chapterId))
         .map((q) => {
           const hay = `${q.seo_title ?? ''} ${q.question_text}`.toLowerCase();
@@ -217,7 +222,7 @@ function contentRepo(s: MemoryState): ContentRepo {
         const sub = q.subject_id ? s.taxonomy.subjects.find((x) => x.id === q.subject_id) : undefined;
         return !!sub && !!q.chapter_id;
       };
-      const rows = s.published().filter(
+      const rows = s.listed().filter(
         (q) =>
           q.exam_id === f.examId &&
           taxOk(q) &&
@@ -238,6 +243,20 @@ function contentRepo(s: MemoryState): ContentRepo {
     assetsByIds: async (ids) => s.assets.filter((a) => ids.includes(a.id)),
     papersByIds: async (ids) => s.papers.filter((p) => ids.includes(p.id)),
     paperBySlug: async (slug) => s.papers.find((p) => p.slug === slug) ?? null,
+    completePapers: async (examId) =>
+      s.papers
+        .filter((p) => p.exam_id === examId)
+        .map((p) => {
+          const qs = s.questions.filter((q) => q.paper_id === p.id);
+          const pub = qs.filter((q) => q.publication_status === 'PUBLISHED');
+          const held = qs.some((q) => q.answer_key !== null && q.publication_status !== 'PUBLISHED');
+          const by = new Map<string, number>();
+          for (const q of pub) if (q.subject_id) by.set(q.subject_id, (by.get(q.subject_id) ?? 0) + 1);
+          return { p, n: pub.length, held, sections: [...by].map(([subject_id, n]) => ({ subject_id, n })) };
+        })
+        .filter((x) => x.n > 0 && !x.held)
+        .sort((a, b) => (b.p.exam_date ?? '').localeCompare(a.p.exam_date ?? '') || (b.p.shift ?? 0) - (a.p.shift ?? 0) || a.p.slug.localeCompare(b.p.slug))
+        .map((x) => ({ ...x.p, question_count: x.n, sections: x.sections })),
   };
 }
 
@@ -253,7 +272,7 @@ const addDays = (date: string, n: number): string => {
 function practiceRepo(s: MemoryState): PracticeRepo {
   return {
     selectQuestionIds: async (c) => {
-      let pool = s.published().filter((q) => q.exam_id === c.examId && q.chapter_id && q.subject_id && q.answer_key);
+      let pool = (c.mode === 'PYQ_PAPER' ? s.published() : s.listed()).filter((q) => q.exam_id === c.examId && q.chapter_id && q.subject_id && q.answer_key);
       if (c.mode === 'SUBJECT' && c.subjectId) pool = pool.filter((q) => q.subject_id === c.subjectId);
       if (c.mode === 'CHAPTER' && c.chapterId) pool = pool.filter((q) => q.chapter_id === c.chapterId);
       if (c.mode === 'TOPIC' && c.topicId) pool = pool.filter((q) => q.topic_id === c.topicId);

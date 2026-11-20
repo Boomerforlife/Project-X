@@ -28,6 +28,7 @@ export {
   ExamPreferencesBody,
   CreateSessionBody,
   SubmitAttemptBody,
+  PaperSummarySchema,
 } from "@projectx/contracts";
 import type { z } from "zod";
 import type { PatchMeBody as PatchMeBodySchema, ExamPreferencesBody as ExamPrefsSchema, CreateSessionBody as CreateSessionSchema, SubmitAttemptBody as SubmitAttemptSchema } from "@projectx/contracts";
@@ -67,4 +68,5 @@ export type {
   AnswerKeyWithLabels,
   Meta,
   ErrorCode,
+  PaperSummary,
 } from "@projectx/contracts";

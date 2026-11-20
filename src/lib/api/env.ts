@@ -17,10 +17,13 @@ export function browserBaseUrl(): string {
   return strip(process.env.NEXT_PUBLIC_API_BASE_URL || "");
 }
 
-type Flag = "off" | "demo";
-const flag = (v: string | undefined): Flag => (v === "demo" ? "demo" : "off");
+type Flag = "off" | "demo" | "on";
+const flag = (v: string | undefined): Flag => (v === "demo" ? "demo" : v === "on" ? "on" : "off");
 
-/** Feature flags for demo-only surfaces. Default "off" in API mode. */
+/**
+ * Feature flags. Default "off" in API mode. "demo" shows fixture-backed surfaces; papers "on" lists the API's real
+ * previous-year papers (GET /public/papers) and runs them as server sessions.
+ */
 export const flags: { papers: Flag; leaderboard: Flag } = {
   papers: flag(process.env.NEXT_PUBLIC_FEATURE_PAPERS),
   leaderboard: flag(process.env.NEXT_PUBLIC_FEATURE_LEADERBOARD),

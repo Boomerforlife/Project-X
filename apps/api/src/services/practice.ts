@@ -46,13 +46,22 @@ export function sessionProgress(s: SessionRow): SessionProgress {
     score: normalizeDecimal(s.score),
   };
 }
-const sessionSummary = (s: SessionRow): SessionSummary => ({
+const sessionSummary = (s: SessionRow, paper: PaperRow | null = null): SessionSummary => ({
   ...sessionProgress(s),
   mode: s.mode,
   started_at: iso(s.started_at),
   ui_mode: s.ui_mode,
   time_limit_sec: s.time_limit_sec,
+  paper: paper ? { slug: paper.slug, title: paper.title } : null,
 });
+
+/** The paper a PYQ_PAPER session came from (null for every other session). */
+async function paperOf(r: ServiceRepos, s: SessionRow): Promise<PaperRow | null> {
+  return s.paper_id ? ((await r.content.papersByIds([s.paper_id]))[0] ?? null) : null;
+}
+
+/** A full paper is always the whole paper: every published question, in paper order, solved or not. */
+export const FULL_PAPER_MAX_QUESTIONS = 200;
 
 /** Build practice DTOs (no answers) for the given questions, preserving `rows` order. */
 export async function buildPracticeQuestions(
@@ -169,7 +178,7 @@ export async function createSession(
   return store.service(async (r) => {
     const replay = async (s: SessionRow) => ({
       created: false,
-      data: { session: sessionSummary(s), questions: await sessionQuestions(r, deps, s.question_ids) },
+      data: { session: sessionSummary(s, await paperOf(r, s)), questions: await sessionQuestions(r, deps, s.question_ids) },
     });
     const existing = await r.practice.findSessionByRequest(user.id, body.client_request_id);
     if (existing) return replay(existing);
@@ -191,7 +200,8 @@ export async function createSession(
     if (body.mode === 'CHAPTER') need(chapter, 'chapter');
     if (body.mode === 'TOPIC') need(topic, 'topic');
     if (body.mode === 'PYQ_PAPER') need(paper, 'paper');
-    const f = body.filters;
+    const fullPaper = body.mode === 'PYQ_PAPER';
+    const f = fullPaper ? undefined : body.filters;
     const ids = await r.practice.selectQuestionIds({
       mode: body.mode,
       userId: user.id,
@@ -204,8 +214,8 @@ export async function createSession(
       types: f?.types,
       yearFrom: f?.year_from,
       yearTo: f?.year_to,
-      excludeCorrect: f?.exclude_correct ?? true,
-      size: body.size,
+      excludeCorrect: fullPaper ? false : (f?.exclude_correct ?? true),
+      size: fullPaper ? FULL_PAPER_MAX_QUESTIONS : body.size,
       includePremium: opts.includePremium ?? false,
     });
     if (ids.length === 0) {
@@ -232,7 +242,7 @@ export async function createSession(
       if (!again) throw new ApiError('CONFLICT', 'Could not create session');
       return replay(again);
     }
-    return { created: true, data: { session: sessionSummary(inserted), questions: await sessionQuestions(r, deps, inserted.question_ids) } };
+    return { created: true, data: { session: sessionSummary(inserted, paper), questions: await sessionQuestions(r, deps, inserted.question_ids) } };
   });
 }
 
@@ -259,7 +269,7 @@ export async function getSession(
       items.push({ question, attempt });
     }
     return {
-      session: { ...sessionSummary(s), completed_at: isoOrNull(s.completed_at) },
+      session: { ...sessionSummary(s, await paperOf(r, s)), completed_at: isoOrNull(s.completed_at) },
       items,
     };
   });
@@ -300,6 +310,8 @@ export async function listSessions(
     const tax = new TaxIndex(await r.taxonomy.load());
     const rows = await r.practice.listSessions(userId, q.status ?? null, q.cursor, q.limit + 1);
     const page = paginate(rows, q.limit);
+    const paperIds = [...new Set(page.rows.flatMap((s) => (s.paper_id ? [s.paper_id] : [])))];
+    const papers = new Map((paperIds.length ? await r.content.papersByIds(paperIds) : []).map((p) => [p.id, p]));
     const data: SessionListItem[] = [];
     for (const s of page.rows) {
       const exam = tax.exams.get(s.exam_id);
@@ -307,7 +319,7 @@ export async function listSessions(
       const subject = s.subject_id ? tax.subjects.get(s.subject_id) : undefined;
       const chapter = s.chapter_id ? tax.chapters.get(s.chapter_id) : undefined;
       data.push({
-        ...sessionSummary(s),
+        ...sessionSummary(s, s.paper_id ? (papers.get(s.paper_id) ?? null) : null),
         completed_at: isoOrNull(s.completed_at),
         last_activity_at: iso(s.last_activity_at),
         exam: tax.examRef(exam),

@@ -75,6 +75,9 @@ export const PracticeListQuery = z.object({
   ...pageQuery(50),
 });
 
+export const PaperListQuery = z.object({ exam: SlugSchema }).openapi('PaperListQuery');
+export type PaperListQuery = z.infer<typeof PaperListQuery>;
+
 export const CreateSessionBody = z
   .object({
     client_request_id: UuidSchema,

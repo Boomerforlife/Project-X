@@ -23,6 +23,8 @@ const API = DATA_SOURCE === "api";
  * hidden unless NEXT_PUBLIC_FEATURE_PAPERS=demo, so public pages must not link to them.
  */
 export const PAPERS_VISIBLE = !API || flags.papers === "demo";
+/** Full papers can be sat in this build: demo fixtures, or the API's real previous-year papers (papers flag "on"). */
+export const FULL_PAPERS = PAPERS_VISIBLE || flags.papers === "on";
 
 // Fixtures must pass the same schemas as API responses (CLAUDE.md §14).
 let validated = false;

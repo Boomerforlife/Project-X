@@ -1,5 +1,6 @@
 import type {
   Meta,
+  PaperSummary,
   PublicChapter,
   PublicExam,
   PublicQuestion,
@@ -27,6 +28,37 @@ export interface Out<T> {
   data: T;
   meta?: Meta;
   tags: string[];
+}
+
+/** Exam duration of a full paper, in minutes (NTA: JEE Main 3 h, NEET 3 h 20 min; JEE Advanced 3 h per paper). */
+const PAPER_MINUTES: Record<string, number> = { 'jee-main': 180, 'jee-advanced': 180, neet: 200, 'neet-ug': 200 };
+
+/** Complete previous-year papers of an exam, newest first (only papers whose every keyed question is published). */
+export async function listPapers(store: Store, examSlug: string): Promise<Out<PaperSummary[]>> {
+  return store.service(async (r) => {
+    const tax = new TaxIndex(await r.taxonomy.load());
+    const exam = tax.examBySlug.get(examSlug);
+    if (!exam || !exam.is_active) throw notFound('Exam');
+    const papers = await r.content.completePapers(exam.id);
+    const data: PaperSummary[] = papers.map((p) => ({
+      slug: p.slug,
+      title: p.title,
+      year: p.year,
+      exam_date: p.exam_date,
+      shift: p.shift,
+      exam: tax.examRef(exam),
+      question_count: p.question_count,
+      duration_min: PAPER_MINUTES[exam.slug] ?? 180,
+      sections: p.sections
+        .flatMap((s) => {
+          const sub = tax.subjects.get(s.subject_id);
+          return sub ? [{ subject: tax.subjectRef(sub), question_count: s.n, order: sub.sort_order }] : [];
+        })
+        .sort((a, b) => a.order - b.order)
+        .map(({ subject, question_count }) => ({ subject, question_count })),
+    }));
+    return { data, tags: [cacheTags.qlist, cacheTags.exam(exam.id)] };
+  });
 }
 
 export function countsIndex(rows: { chapter_id: string; topic_id: string | null; n: number }[], tax: TaxIndex) {

@@ -472,6 +472,11 @@ export interface ContentRepo {
   assetsByIds(ids: string[]): Promise<AssetRow[]>;
   papersByIds(ids: string[]): Promise<PaperRow[]>;
   paperBySlug(slug: string): Promise<PaperRow | null>;
+  /**
+   * Papers of an exam that can be sat whole: at least one question published and every question with an official
+   * answer published. Per-subject published counts included.
+   */
+  completePapers(examId: string): Promise<(PaperRow & { question_count: number; sections: { subject_id: string; n: number }[] })[]>;
 }
 
 export interface SelectCriteria {

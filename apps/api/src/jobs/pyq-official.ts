@@ -6,6 +6,9 @@
  *   PYQ_EXAM      exam slug (default jee-main; the classifier only knows JEE Main chapters)
  *   PYQ_LIMIT     max questions per step (default 300)
  *   PYQ_DRY_RUN   "true" = report what would happen, change nothing (default true: a real run must opt in)
+ *   PYQ_PAPER_ONLY "true" = an unconfident draft that belongs to a paper goes to its subject's hidden "Not yet tagged"
+ *                 chapter (migration 0028): published for full papers only, never listed on chapter pages or in
+ *                 ordinary practice. A person can move it to its real chapter later (admin questions page).
  *
  * tag:     PENDING drafts with an OFFICIAL key and no chapter get one from the keyword classifier, only when it is
  *          confident (src/content/chapter-keywords.ts). Unconfident ones stay for a person (admin questions page).
@@ -30,6 +33,8 @@ const step = process.env['PYQ_STEP'] ?? 'both';
 const exam = process.env['PYQ_EXAM'] || 'jee-main';
 const limit = Math.max(1, Math.min(5_000, Number(process.env['PYQ_LIMIT'] ?? 300)));
 const dryRun = process.env['PYQ_DRY_RUN'] !== 'false';
+const paperOnly = process.env['PYQ_PAPER_ONLY'] === 'true';
+const UNTAGGED = 'not-yet-tagged';
 
 const logger = createConsoleLogger(config.LOG_LEVEL);
 const db = createPostgresDb({ url: config.DATABASE_URL, max: 2 });
@@ -43,8 +48,8 @@ if (step === 'tag' || step === 'both') {
     [exam],
   );
   const chapterId = new Map(chapters.map((c) => [`${c.code}:${c.slug.slice(c.subject_slug.length + 1)}`, c.id]));
-  const drafts = await q<{ id: string; code: SubjectCode; text: string | null }>(
-    `select q.id, s.code, q.question_text as text from public.questions q join public.subjects s on s.id = q.subject_id
+  const drafts = await q<{ id: string; code: SubjectCode; text: string | null; paper_id: string | null }>(
+    `select q.id, s.code, q.question_text as text, q.paper_id from public.questions q join public.subjects s on s.id = q.subject_id
        join public.exams e on e.id = q.exam_id
       where e.slug = $1 and q.publication_status = 'DRAFT' and q.verification_status = 'PENDING' and q.origin = 'PYQ'
         and q.answer_key_source = 'OFFICIAL' and q.chapter_id is null
@@ -54,10 +59,18 @@ if (step === 'tag' || step === 'both') {
   let tagged = 0;
   let unsure = 0;
   let unknown = 0;
+  let paperOnlyTagged = 0;
   for (const d of drafts) {
     const g = classifyChapter(d.code, d.text ?? '');
     if (!g.confident || !g.chapter) {
-      unsure++;
+      const hidden = paperOnly && d.paper_id ? chapterId.get(`${d.code}:${UNTAGGED}`) : undefined;
+      if (!hidden) {
+        unsure++;
+        continue;
+      }
+      if (dryRun || (await autoTagChapter(store, d.id, hidden, { paper_only: true, best_guess: g.chapter, score: g.score, runner_up: g.runnerUp, runner_up_score: g.runnerUpScore }))) {
+        paperOnlyTagged++;
+      }
       continue;
     }
     const cid = chapterId.get(`${d.code}:${g.chapter}`);
@@ -72,7 +85,7 @@ if (step === 'tag' || step === 'both') {
     const ok = await autoTagChapter(store, d.id, cid, { chapter: g.chapter, score: g.score, runner_up: g.runnerUp, runner_up_score: g.runnerUpScore, matched: g.matched });
     if (ok) tagged++;
   }
-  logger.info('pyq-official tag', { exam, scanned: drafts.length, tagged, left_for_review: unsure, unknown_chapter: unknown, dry_run: dryRun });
+  logger.info('pyq-official tag', { exam, scanned: drafts.length, tagged, paper_only: paperOnlyTagged, left_for_review: unsure, unknown_chapter: unknown, dry_run: dryRun });
 }
 
 if (step === 'publish' || step === 'both') {
