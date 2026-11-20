@@ -1,6 +1,6 @@
 # Deployment on Google Cloud (replaces the Cloudflare Workers/R2 plan for the API)
 Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 (INR 450; alerts only, it does not stop spending).
-Live (2026-11-20): API `projectx-api-00021-wbc` (image `api:staging-14`; rollback `projectx-api-00020-s4p`), web `projectx-web-00014-rtc` (image `web-staging-13`; rollback `projectx-web-00010-rqb`), served at https://tabbyprep.in through Firebase Hosting.
+Live (2026-11-20): API `projectx-api-00022-2pp` (image `api:staging-15`; rollback `projectx-api-00021-wbc`), web `projectx-web-00015-mpg` (image `web-staging-14`; rollback `projectx-web-00014-rtc`; older: rollback `projectx-web-00010-rqb`), served at https://tabbyprep.in through Firebase Hosting.
 * **API** = Cloud Run service `projectx-api`, image built by Cloud Build from the root `Dockerfile` (entry `apps/api/src/server.ts`).
 * **Storage** = 3 Cloud Storage buckets (`…-source-docs`, `…-public-assets`, `…-user-uploads`). `source-docs` and `user-uploads` are private
   (public access prevention enforced). `public-assets` was opened on 2026-11-20, when the first image questions were published:
