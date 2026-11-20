@@ -4,6 +4,7 @@ import { Inter, Silkscreen, Space_Grotesk } from "next/font/google";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import { AdsProvider } from "@/components/ads/AdsProvider";
+import { SiteAdScript } from "@/components/ads/SiteAdScript";
 import { AppReady, NavProgress } from "@/components/layout/AppChrome";
 import { LoadingScreen } from "@/components/states/Loading";
 import { THEME_SCRIPT } from "@/components/theme/theme-script";
@@ -53,7 +54,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={null}>
           <NavProgress />
         </Suspense>
-        <AdsProvider>{children}</AdsProvider>
+        <AdsProvider>
+          {children}
+          {/* AdSense tag on every page that may carry ads (not CBT/tests/checkout/sign-in, not Plus). */}
+          <Suspense fallback={null}>
+            <SiteAdScript />
+          </Suspense>
+        </AdsProvider>
         <Toaster />
         <AppReady />
         {DATA_SOURCE === "mock" && <MockRibbon />}
