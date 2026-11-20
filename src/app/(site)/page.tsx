@@ -7,7 +7,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import type { VerificationStatus } from "@/contracts";
 import { cn } from "@/lib/cn";
 import type { Chapter, Subject } from "@/contracts";
-import { PAPERS_VISIBLE, getChapters, getSubjects } from "@/lib/data";
+import { FULL_PAPERS, PAPERS_VISIBLE, getChapters, getSubjects } from "@/lib/data";
 import { EXAM_LIST } from "@/lib/exams";
 import { pageMetadata, siteJsonLd } from "@/lib/seo";
 import { DATA_SOURCE, SITE } from "@/lib/site";
@@ -55,7 +55,7 @@ function Hero() {
             <span className="caret-block">Improve</span>
           </h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-fg-muted">
-            {PAPERS_VISIBLE
+            {FULL_PAPERS
               ? "Practise JEE and NEET questions chapter by chapter, sit full papers in an exam-style CBT, read clear step-by-step solutions, and keep the mistakes worth revisiting in one place."
               : "Practise JEE questions chapter by chapter, read clear step-by-step solutions, and keep the mistakes worth revisiting in one place."}
           </p>
@@ -64,8 +64,8 @@ function Hero() {
               {DATA_SOURCE === "api" ? "Start practising free" : "Try the demo"}
             </ButtonLink>
             {/* Papers stay hidden until they exist; until then the second action goes to real content. */}
-            <ButtonLink href={PAPERS_VISIBLE ? "/jee/pyq/" : "/jee/"} size="lg" variant="secondary">
-              {PAPERS_VISIBLE ? "See the papers" : "Browse chapters"}
+            <ButtonLink href={PAPERS_VISIBLE ? "/jee/pyq/" : FULL_PAPERS ? "/tests/" : "/jee/"} size="lg" variant="secondary">
+              {PAPERS_VISIBLE ? "See the papers" : FULL_PAPERS ? "Sit a full paper" : "Browse chapters"}
             </ButtonLink>
           </div>
         </div>
@@ -297,6 +297,11 @@ function ExamsSection({ subjects, chapters }: { subjects: Subject[]; chapters: C
                 ) : (
                   <span className="text-fg-muted">Coming soon</span>
                 )}
+                {!PAPERS_VISIBLE && FULL_PAPERS && n > 0 ? (
+                  <Link href={`/tests/?exam=${e.id}`} className="text-fg-soft hover:text-fg">
+                    Full papers in CBT <span aria-hidden>→</span>
+                  </Link>
+                ) : null}
                 {PAPERS_VISIBLE && n > 0 ? (
                   <>
                     <Link href={`/${e.track}/pyq/`} className="text-fg-soft hover:text-fg">

@@ -4,7 +4,7 @@ import { PaperCard } from "@/components/content/PaperCard";
 import { Kitty } from "@/components/brand/Kitty";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { cn } from "@/lib/cn";
-import { PAPERS_VISIBLE, getPublicPapers } from "@/lib/data";
+import { FULL_PAPERS, PAPERS_VISIBLE, getPublicPapers } from "@/lib/data";
 import { EXAMS, TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 
@@ -62,7 +62,19 @@ export default async function PyqHubPage({ params }: PageProps<"/[track]/pyq">) 
       </PageHeader>
 
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        {papers.length === 0 && (
+        {papers.length === 0 && FULL_PAPERS && (
+          <EmptyState
+            kitty={<Kitty pose="sit" className="h-16 w-auto text-fg-subtle" />}
+            title="Sit a real previous-year paper"
+            body="Full NTA papers run in the exam-style CBT with a timer, sections and a question palette, scored against the official final answer key. Sign in to start one."
+          >
+            <Link href="/tests/" className="text-sm underline underline-offset-4">
+              Go to full papers
+            </Link>
+          </EmptyState>
+        )}
+
+        {papers.length === 0 && !FULL_PAPERS && (
           <EmptyState
             kitty={<Kitty pose="sleep" className="h-16 w-auto text-fg-subtle" />}
             title="Previous year papers are coming soon"
