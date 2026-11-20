@@ -6,7 +6,7 @@ import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import { PAPERS_VISIBLE, getChapters, getExams, getPublicPapers, getQuestionCounts, getSubjects } from "@/lib/data";
+import { FULL_PAPERS, PAPERS_VISIBLE, getChapters, getExams, getPublicPapers, getQuestionCounts, getSubjects } from "@/lib/data";
 import { EXAMS, TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -121,9 +121,9 @@ export default async function TrackHubPage({ params }: PageProps<"/[track]">) {
                   <ButtonLink href={`/practice/new/?exam=${id}`} size="sm" pixel>
                     <Icon name="play" className="size-3.5" /> Practise {e.short}
                   </ButtonLink>
-                  {PAPERS_VISIBLE && (
+                  {FULL_PAPERS && (
                     <ButtonLink href={`/tests/?exam=${id}`} size="sm" variant="secondary">
-                      Full papers & mocks
+                      {PAPERS_VISIBLE ? "Full papers & mocks" : "Full papers in CBT"}
                     </ButtonLink>
                   )}
                 </div>
