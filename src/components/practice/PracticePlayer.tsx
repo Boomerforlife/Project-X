@@ -24,6 +24,7 @@ import { SolutionPanel } from "./SolutionPanel";
 import { Calculator, Scratchpad } from "./Tools";
 import { formatClock, isTypingTarget, useAttemptClock } from "./useAttemptClock";
 import { DemoRequired } from "@/components/app/DemoGate";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 const API = DATA_SOURCE === "api";
 
@@ -283,6 +284,10 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
             <ToolButton icon="alert" label="Report" onClick={() => setReport(true)} />
             <ToolButton icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} shortcut="?" className="ml-auto hidden sm:inline-flex" />
           </div>
+
+          {/* Free plan: one quiet unit below the tools, untimed sessions only. Mounted once per session, so it does
+              not reload on every question. Never between options or inside the solution. */}
+          {remaining === null && <AdSlot placement="question-bottom" className="mt-10" />}
         </main>
 
         <aside className="hidden lg:block" aria-label="Session overview">

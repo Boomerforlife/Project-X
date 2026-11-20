@@ -3,7 +3,8 @@
  * One clearly labelled ad unit at a page end or between list rows. Renders nothing unless every gate passes:
  * server eligibility (free tier), the placement's allowed routes, the page and session budgets, and a configured
  * AdSense unit. Lazy: the AdSense script and the request start only when the slot is near the viewport. Unfilled
- * or blocked slots collapse; nothing nags about ad blockers. No ad is ever placed inside a question or solution.
+ * or blocked slots collapse. Below each unit a quiet "Go ad-free" line points to Plus. No ad is ever placed between a
+ * question's options or inside a solution (the practice-session unit sits below the question tools).
  *
  * Mock data / NEXT_PUBLIC_ADS=test without unit ids: a dashed preview box marks where the unit would go.
  */
@@ -93,15 +94,15 @@ export function AdSlot({ placement, className }: { placement: PlacementId; class
 
   if (phase === "off" || phase === "hidden") return null;
 
-  const label = (
-    <div className="mb-2 flex items-center justify-between gap-3 text-[0.6875rem] uppercase tracking-wider text-muted">
-      <span>Advertisement</span>
-      {ads.entitlements?.payments_enabled && (
-        <Link href="/pricing/" className="normal-case tracking-normal underline-offset-2 hover:underline">
-          Go ad-free with Plus
-        </Link>
-      )}
-    </div>
+  const label = <p className="mb-2 text-[0.6875rem] uppercase tracking-wider text-muted">Advertisement</p>;
+  // Shown once the unit has rendered (or while it loads), never on a collapsed slot.
+  const upsell = ads.entitlements?.payments_enabled !== false && phase !== "pending" && (
+    <p className="mt-2 flex flex-wrap items-center justify-end gap-x-1.5 text-xs text-fg-muted">
+      <span>Tired of ads?</span>
+      <Link href="/pricing/?ref=ad" className="font-medium text-fg underline-offset-2 hover:underline">
+        Go ad-free with Plus →
+      </Link>
+    </p>
   );
 
   return (
@@ -127,6 +128,7 @@ export function AdSlot({ placement, className }: { placement: PlacementId; class
           />
         )}
       </div>
+      {upsell}
     </aside>
   );
 }

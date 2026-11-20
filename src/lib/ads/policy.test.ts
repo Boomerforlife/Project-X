@@ -7,17 +7,16 @@ import {
   deviceFor,
   infeedPositions,
   pathAllowsAds,
+  pathManualOnly,
   placementAllowed,
   resolvePolicy,
   rewardedBlock,
 } from "./policy";
 
 describe("ad placement policy", () => {
-  it("never allows ads in tests, CBT, sessions, auth, checkout, account, admin or legal pages", () => {
+  it("never allows ads in the CBT, auth, checkout, account or admin pages", () => {
     for (const p of [
       "/cbt/abc/",
-      "/practice/session/",
-      "/practice/session",
       "/tests/limit/",
       "/login/",
       "/signup/",
@@ -27,12 +26,18 @@ describe("ad placement policy", () => {
       "/pay/abcdef/",
       "/account/",
       "/admin/questions/",
-      "/plan/",
-      "/terms/",
     ]) {
       expect(pathAllowsAds(p), p).toBe(false);
     }
     expect(BLOCKED_PREFIXES).toContain("/cbt/");
+  });
+
+  it("allows free users ads on content pages, and only the manual unit inside a practice session", () => {
+    for (const p of ["/", "/jee/", "/plan/", "/terms/", "/practice/session/", "/dashboard/"]) expect(pathAllowsAds(p), p).toBe(true);
+    expect(pathManualOnly("/practice/session")).toBe(true);
+    expect(pathManualOnly("/jee/physics/")).toBe(false);
+    expect(placementAllowed("question-bottom", "/practice/session/")).toBe(true);
+    expect(placementAllowed("question-bottom", "/cbt/")).toBe(false);
   });
 
   it("allows each placement only on its own pages", () => {
