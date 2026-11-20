@@ -16,7 +16,7 @@ import {
   TaxonomyExamSchema,
   TaxonomyTreeSchema,
 } from "../schemas";
-import { blocksToRichText, imageAssets, safeExcerpt } from "./blocks";
+import { blocksToRichText, figuresNotInBlocks, imageAssets, safeExcerpt } from "./blocks";
 import { chapterSummary, practiceToCard, toChapters, toCounts, toQuestion, toQuestionCard, toSolution, toSubject } from "./content";
 import { difficultyFromApi, examFromApi, examToApi, subjectFromApi, typeFromApi, typeToApi } from "./ids";
 
@@ -47,6 +47,20 @@ describe("ids", () => {
 });
 
 describe("blocks", () => {
+  it("does not draw an image block a second time as a figure", () => {
+    const blocks = [
+      { type: "image" as const, asset_id: "a1", url: "https://x/a1.png", alt: "stem", width: 10, height: 2 },
+      { type: "paragraph" as const, text: "see figure" },
+    ];
+    const assets = [
+      { id: "a1", url: "https://x/a1.png", alt: "stem", width: 10, height: 2 },
+      { id: "f2", url: "https://x/f2.png", alt: "figure", width: 10, height: 5 },
+    ];
+    expect(figuresNotInBlocks(assets, blocks).map((a) => a.id)).toEqual(["f2"]);
+    expect(figuresNotInBlocks(assets, undefined).map((a) => a.id)).toEqual(["a1", "f2"]);
+    expect(figuresNotInBlocks(imageAssets(blocks), blocks)).toEqual([]);
+  });
+
   it("serializes blocks to RichText", () => {
     const text = blocksToRichText([
       { type: "paragraph", text: "Find $x$." },

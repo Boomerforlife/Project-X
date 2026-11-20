@@ -44,6 +44,17 @@ export function imageAssets(blocks: readonly PublicContentBlock[]): Asset[] {
 }
 
 /**
+ * Figures still to draw below the stem. In API mode every image is already an
+ * image block, which `Blocks` renders inline, so drawing `assets` as well showed
+ * each image twice. Fixtures have no blocks and keep all their assets.
+ */
+export function figuresNotInBlocks<A extends { id: string }>(assets: readonly A[], blocks: readonly PublicContentBlock[] | undefined): A[] {
+  if (!blocks?.length) return [...assets];
+  const inline = new Set(blocks.flatMap((b) => (b.type === "image" ? [b.asset_id] : [])));
+  return assets.filter((a) => !inline.has(a.id));
+}
+
+/**
  * Backend excerpts are cut at 200 chars and can end inside `$...$`. Drop an
  * unterminated math span so KaTeX never sees a dangling delimiter.
  */
