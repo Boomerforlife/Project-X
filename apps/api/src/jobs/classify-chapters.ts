@@ -1,6 +1,8 @@
 /**
- * Cloud Run Job: give every JEE Main question without a real chapter one, with Claude + the keyword rules
- * (owner decision 2026-11-20; logic in src/content/chapter-ai.ts). Same image and env as the API, plus the secret
+ * Cloud Run Job: give every JEE Main question without a real chapter one, with Claude + the keyword rules, and rate
+ * every question without a difficulty easy / medium / hard (owner decisions 2026-11-20 and 2026-11-21; logic in
+ * src/content/chapter-ai.ts). Difficulty is stored with difficulty_source = 'AI'; the nightly rate-difficulty job
+ * replaces it with STATS once 20+ students have attempted the question. Admin and import ratings are never touched. Same image and env as the API, plus the secret
  * ANTHROPIC_API_KEY. Uses the Message Batches API (half price, results within 24 h).
  *
  *   CLASSIFY_STEP     submit | collect           submit: send one batch and log its id; collect: apply a finished batch
@@ -53,7 +55,7 @@ if (subjects.size === 0) throw new Error(`no active chapters for exam ${exam}`);
 
 const CANDIDATES = `from public.questions q join public.exams e on e.id = q.exam_id
   left join public.chapters c on c.id = q.chapter_id
- where e.slug = $1 and q.subject_id is not null and (q.chapter_id is null or c.segment = '${UNTAGGED}')`;
+ where e.slug = $1 and q.subject_id is not null and (q.chapter_id is null or c.segment = '${UNTAGGED}' or q.difficulty is null)`;
 
 if (step === 'submit') {
   const rows = await q<{ id: string; subject_id: string; text: string; image: string | null }>(
@@ -83,10 +85,15 @@ if (step === 'submit') {
     logger.info('classify-chapters batch not finished', { batch_id: batchId, status: batch.processing_status, counts: batch.request_counts });
   } else {
     const info = new Map(
-      (await q<{ id: string; subject_id: string; text: string; status: string }>(`select q.id, q.subject_id, q.question_text as text, q.publication_status::text as status ${CANDIDATES}`, [exam])).map(
-        (r) => [r.id, r],
-      ),
+      (
+        await q<{ id: string; subject_id: string; text: string; status: string; needs_chapter: boolean; needs_difficulty: boolean }>(
+          `select q.id, q.subject_id, q.question_text as text, q.publication_status::text as status,
+                  (q.chapter_id is null or c.segment = '${UNTAGGED}') as needs_chapter, q.difficulty is null as needs_difficulty ${CANDIDATES}`,
+          [exam],
+        )
+      ).map((r) => [r.id, r]),
     );
+    let rated = 0;
     let assigned = 0;
     let review = 0;
     let skipped = 0;
@@ -109,6 +116,23 @@ if (step === 'submit') {
       const known = new Set(s.chapters.map((c) => c.segment));
       const ai = msg ? parseAnswer(msg, known) : null;
       const kwRaw = classifyChapter(s.code, row.text ?? '');
+      if (ai && row.needs_difficulty) {
+        const ok = dryRun
+          ? true
+          : await db.withService(async (tx) => {
+              await tx.query(`select set_config('app.difficulty_source', 'AI', true)`);
+              const r = await tx.query<{ id: string }>(
+                `update public.questions set difficulty = $2::public.difficulty where id = $1 and difficulty is null returning id`,
+                [res.custom_id, ai.difficulty.toUpperCase()],
+              );
+              return r.rows.length > 0;
+            });
+        if (ok) {
+          rated++;
+          if (row.status === 'PUBLISHED') tags.add(cacheTags.question(res.custom_id));
+        }
+      }
+      if (!row.needs_chapter) continue;
       const d = decide(ai, kwRaw);
       if (d.action === 'review') {
         review++;
@@ -156,7 +180,7 @@ if (step === 'submit') {
         if (!r.ok) logger.warn('cache purge failed', { error: r.error });
       }
     }
-    logger.info('classify-chapters collected', { batch_id: batchId, assigned, review, skipped, review_reasons: Object.fromEntries(reasons), usage, dry_run: dryRun });
+    logger.info('classify-chapters collected', { batch_id: batchId, assigned, rated_difficulty: rated, review, skipped, review_reasons: Object.fromEntries(reasons), usage, dry_run: dryRun });
   }
 } else {
   throw new Error(`unknown CLASSIFY_STEP ${step}`);

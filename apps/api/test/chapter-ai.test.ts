@@ -9,23 +9,24 @@ const known = new Set(['kinematics', 'electrostatics']);
 
 describe('chapter classification cross-check', () => {
   it('assigns when Claude and the keyword rules agree, or when Claude is sure and the keywords are too weak', () => {
-    expect(decide({ chapter: 'kinematics', confidence: 'medium' }, kw('kinematics', 2))).toMatchObject({ action: 'assign', chapter: 'kinematics' });
-    expect(decide({ chapter: 'kinematics', confidence: 'high' }, kw('electrostatics', 2))).toMatchObject({ action: 'assign', chapter: 'kinematics' });
-    expect(decide({ chapter: 'kinematics', confidence: 'high' }, kw(null, 0))).toMatchObject({ action: 'assign' });
+    expect(decide({ chapter: 'kinematics', confidence: 'medium', difficulty: 'medium' }, kw('kinematics', 2))).toMatchObject({ action: 'assign', chapter: 'kinematics' });
+    expect(decide({ chapter: 'kinematics', confidence: 'high', difficulty: 'medium' }, kw('electrostatics', 2))).toMatchObject({ action: 'assign', chapter: 'kinematics' });
+    expect(decide({ chapter: 'kinematics', confidence: 'high', difficulty: 'medium' }, kw(null, 0))).toMatchObject({ action: 'assign' });
   });
 
   it('leaves disagreements, low confidence and unusable answers for a person', () => {
-    expect(decide({ chapter: 'kinematics', confidence: 'high' }, kw('electrostatics', 6)).action).toBe('review');
-    expect(decide({ chapter: 'kinematics', confidence: 'medium' }, kw('electrostatics', 1)).action).toBe('review');
-    expect(decide({ chapter: 'kinematics', confidence: 'low' }, kw('kinematics', 5)).action).toBe('review');
+    expect(decide({ chapter: 'kinematics', confidence: 'high', difficulty: 'medium' }, kw('electrostatics', 6)).action).toBe('review');
+    expect(decide({ chapter: 'kinematics', confidence: 'medium', difficulty: 'medium' }, kw('electrostatics', 1)).action).toBe('review');
+    expect(decide({ chapter: 'kinematics', confidence: 'low', difficulty: 'medium' }, kw('kinematics', 5)).action).toBe('review');
     expect(decide(null, kw('kinematics', 9)).action).toBe('review');
   });
 
   it('reads only a valid structured answer for a known chapter', () => {
-    expect(parseAnswer(msg('{"chapter":"kinematics","confidence":"high"}'), known)).toEqual({ chapter: 'kinematics', confidence: 'high' });
-    expect(parseAnswer(msg('{"chapter":"optics","confidence":"high"}'), known)).toBeNull();
+    expect(parseAnswer(msg('{"chapter":"kinematics","confidence":"high","difficulty":"hard"}'), known)).toEqual({ chapter: 'kinematics', confidence: 'high', difficulty: 'hard' });
+    expect(parseAnswer(msg('{"chapter":"kinematics","confidence":"high"}'), known)).toBeNull();
+    expect(parseAnswer(msg('{"chapter":"optics","confidence":"high","difficulty":"easy"}'), known)).toBeNull();
     expect(parseAnswer(msg('not json'), known)).toBeNull();
-    expect(parseAnswer(msg('{"chapter":"kinematics","confidence":"high"}', 'refusal'), known)).toBeNull();
+    expect(parseAnswer(msg('{"chapter":"kinematics","confidence":"high","difficulty":"easy"}', 'refusal'), known)).toBeNull();
   });
 
   it('builds a batch request restricted to the subject chapters, with the question image when public', () => {

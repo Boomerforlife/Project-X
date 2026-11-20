@@ -11,7 +11,8 @@ import { CONFIDENCE, type ChapterGuess } from './chapter-keywords';
 
 export const CLASSIFIER_MODEL = 'claude-opus-5-5';
 
-export type AiChapter = { chapter: string; confidence: 'high' | 'medium' | 'low' };
+export type AiDifficulty = 'easy' | 'medium' | 'hard';
+export type AiChapter = { chapter: string; confidence: 'high' | 'medium' | 'low'; difficulty: AiDifficulty };
 export type Decision = { action: 'assign'; chapter: string; why: string } | { action: 'review'; why: string };
 
 export type ChapterOption = { segment: string; name: string };
@@ -24,6 +25,9 @@ export function systemPrompt(exam: string, subject: string, chapters: ChapterOpt
     ...chapters.map((c) => `- ${c.segment}: ${c.name}`),
     'The question text was extracted from an image and can contain OCR errors; the image, when given, is authoritative.',
     'Set confidence to "high" only when the chapter is clear, "medium" when two chapters are plausible, "low" otherwise.',
+    `Also rate difficulty for a well-prepared ${exam} candidate: "easy" = one direct formula or fact, solved in about a`,
+    'minute; "medium" = two or three steps or a standard trick, a few minutes; "hard" = several concepts combined,',
+    'long working or an unusual insight. Rate the question, not the topic.',
   ].join('\n');
 }
 
@@ -33,8 +37,9 @@ export function outputSchema(chapters: ChapterOption[]): Record<string, unknown>
     properties: {
       chapter: { type: 'string', enum: chapters.map((c) => c.segment) },
       confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+      difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] },
     },
-    required: ['chapter', 'confidence'],
+    required: ['chapter', 'confidence', 'difficulty'],
     additionalProperties: false,
   };
 }
@@ -64,7 +69,8 @@ export function parseAnswer(message: Anthropic.Message, known: Set<string>): AiC
     const v = JSON.parse(text) as Partial<AiChapter>;
     if (typeof v.chapter !== 'string' || !known.has(v.chapter)) return null;
     if (v.confidence !== 'high' && v.confidence !== 'medium' && v.confidence !== 'low') return null;
-    return { chapter: v.chapter, confidence: v.confidence };
+    if (v.difficulty !== 'easy' && v.difficulty !== 'medium' && v.difficulty !== 'hard') return null;
+    return { chapter: v.chapter, confidence: v.confidence, difficulty: v.difficulty };
   } catch {
     return null;
   }
