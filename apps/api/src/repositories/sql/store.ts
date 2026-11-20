@@ -33,7 +33,8 @@ const SOL = `s.id, s.question_id, s.version, s.final_answer, s.summary, s.steps,
  s.common_mistakes, s.sympy_checks, s.provenance, s.ai_run_id, s.based_on_version_id, s.author_id, s.edit_note, s.review_status,
  s.reviewed_by, s.reviewed_at, s.created_at`;
 const ASSET = `a.id, a.question_id, a.solution_version_id, a.source_question_id, a.kind, a.bucket, a.r2_key, a.mime_type, a.width, a.height, a.bytes, a.sha256, a.alt_text`;
-const PAPER = `p.id, p.exam_id, p.slug, p.title, p.year, p.session_label, p.exam_date::text as exam_date, p.shift, p.paper_code`;
+const PAPER = `p.id, p.exam_id, p.slug, p.title, p.year, p.session_label, p.exam_date::text as exam_date, p.shift, p.paper_code,
+  p.numerical_negative_marks::text as numerical_negative_marks, p.numerical_counted_per_subject`;
 const SRC = `s.id, s.code, s.name, s.kind, s.publisher, s.homepage_url, s.license_name, s.license_url, s.reuse_permitted, s.attribution_text, s.approved_by, s.approved_at, s.notes, s.created_at`;
 const SESS = `s.id, s.user_id, s.client_request_id, s.mode, s.exam_id, s.subject_id, s.chapter_id, s.topic_id, s.paper_id, s.filters, s.question_ids,
  s.status, s.attempted_count, s.correct_count, s.score::text as score, s.started_at, s.completed_at, s.last_activity_at, s.ui_mode, s.time_limit_sec`;

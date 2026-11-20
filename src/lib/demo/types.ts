@@ -16,7 +16,15 @@ export type DemoUser = {
   cosmetic: CosmeticId | null;
 };
 
-export type AttemptSection = { id: string; name: string; subject: SubjectId; questionIds: string[]; marking: MarkingScheme };
+export type AttemptSection = {
+  id: string;
+  name: string;
+  subject: SubjectId;
+  questionIds: string[];
+  marking: MarkingScheme;
+  /** Only the best `n` scores of this question type count towards the section (e.g. 5 of 10 numericals, JEE Main 2021/2024). */
+  countBest?: { type: "numerical"; n: number };
+};
 
 export type Attempt = {
   id: string;

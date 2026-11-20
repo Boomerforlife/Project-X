@@ -76,6 +76,8 @@ export function scoreAttempt(attempt: Attempt): AttemptResult {
   const perQuestion = new Map<string, QuestionResult>();
   const sections = attempt.sections.map((s) => {
     const row = { id: s.id, name: s.name, subject: s.subject, score: 0, max: 0, correct: 0, incorrect: 0, partial: 0, unattempted: 0 };
+    // Questions under a "best n count" rule are totalled after the loop (same rule as the server's paper score).
+    const capped: { marks: number; max: number }[] = [];
     for (const qid of s.questionIds) {
       const q = catalog.question(qid);
       if (!q) continue;
@@ -85,10 +87,19 @@ export function scoreAttempt(attempt: Attempt): AttemptResult {
       const server = DATA_SOURCE === "api" && !attempt.local ? registry.outcome(`${attempt.id}:${qid}`) : null;
       const marks = server ? Number(server.score) : marksFor(rule, outcome, correctCount);
       const max = rule?.correct ?? 4;
-      row.score += marks;
-      row.max += max;
+      // Like the server: answered questions compete for the n slots; unanswered ones only count towards the maximum.
+      if (s.countBest && q.type === s.countBest.type) capped.push({ marks: outcome === "unattempted" ? Number.NaN : marks, max });
+      else {
+        row.score += marks;
+        row.max += max;
+      }
       row[outcome] += 1;
       perQuestion.set(qid, { questionId: qid, sectionId: s.id, outcome, marks, max, timeSec: resp?.timeSpentSec ?? 0 });
+    }
+    if (s.countBest) {
+      const n = s.countBest.n;
+      row.score += capped.flatMap((c) => (Number.isNaN(c.marks) ? [] : [c.marks])).sort((a, b) => b - a).slice(0, n).reduce((x, y) => x + y, 0);
+      row.max += capped.map((c) => c.max).sort((a, b) => b - a).slice(0, n).reduce((x, y) => x + y, 0);
     }
     return row;
   });
