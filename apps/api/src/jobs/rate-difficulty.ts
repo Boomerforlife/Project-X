@@ -1,7 +1,7 @@
 /**
  * Cloud Run Job: rate difficulty from students' first attempts (src/content/difficulty-stats.ts). No AI.
- * Touches only PUBLISHED questions whose difficulty is null or was set by this job before (difficulty_source = 'STATS');
- * admin / AI / import ratings are never changed. Writes declare themselves with app.difficulty_source = 'STATS', so the
+ * Touches only PUBLISHED questions whose difficulty is null, was set by this job before (difficulty_source = 'STATS') or
+ * is an AI estimate (replaced once real attempts exist, 2026-11-21); admin / import ratings are never changed. Writes declare themselves with app.difficulty_source = 'STATS', so the
  * provenance trigger (0026/0027) records it. Purges the web cache once when anything changed.
  *
  *   RATE_DRY_RUN   "true" = report only (default true; a real run must opt in)
@@ -49,7 +49,7 @@ for (const r of rows) {
 const changes: { id: string; to: Difficulty }[] = [];
 let eligible = 0;
 for (const r of rows) {
-  if (!(r.difficulty === null || r.source === 'STATS')) continue;
+  if (!(r.difficulty === null || r.source === 'STATS' || r.source === 'AI')) continue; // real attempts replace an AI guess
   eligible++;
   const c = r.chapter_id ? pool.get(r.chapter_id) : undefined;
   const prior = chapterPrior(c?.n ?? 0, c?.k ?? 0);
@@ -66,7 +66,7 @@ if (!dryRun && changes.length) {
       for (const c of chunk) {
         await tx.query(
           `update public.questions set difficulty = $2::public.difficulty
-            where id = $1 and publication_status = 'PUBLISHED' and (difficulty is null or difficulty_source = 'STATS')`,
+            where id = $1 and publication_status = 'PUBLISHED' and (difficulty is null or difficulty_source in ('STATS', 'AI'))`,
           [c.id, c.to],
         );
       }
