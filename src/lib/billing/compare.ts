@@ -24,6 +24,8 @@ export type CompareInput = {
   papersVisible: boolean;
   /** Display ads can actually run in this build (NEXT_PUBLIC_ADS not off and units configured). */
   adsLive: boolean;
+  /** An ad publisher is configured, so Free is ad-supported (owner decision 2026-11-20: show "No ads" as a Plus benefit). */
+  adsPlanned?: boolean;
   /** Published solutions carry alternatives / shortcuts / common mistakes (Plus-only extras). Off until content has them. */
   solutionExtras?: boolean;
 };
@@ -94,7 +96,9 @@ export function compareGroups(i: CompareInput): CompareGroup[] {
     { feature: "Bookmarks, review list, mistake notebook", free: yes(), plus: yes() },
     { feature: "Progress, streaks and history", free: yes(), plus: yes() },
   ];
-  if (i.adsLive) tracking.push({ feature: "Ads", detail: "Never inside questions, tests or the CBT", free: limited("On some pages"), plus: yes("No ads"), highlight: "No ads" });
+  if (i.adsLive || i.adsPlanned) {
+    tracking.push({ feature: "Ads", detail: "Never inside questions, tests or the CBT", free: limited("Ad-supported"), plus: yes("No ads"), highlight: "No ads, anywhere" });
+  }
 
   return [
     { title: "Practice", rows: practice },

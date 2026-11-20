@@ -25,6 +25,8 @@ describe("pricing comparison (only what the server enforces and this build shows
     expect(feature(base, "Ads")).toBeUndefined();
     expect(feature(base, "Solution extras")).toBeUndefined();
     expect(feature({ ...base, adsLive: true }, "Ads")?.plus.text).toBe("No ads");
+    // A configured publisher makes Free ad-supported even before units go live.
+    expect(feature({ ...base, adsPlanned: true }, "Ads")?.free.text).toBe("Ad-supported");
     expect(feature({ ...base, solutionExtras: true }, "Solution extras")?.free.kind).toBe("no");
   });
 
