@@ -17,11 +17,13 @@ from pathlib import Path
 from typing import Any
 
 DATE = re.compile(r"Exam Date\s*:\s*(\d{2})[./-](\d{2})[./-](\d{4})")  # 24.02.2021, 27-01-2024
-SHIFT = re.compile(r"Exam Shift\s*:\s*(First|Second|1|2)", re.IGNORECASE)
+SHIFT = re.compile(r"(?:Exam\s+)?Shift\s*:\s*(First|Second|1|2)", re.IGNORECASE)  # 2019/2025 print "Shift : First"
 SUBJECT = re.compile(r"\(\s*(MATHEMATICS|PHYSICS|CHEMISTRY)\s*\)", re.IGNORECASE)
 QID = re.compile(r"^\d{6,14}$")
 NUMBER = re.compile(r"^-?\d+(\.\d+)?$")
 MULTI_ID = re.compile(r"^\d{6,14}(,\s*\d{6,14})+,?$")  # more than one accepted option
+QID_SLACK = 30  # how far left of its "QUESTION" header a question id may start
+RANGE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*to\s*(-?\d+(?:\.\d+)?)\s*$", re.IGNORECASE)  # "189000.00 to 189000.00"
 DROPPED = re.compile(r"^(drop|dropped|bonus|deleted|cancel)", re.IGNORECASE)
 
 
@@ -88,16 +90,37 @@ def parse_nta_final_key(pdf_path: str | Path) -> list[KeyRow]:
                     grouped[-1].append(w)
                 else:
                     grouped.append([w])
-            for r in grouped:
+            for ri, r in enumerate(grouped):
+                # Each column's question id, found first so an answer cell can stop where the next id begins: in 2025
+                # keys an id starts ~17pt left of its "QUESTION" header, which a fixed offset cut into.
+                def qid_of(k: int, r: list[Any] = r, cols: list[tuple[float, float]] = cols) -> Any | None:
+                    qx, ax = cols[k]
+                    hits = [w for w in r if qx - QID_SLACK <= w[0] < (qx + ax) / 2 and QID.match(w[4])]
+                    return hits[0] if len(hits) == 1 else None
                 for k, (qx, ax) in enumerate(cols):
                     nxt = cols[k + 1][0] if k + 1 < len(cols) else float("inf")
+                    nxt_qid = qid_of(k + 1) if k + 1 < len(cols) else None
+                    end = min(nxt - 15, nxt_qid[0]) if nxt_qid is not None else nxt - 15
                     # Split each pair at the midpoint of its two headers: in 2024 keys the answer column starts left of
                     # its "CORRECT" header, inside a window keyed to the header itself.
                     mid = (qx + ax) / 2
-                    qid_words = [w for w in r if qx - 15 <= w[0] < mid and QID.match(w[4])]
-                    ans_words = sorted((w for w in r if mid <= w[0] < nxt - 15), key=lambda w: w[0])
+                    q = qid_of(k)
+                    qid_words = [q] if q is not None else []
+                    ans_words = sorted((w for w in r if mid <= w[0] < end), key=lambda w: w[0])
                     if len(qid_words) != 1 or not ans_words:
                         continue
+                    if ans_words[-1][4].lower() == "to":
+                        # A range wrapped onto the next line ("189000.00 to" / "190000.00"): take the upper bound from
+                        # the same answer cell just below (other columns' rows may sit in between), stopping at the
+                        # next question of this column.
+                        y0 = (ans_words[-1][1] + ans_words[-1][3]) / 2
+                        for below in grouped[ri + 1 : ri + 4]:
+                            if (below[0][1] + below[0][3]) / 2 - y0 > 22 or any(qx - QID_SLACK <= w[0] < mid and QID.match(w[4]) for w in below):
+                                break
+                            nums = sorted((w for w in below if mid <= w[0] < end and NUMBER.match(w[4])), key=lambda w: w[0])
+                            if nums:
+                                ans_words += nums
+                                break
                     y = (qid_words[0][1] + qid_words[0][3]) / 2
                     subj = next((s for sy, s in reversed(subjects) if sy <= y), None)
                     rows.append(KeyRow(date, shift, subj, qid_words[0][4], " ".join(w[4] for w in ans_words)))
@@ -114,6 +137,10 @@ def normalize_answer(raw: str, option_ids: set[str] | None) -> dict[str, Any]:
         if all(p in option_ids for p in parts):
             return {"kind": "EXTERNAL_OPTION_IDS", "ids": parts}
         return {"kind": "DROPPED"}
+    m = RANGE.match(raw)
+    if m:  # an accepted numeric range (2020 keys)
+        lo, hi = sorted((m.group(1), m.group(2)), key=float)
+        return {"kind": "NUMERIC", "accepted_ranges": [{"min": lo, "max": hi}]}
     values = [p for p in parts if p.lower() not in {"or", "and"}]
     if values and all(NUMBER.match(v) for v in values):
         # "41 or 42": every listed value is accepted.

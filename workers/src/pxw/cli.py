@@ -213,18 +213,57 @@ def cmd_discover(args: argparse.Namespace, settings: Settings) -> int:
 
 def cmd_keys_nta_final(args: argparse.Namespace, settings: Settings) -> int:
     """Fetch an official NTA final answer key, store it, and link answers to our questions by NTA question/option ids."""
-    from pxw.answer_keys.nta_final import normalize_answer, paper_slug, parse_nta_final_key
-    from pxw.common.models import OfficialKeyIn
-    from pxw.fetch.fetcher import DEFAULT_USER_AGENT, Fetcher, save_download
+    from pxw.fetch.fetcher import DEFAULT_USER_AGENT, Fetcher
 
     rt = _build_runtime(args, settings)
-    source = rt.repo.get_source(args.source)  # SourceNotApproved -> exit 3, before any network
     fetcher = Fetcher(
         user_agent=os.environ.get("PXW_USER_AGENT") or DEFAULT_USER_AGENT, min_interval_s=args.min_interval
     )
-    res = fetcher.fetch_pdf(args.url, [h.strip() for h in args.allowed_host.split(",") if h.strip()])
-    pdf = save_download(res, settings.work_dir / "downloads", args.url)
-    key = keys.source_document(source.code, args.year, res.sha256, "pdf")
+    hosts = [h.strip() for h in args.allowed_host.split(",") if h.strip()]
+    emit(_link_nta_final(rt, settings, fetcher, args.url, hosts, args.source, args.exam, args.year))
+    return EXIT_OK
+
+
+def cmd_keys_sync(args: argparse.Namespace, settings: Settings) -> int:
+    """Link every key listed in an answer-key manifest (workers/manifests/answer-keys.manifest.json). Idempotent: a key
+    already stored is re-linked, never duplicated. --year / --exam narrow the run; --dry-run only lists the entries."""
+    from pxw.fetch.fetcher import DEFAULT_USER_AGENT, Fetcher
+
+    manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    entries = [
+        e for e in manifest.get("keys", [])
+        if (args.exam is None or e["exam"] == args.exam) and (args.year is None or e["year"] == args.year)
+    ]
+    if args.dry_run:
+        emit({"entries": [{k: e[k] for k in ("exam", "year", "source", "label", "url")} for e in entries]})
+        return EXIT_OK
+    rt = _build_runtime(args, settings)
+    fetcher = Fetcher(user_agent=os.environ.get("PXW_USER_AGENT") or DEFAULT_USER_AGENT, min_interval_s=args.min_interval)
+    results = []
+    for e in entries:
+        if e.get("format") != "nta_final":
+            results.append({"label": e.get("label"), "status": f"format {e.get('format')} not supported yet"})
+            continue
+        try:
+            r = _link_nta_final(rt, settings, fetcher, e["url"], e["allowed_hosts"], e["source"], e["exam"], e["year"])
+            results.append({"label": e.get("label"), **r})
+        except Exception as ex:  # noqa: BLE001 - one bad entry must not stop the others
+            results.append({"label": e.get("label"), "status": f"failed: {type(ex).__name__}: {ex}"})
+    emit({"keys": results})
+    return EXIT_OK
+
+
+def _link_nta_final(
+    rt: Runtime, settings: Settings, fetcher: Any, url: str, hosts: list[str], source_code: str, exam: str, year: int
+) -> dict[str, Any]:
+    from pxw.answer_keys.nta_final import normalize_answer, paper_slug, parse_nta_final_key
+    from pxw.common.models import OfficialKeyIn
+    from pxw.fetch.fetcher import save_download
+
+    source = rt.repo.get_source(source_code)  # SourceNotApproved -> exit 3, before any network
+    res = fetcher.fetch_pdf(url, hosts)
+    pdf = save_download(res, settings.work_dir / "downloads", url)
+    key = keys.source_document(source.code, year, res.sha256, "pdf")
     if not rt.objects.exists("SOURCE_DOCS", key):
         rt.objects.put("SOURCE_DOCS", key, res.data, "application/pdf")
     doc_id, created = rt.repo.register_document(
@@ -233,7 +272,7 @@ def cmd_keys_nta_final(args: argparse.Namespace, settings: Settings) -> int:
             paper_id=None,
             kind="ANSWER_KEY",
             r2_key=key,
-            original_filename=args.url.rsplit("/", 1)[-1],
+            original_filename=url.rsplit("/", 1)[-1][:200],
             mime_type="application/pdf",
             bytes=len(res.data),
             sha256=res.sha256,
@@ -243,7 +282,7 @@ def cmd_keys_nta_final(args: argparse.Namespace, settings: Settings) -> int:
     rows = parse_nta_final_key(pdf)
     by_slug: dict[str, list] = {}
     for r in rows:
-        by_slug.setdefault(paper_slug(args.exam, r.exam_date, r.shift), []).append(r)
+        by_slug.setdefault(paper_slug(exam, r.exam_date, r.shift), []).append(r)
     summary: dict[str, Any] = {"document_id": doc_id, "created": created, "key_rows": len(rows), "papers": {}}
     for slug, krows in sorted(by_slug.items()):
         m = rt.repo.paper_question_map(slug)
@@ -276,8 +315,7 @@ def cmd_keys_nta_final(args: argparse.Namespace, settings: Settings) -> int:
             "linked": linked,
             "dropped": sum(1 for x in ins if x.is_dropped),
         }
-    emit(summary)
-    return EXIT_OK
+    return summary
 
 
 def cmd_jobs_run(args: argparse.Namespace, settings: Settings) -> int:
@@ -443,6 +481,14 @@ def build_parser() -> argparse.ArgumentParser:
     kn.add_argument("--year", type=int, required=True)
     kn.add_argument("--min-interval", type=float, default=5.0)
     kn.set_defaults(fn=cmd_keys_nta_final)
+    ks = k_sub.add_parser("sync", help="link every key in an answer-key manifest (official PDFs or their archive copies)")
+    # Relative to the repo root locally and to /app in the worker image (Dockerfile.workers copies workers/manifests).
+    ks.add_argument("--manifest", default="workers/manifests/answer-keys.manifest.json")
+    ks.add_argument("--exam", default=None)
+    ks.add_argument("--year", type=int, default=None)
+    ks.add_argument("--min-interval", type=float, default=5.0)
+    ks.add_argument("--dry-run", action="store_true")
+    ks.set_defaults(fn=cmd_keys_sync)
 
     j = sub.add_parser("jobs", help="job runner")
     j_sub = j.add_subparsers(dest="jobs_cmd", required=True)
