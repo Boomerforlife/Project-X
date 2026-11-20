@@ -1,0 +1,27 @@
+{
+  "description": "Official final answer keys (exam bodies' own PDFs only, never coaching re-typed keys). `pxw keys sync` fetches each entry and links answers to our questions by NTA question/option ids. Prefer the exam body's own URL; an Internet Archive copy (web.archive.org/web/<ts>id_/<official url>) only when the official file is gone. Owner decision 2026-11-20: archive copies and mirrors that re-host the original PDF unchanged are allowed.",
+  "keys": [
+    {
+      "exam": "jee-main", "year": 2019, "format": "nta_final", "source": "NTA",
+      "label": "JEE Main April 2019 Paper 1 final answer keys (8-12 Apr, 8 shifts)",
+      "url": "https://nta.ac.in/Download/Notice/20190429154957.pdf",
+      "allowed_hosts": ["nta.ac.in"]
+    },
+    {
+      "exam": "jee-main", "year": 2020, "format": "nta_final", "source": "NTA_MIRROR",
+      "label": "JEE Main September 2020 Paper 1 final answer keys (2-6 Sep, 10 shifts); official file removed, Internet Archive copy of jeemain.nta.nic.in FileHandler ii=683",
+      "url": "https://web.archive.org/web/20200912215228id_/https://jeemain.nta.nic.in/WebInfo/Handler/FileHandler.ashx?i=File&ii=683&iii=Y",
+      "allowed_hosts": ["web.archive.org"]
+    },
+    {
+      "exam": "jee-main", "year": 2025, "format": "nta_final", "source": "NTA",
+      "label": "JEE Main 2025 Session 2 Paper 1 final answer keys as on 18.04.2025 (2-8 Apr, 9 shifts)",
+      "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2025/04/2025041892.pdf",
+      "allowed_hosts": ["cdnbbsr.s3waas.gov.in"]
+    }
+  ],
+  "missing": [
+    "JEE Main January 2019 Paper 1 final key: jeemain.nic.in FileHandler ii=23 was never archived",
+    "JEE Main January 2020 Paper 1 final key (17.01.2020): not found on NTA hosts or the Internet Archive"
+  ]
+}

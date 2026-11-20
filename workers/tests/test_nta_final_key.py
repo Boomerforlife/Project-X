@@ -82,3 +82,69 @@ def test_2024_layout_answer_column_left_of_its_header_and_dashed_date(tmp_path: 
     got = {r.external_question_id: r.raw_answer for r in rows}
     assert len(got) == 9 and got["900000001"] == "900000102" and got["900000005"] == "900000117,900000118"
     assert all(r.exam_date == "2026-04-02" for r in rows)
+
+
+def _key_pdf_2025(path: Path) -> None:
+    """2019/2025 style: "Shift : First", ids starting ~17pt left of their "QUESTION ID" header, a wrapped range."""
+    doc = pymupdf.open()
+    p = doc.new_page(width=595, height=842)
+    p.insert_text((40, 40), "NATIONAL TESTING AGENCY", fontsize=9)
+    p.insert_text((40, 55), "Exam Date : 02.04.2025", fontsize=9)
+    p.insert_text((40, 70), "Shift : First", fontsize=9)
+    for x in (31.0, 219.0, 414.0):
+        p.insert_text((x, 98), "QUESTION ID", fontsize=7)
+        p.insert_text((x + 72, 98), "CORRECT OPTION ID", fontsize=7)
+    rows = [
+        [("603421901", "6034213061"), ("603421926", "6034213147"), ("603421951", "6034213234")],
+        [("603421902", "6034213067"), ("603421927", "189000.00 to"), ("603421952", "6034213236")],
+    ]
+    y = 120.0
+    for row in rows:
+        for (qid, ans), (qx, ax) in zip(row, ((30.0, 117.0), (214.0, 301.0), (397.0, 484.0)), strict=True):
+            p.insert_text((qx, y), qid, fontsize=8)
+            p.insert_text((ax, y), ans, fontsize=8)
+        y += 21
+    p.insert_text((301.0, 134.0 + 21), "190000.00", fontsize=8)  # the range's second line, below its own cell
+    doc.save(str(path))
+    doc.close()
+
+
+def test_2025_layout_short_shift_label_ids_left_of_header_and_wrapped_range(tmp_path: Path) -> None:
+    pdf = tmp_path / "key25.pdf"
+    _key_pdf_2025(pdf)
+    rows = parse_nta_final_key(pdf)
+    got = {r.external_question_id: r.raw_answer for r in rows}
+    assert len(got) == 6  # the third column is read, not glued onto the second column's answers
+    assert got["603421926"] == "6034213147" and got["603421951"] == "6034213234"
+    assert got["603421927"] == "189000.00 to 190000.00"
+    assert all(r.exam_date == "2025-04-02" and r.shift == 1 for r in rows)
+
+
+def test_normalize_answer_numeric_range() -> None:
+    assert normalize_answer("189000.00 to 190000.00", None) == {"kind": "NUMERIC", "accepted_ranges": [{"min": "189000.00", "max": "190000.00"}]}
+    assert normalize_answer("267.00 to 266.00", None)["accepted_ranges"] == [{"min": "266.00", "max": "267.00"}]
+
+
+def test_keys_sync_dry_run_filters_the_manifest(tmp_path: Path, capsys) -> None:  # type: ignore[no-untyped-def]
+    import json
+
+    from pxw.cli import main
+
+    m = tmp_path / "keys.json"
+    m.write_text(json.dumps({"keys": [
+        {"exam": "jee-main", "year": 2019, "format": "nta_final", "source": "NTA", "label": "a", "url": "https://nta.ac.in/a.pdf", "allowed_hosts": ["nta.ac.in"]},
+        {"exam": "jee-main", "year": 2025, "format": "nta_final", "source": "NTA", "label": "b", "url": "https://nta.ac.in/b.pdf", "allowed_hosts": ["nta.ac.in"]},
+    ]}), encoding="utf-8")
+    assert main(["--work-dir", str(tmp_path / "w"), "keys", "sync", "--manifest", str(m), "--year", "2025", "--dry-run"]) == 0
+    out = [json.loads(x) for x in capsys.readouterr().out.splitlines() if x.startswith("{")]
+    assert [e["label"] for e in out[-1]["entries"]] == ["b"]
+
+
+def test_shipped_answer_key_manifest_is_well_formed() -> None:
+    import json
+
+    m = json.loads((Path(__file__).resolve().parents[1] / "manifests" / "answer-keys.manifest.json").read_text(encoding="utf-8"))
+    for e in m["keys"]:
+        assert {"exam", "year", "format", "source", "url", "allowed_hosts"} <= e.keys()
+        host = e["url"].split("/")[2]
+        assert host in e["allowed_hosts"], e["url"]
