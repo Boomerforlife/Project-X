@@ -1,6 +1,6 @@
 # Deployment on Google Cloud (replaces the Cloudflare Workers/R2 plan for the API)
 Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 (INR 450; alerts only, it does not stop spending).
-Live (2026-11-20): API `projectx-api-00022-2pp` (image `api:staging-15`; rollback `projectx-api-00021-wbc`), web `projectx-web-00015-mpg` (image `web-staging-14`; rollback `projectx-web-00014-rtc`; older: rollback `projectx-web-00010-rqb`), served at https://tabbyprep.in through Firebase Hosting.
+Live (2026-11-20): API `projectx-api-00023-c4q` (image `api:staging-16`; rollback `projectx-api-00022-2pp`), web `projectx-web-00018-7xh` (image `web-staging-16`, build with `_FEATURE_PAPERS=on` and `_ADS=live`; rollback `projectx-web-00014-rtc`; older: rollback `projectx-web-00010-rqb`), served at https://tabbyprep.in through Firebase Hosting.
 * **API** = Cloud Run service `projectx-api`, image built by Cloud Build from the root `Dockerfile` (entry `apps/api/src/server.ts`).
 * **Storage** = 3 Cloud Storage buckets (`…-source-docs`, `…-public-assets`, `…-user-uploads`). `source-docs` and `user-uploads` are private
   (public access prevention enforced). `public-assets` was opened on 2026-11-20, when the first image questions were published:
@@ -134,6 +134,7 @@ accepts the emailed invite. The earlier deploy-only grants below are still in pl
 Revoke in IAM & Admin -> IAM.
 All builds run as `projectx-build@` (push to the `projectx` registry, write logs, read uploaded source); the default
 compute account has Editor, so builds must not run as it (the `cloudbuild.*.yaml` files set `serviceAccount`).
+Web builds must pass every current substitution (check the last web build's `_ADS`, `_FEATURE_PAPERS`, ad slots) and use a new `_TAG`: reusing a tag or dropping a substitution silently turns a feature off.
 Redeploy:
 * Web: `gcloud builds submit . --config cloudbuild.web.yaml --ignore-file .gcloudignore.web --substitutions _TAG=web-staging-N,_SITE_URL=https://tabbyprep.in,_AUTH_GOOGLE=on,_SUPABASE_PUBLISHABLE_KEY=<publishable key>`
   then `infra/gcp/deploy-web-staging.sh web-staging-N`, then `infra/gcp/firebase-hosting.sh deploy` (clears the CDN).
