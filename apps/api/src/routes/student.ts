@@ -1,7 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi';
 import * as billing from '../billing/service';
 import { billingDeps } from '../billing/routes';
-import { assertQuestionAccessible, stripPremiumSolutionExtras, viewerPlus } from '../problems/access';
+import { assertQuestionAccessible, premiumRequired, stripPremiumSolutionExtras, viewerPlus } from '../problems/access';
 import {
   ActivityDaySchema,
   ActivityQuery,
@@ -20,6 +20,7 @@ import {
   MistakeItemSchema,
   MistakesQuery,
   PageOnlyQuery,
+  PaperAnalysisSchema,
   PatchMeBody,
   PracticeListQuery,
   PracticeQuestionSchema,
@@ -84,6 +85,17 @@ export function registerPractice(app: App, g: Guards): void {
     const plus = await viewerPlus(c, requireUser(c).id);
     const s = await practice.getSession(store(c), deps(c), requireUser(c).id, p.id);
     return send(c, 200, plus ? s : { ...s, items: s.items.map((it) => (it.attempt ? { ...it, attempt: stripPremiumSolutionExtras(it.attempt, false) } : it)) });
+  });
+
+  const analysis = defineRoute({
+    method: 'get', path: '/practice/sessions/{id}/analysis', summary: 'Plus: chapter, time and attempt-vs-attempt analysis of a session', tags: ['practice'], access: 'user', cache: 'PRIVATE',
+    description: 'Tabby Plus only (owner decision 2026-11-20). Free accounts get 403 with details.reason PREMIUM_REQUIRED.',
+    request: { params: IdParam }, data: PaperAnalysisSchema,
+  })(g);
+  app.openapi(analysis, async (c: Ctx) => {
+    const p = valid(c, 'param', IdParam);
+    if (!(await viewerPlus(c, requireUser(c).id))) throw premiumRequired('Paper analysis is part of Tabby Plus');
+    return send(c, 200, await practice.sessionAnalysis(store(c), requireUser(c).id, p.id));
   });
 
   const listSessions = defineRoute({

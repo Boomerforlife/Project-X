@@ -141,3 +141,37 @@ export const PaperSummarySchema = z
   })
   .openapi('PaperSummary');
 export type PaperSummary = z.infer<typeof PaperSummarySchema>;
+
+/**
+ * Plus-only analysis of one session (owner decision 2026-11-20: paper analysis is a Plus feature). Scores are the
+ * per-question scores; a paper's "best N numericals" rule applies to the session total, not to these breakdowns.
+ */
+export const PaperAnalysisSchema = z
+  .object({
+    session_id: UuidSchema,
+    paper: PaperRefSchema.nullable(),
+    chapters: z.array(
+      z.object({
+        subject: SubjectRefSchema,
+        chapter: ChapterRefSchema,
+        questions: z.int(),
+        attempted: z.int(),
+        correct: z.int(),
+        incorrect: z.int(),
+        score: DecSchema,
+        max: DecSchema,
+      }),
+    ),
+    time: z.object({
+      total_ms: z.int(),
+      answered: z.int(),
+      avg_ms: z.int().nullable(),
+      correct_avg_ms: z.int().nullable(),
+      incorrect_avg_ms: z.int().nullable(),
+      slowest: z.array(z.object({ question_id: UuidSchema, number: z.string().nullable(), time_ms: z.int(), is_correct: z.boolean() })),
+    }),
+    sections: z.array(z.object({ subject: SubjectRefSchema, score: DecSchema, previous_score: DecSchema.nullable() })),
+    previous: z.object({ session_id: UuidSchema, completed_at: TsSchema.nullable(), score: DecSchema }).nullable(),
+  })
+  .openapi('PaperAnalysis');
+export type PaperAnalysis = z.infer<typeof PaperAnalysisSchema>;

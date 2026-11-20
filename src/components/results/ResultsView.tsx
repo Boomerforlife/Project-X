@@ -2,6 +2,7 @@
 
 import { AdSlot } from "@/components/ads/AdSlot";
 import { PremiumUpgradePrompt } from "@/components/billing/PremiumUpgradePrompt";
+import { PaperAnalysis } from "./PaperAnalysis";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -238,6 +239,9 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
           {API && " Retries pick fresh questions from the same scope."}
         </p>
       </div>
+
+      {/* Plus: chapter, time and attempt-vs-attempt analysis (API papers only; the server enforces Plus) */}
+      {API && a.kind === "paper" && !a.local && <PaperAnalysis sessionId={a.id} />}
 
       {/* Question review */}
       <section aria-labelledby="review-h" className="mt-12">
