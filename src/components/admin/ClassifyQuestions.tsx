@@ -322,7 +322,13 @@ function Classifier() {
           label="Chapter"
           value={f.chapter}
           onChange={(v) => set({ chapter: v })}
-          options={[{ v: "", l: "All chapters" }, { v: "none", l: "No chapter yet" }, ...(subject?.chapters ?? []).map((c) => ({ v: c.slug, l: c.name }))]}
+          options={[
+            { v: "", l: "All chapters" },
+            { v: "none", l: "No chapter yet" },
+            // Hidden chapter (migration 0028): published for full papers only until someone sets the real chapter.
+            ...(subject ? [{ v: `${subject.slug}-not-yet-tagged`, l: "Not yet tagged (papers only)" }] : []),
+            ...(subject?.chapters ?? []).map((c) => ({ v: c.slug, l: c.name })),
+          ]}
         />
         <label className="text-sm">
           <span className="text-fg-muted">Year</span>
