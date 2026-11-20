@@ -53,7 +53,7 @@ describe('full previous-year papers', () => {
     expect(r.status).toBe(201);
     const d = (await j(r)).data;
     expect(d.questions.map((q: { id: string }) => q.id)).toEqual([IDS.qNum, IDS.qSingle]);
-    expect(d.session.paper).toEqual({ slug: 'jee-main-2026-04-02-shift-1', title: 'JEE Main 2026 (2 Apr 2026, Shift 1)' });
+    expect(d.session.paper).toMatchObject({ slug: 'jee-main-2026-04-02-shift-1', title: 'JEE Main 2026 (2 Apr 2026, Shift 1)', numerical_counted_per_subject: null });
     const detail = (await j(await h.req(`/practice/sessions/${d.session.id}`, { token: t }))).data;
     expect(detail.session.paper.slug).toBe('jee-main-2026-04-02-shift-1');
   });

@@ -77,7 +77,16 @@ export const AttemptResultSchema = z
 export type AttemptResult = z.infer<typeof AttemptResultSchema>;
 
 /** The previous-year paper a PYQ_PAPER session was started from. */
-export const PaperRefSchema = z.object({ slug: SlugSchema, title: z.string() }).openapi('PaperRef');
+export const PaperRefSchema = z
+  .object({
+    slug: SlugSchema,
+    title: z.string(),
+    /** Only the best N numerical scores per subject count towards the paper total (null = all count). */
+    numerical_counted_per_subject: z.int().nullable().optional(),
+    /** Negative mark of every numerical question in this paper, when the paper sets one (e.g. "0.00"). */
+    numerical_negative_marks: DecSchema.nullable().optional(),
+  })
+  .openapi('PaperRef');
 export type PaperRef = z.infer<typeof PaperRefSchema>;
 
 export const SessionSummarySchema = SessionProgressSchema.extend({
@@ -127,6 +136,7 @@ export const PaperSummarySchema = z
     exam: ExamRefSchema,
     question_count: z.int(),
     duration_min: z.int(),
+    numerical_counted_per_subject: z.int().nullable().optional(),
     sections: z.array(z.object({ subject: SubjectRefSchema, question_count: z.int() })),
   })
   .openapi('PaperSummary');

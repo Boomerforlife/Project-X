@@ -49,6 +49,7 @@ export async function listPapers(store: Store, examSlug: string): Promise<Out<Pa
       exam: tax.examRef(exam),
       question_count: p.question_count,
       duration_min: PAPER_MINUTES[exam.slug] ?? 180,
+      numerical_counted_per_subject: p.numerical_counted_per_subject ?? null,
       sections: p.sections
         .flatMap((s) => {
           const sub = tax.subjects.get(s.subject_id);

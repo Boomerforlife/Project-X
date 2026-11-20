@@ -52,7 +52,14 @@ const sessionSummary = (s: SessionRow, paper: PaperRow | null = null): SessionSu
   started_at: iso(s.started_at),
   ui_mode: s.ui_mode,
   time_limit_sec: s.time_limit_sec,
-  paper: paper ? { slug: paper.slug, title: paper.title } : null,
+  paper: paper
+    ? {
+        slug: paper.slug,
+        title: paper.title,
+        numerical_counted_per_subject: paper.numerical_counted_per_subject ?? null,
+        numerical_negative_marks: paper.numerical_negative_marks ?? null,
+      }
+    : null,
 });
 
 /** The paper a PYQ_PAPER session came from (null for every other session). */

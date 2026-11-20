@@ -263,7 +263,9 @@ async function loadPrivateDerived(exam: ExamId) {
 
 const SESSION_MODE = { chapter: "CHAPTER", subject: "SUBJECT", quick: "MIXED", mistakes: "MISTAKES", bookmarks: "BOOKMARKS" } as const;
 
-function sectionsFor(exam: ExamId, questionIds: string[]): AttemptSection[] {
+type PaperRules = { countedNumerical?: number | null; numericalNegative?: string | null };
+
+function sectionsFor(exam: ExamId, questionIds: string[], rules: PaperRules = {}): AttemptSection[] {
   const by = new Map<SubjectId, string[]>();
   for (const id of questionIds) {
     const q = registry.getQuestion(id);
@@ -275,8 +277,15 @@ function sectionsFor(exam: ExamId, questionIds: string[]): AttemptSection[] {
     subject,
     questionIds: ids,
     // Display-only: the server's score is what results show (scoreAttempt prefers it).
-    marking: { single_correct: { correct: 4, incorrect: -1, unattempted: 0, partial: false }, numerical: { correct: 4, incorrect: -1, unattempted: 0, partial: false }, multiple_correct: { correct: 4, incorrect: -2, unattempted: 0, partial: false }, ...EXAMS[exam].marking },
+    marking: withPaperMarking({ single_correct: { correct: 4, incorrect: -1, unattempted: 0, partial: false }, numerical: { correct: 4, incorrect: -1, unattempted: 0, partial: false }, multiple_correct: { correct: 4, incorrect: -2, unattempted: 0, partial: false }, ...EXAMS[exam].marking }, rules),
+    ...(rules.countedNumerical ? { countBest: { type: "numerical" as const, n: rules.countedNumerical } } : {}),
   }));
+}
+
+/** A paper's own numerical negative mark (e.g. none in JEE Main 2021) replaces the exam default in the displayed rules. */
+function withPaperMarking(m: AttemptSection["marking"], rules: PaperRules): AttemptSection["marking"] {
+  if (rules.numericalNegative == null || !m.numerical) return m;
+  return { ...m, numerical: { ...m.numerical, incorrect: -Number(rules.numericalNegative) } };
 }
 
 function titleFor(mode: string, qs: { subject: SubjectId; chapter: string }[]): string {
@@ -355,7 +364,7 @@ function buildAttempt(session: SessionLike, allItems: SessionDetail["items"]): A
     title: draft?.title ?? paper?.title ?? titleFor(session.mode, questions),
     scope: { source: scopeFromMode(session.mode) },
     questionIds: ids,
-    sections: sectionsFor(exam, ids),
+    sections: sectionsFor(exam, ids, { countedNumerical: paper?.numerical_counted_per_subject ?? null, numericalNegative: paper?.numerical_negative_marks ?? null }),
     durationSec: session.time_limit_sec ?? draft?.durationSec ?? null,
     startedAt: started,
     updatedAt: listed.last_activity_at ?? draft?.savedAt ?? started,

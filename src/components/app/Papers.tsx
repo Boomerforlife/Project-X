@@ -209,7 +209,10 @@ function ApiPaperTile({ paper: p, s }: { paper: PaperSummary; s: DemoState }) {
             );
           })}
         </div>
-        <p className="mt-3 text-xs text-fg-muted">Official NTA answer key · worked solutions coming</p>
+        {p.numerical_counted_per_subject ? (
+          <p className="mt-3 text-xs text-fg-muted">Numericals: best {p.numerical_counted_per_subject} per subject count</p>
+        ) : null}
+        <p className={cn("text-xs text-fg-muted", p.numerical_counted_per_subject ? "mt-1" : "mt-3")}>Official NTA answer key · worked solutions coming</p>
         <p className="mt-1 min-h-5 text-xs text-fg-muted">
           {open ? "Attempt in progress" : done.length ? `${done.length} attempt${done.length === 1 ? "" : "s"} submitted` : "Not attempted yet"}
         </p>

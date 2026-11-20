@@ -738,6 +738,8 @@ export type Database = {
           language: string
           created_at: string
           updated_at: string
+          numerical_negative_marks: number | null
+          numerical_counted_per_subject: number | null
         };
         Insert: {
           id?: string
@@ -752,6 +754,8 @@ export type Database = {
           language?: string
           created_at?: string
           updated_at?: string
+          numerical_negative_marks?: number | null
+          numerical_counted_per_subject?: number | null
         };
         Update: {
           id?: string
@@ -766,6 +770,8 @@ export type Database = {
           language?: string
           created_at?: string
           updated_at?: string
+          numerical_negative_marks?: number | null
+          numerical_counted_per_subject?: number | null
         };
         Relationships: [];
       };

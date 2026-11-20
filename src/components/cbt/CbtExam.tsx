@@ -110,6 +110,11 @@ function Instructions({ attempt: a, onStart }: { attempt: Attempt; onStart: () =
               <li>Use the question palette to jump to any question. Its shapes show each question&rsquo;s status; a legend is always visible.</li>
               <li>&ldquo;Mark for review&rdquo; flags a question to revisit. An answered question that is marked for review is still evaluated.</li>
               <li>There are no hints or solutions during the test. Full solutions open after you submit.</li>
+              {a.sections.find((s) => s.countBest) && (
+                <li>
+                  Each subject has more numerical questions than count: only your best {a.sections.find((s) => s.countBest)!.countBest!.n} numerical answers per subject are added to your score.
+                </li>
+              )}
               {paper?.instructions.map((t) => <li key={t}>{t}</li>)}
             </ol>
             {paper?.isDemo && (

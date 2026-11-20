@@ -180,6 +180,9 @@ export interface PaperRow {
   exam_date: string | null;
   shift: number | null;
   paper_code: string | null;
+  /** Migration 0029 (absent on rows built in memory). */
+  numerical_negative_marks?: string | null;
+  numerical_counted_per_subject?: number | null;
 }
 export interface SourceRow {
   id: string;
