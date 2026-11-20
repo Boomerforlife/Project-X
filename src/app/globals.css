@@ -291,6 +291,11 @@ html[data-ready] #splash { opacity: 0; visibility: hidden; }
 /* Once hidden, stop its loops: they would otherwise run for the whole session. */
 html[data-ready] #splash * { animation-play-state: paused !important; }
 html.no-splash #splash { display: none; }
+
+/* Auto-ads placements (anchors, in-page, side rails) never show on ad-free paths: CBT, tests, checkout… (SiteAdScript). */
+html.ads-blocked .google-auto-placed,
+html.ads-blocked ins.adsbygoogle[data-anchor-status],
+html.ads-blocked ins.adsbygoogle[data-side-rail-status] { display: none !important; }
 @keyframes splash-failsafe { to { opacity: 0; visibility: hidden; } }
 
 /* ---------- Branded loading screen (components/states/Loading.tsx) ---------- */
