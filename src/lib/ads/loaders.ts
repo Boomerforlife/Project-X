@@ -68,6 +68,37 @@ export function loadAdSense(): Promise<boolean> {
   return adsense;
 }
 
+let fc: Promise<boolean> | null = null;
+/**
+ * Google's ad-blocking recovery tag (AdSense → Privacy & messaging → Ad blocking recovery). Google shows its own
+ * "allow ads" message to visitors with an ad blocker; the iframe signal is Google's documented snippet. true when the
+ * tag loaded (Google's message will handle a blocker), false when it was blocked too.
+ */
+export function loadFundingChoices(): Promise<boolean> {
+  if (typeof window === "undefined") return Promise.resolve(false);
+  fc ??= (async () => {
+    const pub = /^ca-pub-(\d{10,20})$/.exec(ADS_CONFIG.client)?.[1];
+    if (!pub) return false;
+    const signal = () => {
+      if (window.frames["googlefcPresent" as unknown as number]) return;
+      if (!document.body) return void setTimeout(signal, 0);
+      const f = document.createElement("iframe");
+      f.style.cssText = "width:0;height:0;border:none;z-index:-1000;left:-1000px;top:-1000px;display:none";
+      f.name = "googlefcPresent";
+      document.body.appendChild(f);
+    };
+    try {
+      const loaded = inject(`https://fundingchoicesmessages.google.com/i/pub-${pub}?ers=1`);
+      signal(); // as in Google's snippet: runs alongside the tag, not after it
+      await loaded;
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+  return fc;
+}
+
 let gpt: Promise<GoogleTag | null> | null = null;
 function loadGpt(): Promise<GoogleTag | null> {
   if (typeof window === "undefined") return Promise.resolve(null);

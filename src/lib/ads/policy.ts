@@ -3,10 +3,12 @@
  * Whether the viewer gets ads at all (free vs Plus) comes from the server (GET /entitlements); this module never
  * overrides that. Retention and learning come first: these defaults are deliberately conservative.
  *
- * Never shown (CLAUDE.md + Google policies):
- *   - during an active question, test, CBT or diagnostic (focus/exam shells, /practice/session, /cbt, /tests/<paper>),
- *   - on sign-in, onboarding, pricing, checkout, payment links, account/billing, admin,
- *   - on error / not-found / thin pages, or in the middle of a solution: only at page ends and between list rows.
+ * Free users see ads on every content page (Auto ads + the manual placements below). Never shown:
+ *   - in the CBT exam shell or on a test's limit page (accidental taps next to exam controls = invalid traffic),
+ *   - on sign-in, onboarding, pricing, checkout, payment links, account/billing, admin (no publisher content),
+ *   - on error / not-found pages, or between a question's options or inside a solution.
+ * Practice sessions (the question screen) carry one small manual unit below the question tools, untimed sessions
+ * only; Auto ads placements are hidden there (MANUAL_ONLY_PREFIXES) so nothing jumps into the question.
  */
 
 export type Device = "mobile" | "desktop";
@@ -17,7 +19,8 @@ export type PlacementId =
   | "tests-list"
   | "results-bottom"
   | "notebook-bottom"
-  | "content-bottom";
+  | "content-bottom"
+  | "question-bottom";
 
 export interface Placement {
   id: PlacementId;
@@ -33,12 +36,12 @@ export const PLACEMENTS: Record<PlacementId, Placement> = {
   "results-bottom": { id: "results-bottom", format: "display", routes: ["/results/"] },
   "notebook-bottom": { id: "notebook-bottom", format: "display", routes: ["exact:/mistakes/", "exact:/bookmarks/", "exact:/review/", "exact:/progress/"] },
   "content-bottom": { id: "content-bottom", format: "multiplex", routes: ["/jee/", "/neet/", "/resources/", "/study-plans/"] },
+  "question-bottom": { id: "question-bottom", format: "display", routes: ["/practice/session/"] },
 };
 
 /** No ad of any kind on these paths, whatever a component asks for. */
 export const BLOCKED_PREFIXES = [
   "/cbt/",
-  "/practice/session/",
   "/practice/new/",
   "/tests/limit/",
   "/login/",
@@ -49,12 +52,15 @@ export const BLOCKED_PREFIXES = [
   "/pay/",
   "/account/",
   "/admin/",
-  "/plan/",
-  "/terms/",
-  "/privacy/",
-  "/refund-policy/",
-  "/contact/",
 ];
+
+/** Manual units only: Auto ads placements (anchors, side rails, in-page) are hidden so nothing lands inside a question. */
+export const MANUAL_ONLY_PREFIXES = ["/practice/session/"];
+
+export function pathManualOnly(path: string): boolean {
+  const p = withSlash(path || "/");
+  return MANUAL_ONLY_PREFIXES.some((b) => p.startsWith(b));
+}
 
 export interface AdPolicy {
   /** Ad units on one page, by device. */
