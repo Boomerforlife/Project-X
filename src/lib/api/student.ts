@@ -17,6 +17,7 @@ import {
   ProgressSchema,
   SessionCreatedSchema,
   SessionDetailSchema,
+  PaperAnalysisSchema,
   SessionListItemSchema,
   SessionProgressSchema,
   StreakSchema,
@@ -92,6 +93,10 @@ export async function dismissMistake(questionId: string) {
 /** Same `client_request_id` replays the same session (idempotent). 422 NO_QUESTIONS when nothing is eligible. */
 export async function createSession(body: CreateSessionInput) {
   return (await authed("/practice/sessions", { schema: SessionCreatedSchema, method: "POST", body })).data;
+}
+/** Plus-only (403 PREMIUM_REQUIRED for Free): chapter, time and attempt-vs-attempt analysis of a session. */
+export async function sessionAnalysis(id: string) {
+  return (await authed(`/practice/sessions/${encodeURIComponent(id)}/analysis`, { schema: PaperAnalysisSchema })).data;
 }
 export async function getSession(id: string) {
   return (await authed(`/practice/sessions/${encodeURIComponent(id)}`, { schema: SessionDetailSchema })).data;

@@ -90,6 +90,13 @@ export function compareGroups(i: CompareInput): CompareGroup[] {
       plus: yes("Unlimited"),
       highlight: "Unlimited full papers and CBT mocks",
     });
+    exams.push({
+      feature: "Paper analysis",
+      detail: "Chapter-by-chapter marks, time per question, comparison with your last attempt",
+      free: limited("Score and subject totals"),
+      plus: yes(),
+      highlight: "Full paper analysis after every paper",
+    });
   }
 
   const tracking: CompareRow[] = [

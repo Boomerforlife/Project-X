@@ -1,6 +1,7 @@
 import {
   type AttemptResult,
   type CreateSessionBody,
+  type PaperAnalysis,
   type PracticeQuestion,
   type SessionDetail,
   type SessionListItem,
@@ -278,6 +279,94 @@ export async function getSession(
     return {
       session: { ...sessionSummary(s, await paperOf(r, s)), completed_at: isoOrNull(s.completed_at) },
       items,
+    };
+  });
+}
+
+const dec = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
+
+/** Plus-only analysis of one of the user's sessions (route checks Plus). Chapter, time and attempt-vs-attempt views. */
+export async function sessionAnalysis(store: Store, userId: string, id: string): Promise<PaperAnalysis> {
+  return store.service(async (r) => {
+    const s = await r.practice.getSession(userId, id);
+    if (!s) throw notFound('Session');
+    const tax = new TaxIndex(await r.taxonomy.load());
+    const attempts = await r.practice.attemptsForSession(userId, id);
+    const byQ = new Map(attempts.map((a) => [a.question_id, a]));
+    const qs = await r.content.summaries(s.question_ids);
+    const chapters = new Map<string, PaperAnalysis['chapters'][number] & { _score: number; _max: number; _order: number }>();
+    const sectionScore = new Map<string, number>();
+    for (const q of qs) {
+      const ch = q.chapter_id ? tax.chapters.get(q.chapter_id) : undefined;
+      const sub = q.subject_id ? tax.subjects.get(q.subject_id) : undefined;
+      if (!ch || !sub) continue;
+      const a = byQ.get(q.id);
+      const row = chapters.get(ch.id) ?? {
+        subject: tax.subjectRef(sub), chapter: tax.chapterRef(ch), questions: 0, attempted: 0, correct: 0, incorrect: 0, score: '0.00', max: '0.00',
+        _score: 0, _max: 0, _order: sub.sort_order * 1000 + ch.sort_order,
+      };
+      row.questions += 1;
+      row._max += Number(q.marks);
+      if (a) {
+        row.attempted += 1;
+        if (a.is_correct) row.correct += 1;
+        else row.incorrect += 1;
+        row._score += Number(a.score);
+        sectionScore.set(sub.id, (sectionScore.get(sub.id) ?? 0) + Number(a.score));
+      }
+      chapters.set(ch.id, row);
+    }
+    const timed = attempts.filter((a) => a.time_spent_ms != null);
+    const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((x, y) => x + y, 0) / xs.length) : null);
+    const number = new Map(qs.map((q) => [q.id, q.question_number]));
+
+    // The previous completed attempt at the same paper (or the same scope for non-paper sessions), for comparison.
+    let previous: PaperAnalysis['previous'] = null;
+    const prevSections = new Map<string, number>();
+    if (s.paper_id) {
+      const done = (await r.practice.listSessions(userId, ['COMPLETED'], null, 100)).filter(
+        (x) => x.paper_id === s.paper_id && x.id !== s.id && x.started_at < s.started_at,
+      );
+      const p = done.sort((x, y) => y.started_at.getTime() - x.started_at.getTime())[0];
+      if (p) {
+        previous = { session_id: p.id, completed_at: isoOrNull(p.completed_at), score: normalizeDecimal(p.score) };
+        const pq = new Map((await r.content.summaries(p.question_ids)).map((q) => [q.id, q.subject_id]));
+        for (const a of await r.practice.attemptsForSession(userId, p.id)) {
+          const sid = pq.get(a.question_id);
+          if (sid) prevSections.set(sid, (prevSections.get(sid) ?? 0) + Number(a.score));
+        }
+      }
+    }
+    const subjects = [...new Set(qs.flatMap((q) => (q.subject_id ? [q.subject_id] : [])))]
+      .flatMap((sid) => {
+        const sub = tax.subjects.get(sid);
+        return sub ? [sub] : [];
+      })
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const paper = s.paper_id ? ((await r.content.papersByIds([s.paper_id]))[0] ?? null) : null;
+    return {
+      session_id: s.id,
+      paper: paper ? { slug: paper.slug, title: paper.title } : null,
+      chapters: [...chapters.values()]
+        .sort((a, b) => a._order - b._order)
+        .map(({ _score, _max, _order, ...c }) => ({ ...c, score: dec(_score), max: dec(_max) })),
+      time: {
+        total_ms: timed.reduce((n, a) => n + (a.time_spent_ms ?? 0), 0),
+        answered: attempts.length,
+        avg_ms: avg(timed.map((a) => a.time_spent_ms!)),
+        correct_avg_ms: avg(timed.filter((a) => a.is_correct).map((a) => a.time_spent_ms!)),
+        incorrect_avg_ms: avg(timed.filter((a) => !a.is_correct).map((a) => a.time_spent_ms!)),
+        slowest: [...timed]
+          .sort((a, b) => b.time_spent_ms! - a.time_spent_ms!)
+          .slice(0, 5)
+          .map((a) => ({ question_id: a.question_id, number: number.get(a.question_id) ?? null, time_ms: a.time_spent_ms!, is_correct: a.is_correct })),
+      },
+      sections: subjects.map((sub) => ({
+        subject: tax.subjectRef(sub),
+        score: dec(sectionScore.get(sub.id) ?? 0),
+        previous_score: previous ? dec(prevSections.get(sub.id) ?? 0) : null,
+      })),
+      previous,
     };
   });
 }
