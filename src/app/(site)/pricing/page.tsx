@@ -4,7 +4,7 @@ import { PlanCompare } from "@/components/billing/PlanCompare";
 import { PricingPlans } from "@/components/billing/PricingPlans";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
-import { adsenseReady } from "@/lib/ads/config";
+import { ADS_CONFIG, adsenseReady } from "@/lib/ads/config";
 import { plans } from "@/lib/api/billing";
 import { freeTierEntitlements } from "@/lib/api/monetization";
 import { compareGroups, plusHighlights } from "@/lib/billing/compare";
@@ -37,6 +37,7 @@ export default async function PricingPage() {
     freeFullPapersPerMonth: data?.free.full_papers_per_month ?? null,
     papersVisible: PAPERS_VISIBLE,
     adsLive: adsenseReady("display"),
+    adsPlanned: /^ca-pub-\d{10,20}$/.test(ADS_CONFIG.client),
   });
   const faq: { q: string; a: string }[] = [
     {
