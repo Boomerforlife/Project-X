@@ -24,7 +24,7 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
 
 ## 1. Supabase (owner: Owner B, with the user for the dashboard)
 
-1. **Migrations.** The live DB has 0001–0027 (0026 and 0027 applied 2026-11-20). For a new migration, back up first (see
+1. **Migrations.** The live DB has 0001–0028 (0026, 0027 and 0028 applied 2026-11-20; 0028 recorded in `supabase_migrations.schema_migrations`). For a new migration, back up first (see
    `docs/MONETIZATION_HANDOVER.md` §6). `supabase link --project-ref gardheietftxyforposh` then `supabase db push`
    (the CLI uses a temporary login role; no DB password needed). Check after 0026: `select code from ad_reward_rules` returns `extra_full_paper`.
 2. **Auth → URL configuration** (done). Site URL `https://tabbyprep.in`. Redirect URLs: `https://tabbyprep.in/**`, `https://projectx-staging-a7k2.web.app/**`, `https://projectx-web-*.run.app/**`, `http://localhost:3000/**`.
