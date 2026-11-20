@@ -428,10 +428,12 @@ function adminRepo(tx: Tx): AdminRepo {
     supersedeApproved: async (qid, except) => void (await tx.query(`update public.solution_versions set review_status='SUPERSEDED' where question_id=$1 and id<>$2 and review_status='APPROVED'`, [qid, except])),
     assetsForQuestion: (qid) => rows(tx, `select ${ASSET} from public.question_assets a where a.question_id=$1`, [qid]),
     moveAssetToPublic: async (id, key) =>
-      void (await tx.query(
-        `update public.question_assets set bucket='PUBLIC_ASSETS', r2_key=$2 where id=$1 and not exists (select 1 from public.question_assets x where x.bucket='PUBLIC_ASSETS' and x.r2_key=$2 and x.id<>$1)`,
-        [id, key],
-      )),
+      (
+        await tx.query(
+          `update public.question_assets set bucket='PUBLIC_ASSETS', r2_key=$2 where id=$1 and not exists (select 1 from public.question_assets x where x.bucket='PUBLIC_ASSETS' and x.r2_key=$2 and x.id<>$1) returning id`,
+          [id, key],
+        )
+      ).rows.length > 0,
     insertReviewEvent: async (e) =>
       void (await tx.query(
         `insert into public.review_events (question_id, solution_version_id, actor_id, action, from_verification_status, to_verification_status, from_publication_status, to_publication_status, note)

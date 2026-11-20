@@ -635,7 +635,8 @@ export interface AdminRepo {
   setSolutionReview(id: string, status: SolutionReviewStatus, reviewerId: string | null): Promise<void>;
   supersedeApproved(questionId: string, exceptId: string): Promise<void>;
   assetsForQuestion(questionId: string): Promise<AssetRow[]>;
-  moveAssetToPublic(assetId: string, r2Key: string): Promise<void>;
+  /** Points the asset at a public key. False when another asset already owns that key (nothing changed). */
+  moveAssetToPublic(assetId: string, r2Key: string): Promise<boolean>;
   insertReviewEvent(e: Omit<ReviewEventRow, 'id' | 'created_at'>): Promise<void>;
   insertAudit(a: {
     /** null for WORKER (automated) actions. */

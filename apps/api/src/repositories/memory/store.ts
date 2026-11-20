@@ -546,8 +546,10 @@ function adminRepo(s: MemoryState): AdminRepo {
     },
     assetsForQuestion: async (qid) => s.assets.filter((a) => a.question_id === qid),
     moveAssetToPublic: async (id, key) => {
+      if (s.assets.some((x) => x.id !== id && x.bucket === 'PUBLIC_ASSETS' && x.r2_key === key)) return false;
       const a = s.assets.find((x) => x.id === id);
       if (a) Object.assign(a, { bucket: 'PUBLIC_ASSETS', r2_key: key });
+      return a !== undefined;
     },
     insertReviewEvent: async (e) => {
       s.reviewEvents.push({ ...e, id: s.nextEventId(), created_at: s.clock() });

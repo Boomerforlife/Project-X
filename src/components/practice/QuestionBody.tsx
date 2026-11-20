@@ -2,6 +2,7 @@
 
 import type { Question, ResponseValue, Solution } from "@/contracts";
 import { Blocks } from "@/components/content/Blocks";
+import { figuresNotInBlocks } from "@/lib/api/adapters/blocks";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 
@@ -52,7 +53,7 @@ export function QuestionBody({
         <Blocks blocks={q.blocks} fallback={q.stem} />
       </div>
 
-      {q.assets.map((a) => (
+      {figuresNotInBlocks(q.assets, q.blocks).map((a) => (
         // eslint-disable-next-line @next/next/no-img-element -- figure URLs come from the content API
         <img key={a.id} src={a.url} alt={a.alt} width={a.width} height={a.height} className="mt-5 h-auto max-w-full rounded-md border border-line bg-white" />
       ))}

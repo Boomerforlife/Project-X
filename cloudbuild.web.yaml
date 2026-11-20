@@ -8,6 +8,14 @@ substitutions:
   _SUPABASE_PUBLISHABLE_KEY: ""
   _SITE_URL: ""
   _AUTH_GOOGLE: "off"
+  # Ads stay off until AdSense units exist (docs/MONETIZATION_HANDOVER.md section 5). The publisher id is built in.
+  _ADS: "off"
+  _ADSENSE_CLIENT: ""
+  _ADSENSE_SLOT_DISPLAY: ""
+  _ADSENSE_SLOT_INFEED: ""
+  _ADSENSE_INFEED_LAYOUT_KEY: ""
+  _ADSENSE_SLOT_MULTIPLEX: ""
+  _GAM_REWARDED_UNIT: ""
 steps:
   - name: gcr.io/cloud-builders/docker
     env: ["DOCKER_BUILDKIT=1"]
@@ -22,6 +30,13 @@ steps:
       - --build-arg=NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${_SUPABASE_PUBLISHABLE_KEY}
       - --build-arg=NEXT_PUBLIC_SITE_URL=${_SITE_URL}
       - --build-arg=NEXT_PUBLIC_AUTH_GOOGLE=${_AUTH_GOOGLE}
+      - --build-arg=NEXT_PUBLIC_ADS=${_ADS}
+      - --build-arg=NEXT_PUBLIC_ADSENSE_CLIENT=${_ADSENSE_CLIENT}
+      - --build-arg=NEXT_PUBLIC_ADSENSE_SLOT_DISPLAY=${_ADSENSE_SLOT_DISPLAY}
+      - --build-arg=NEXT_PUBLIC_ADSENSE_SLOT_INFEED=${_ADSENSE_SLOT_INFEED}
+      - --build-arg=NEXT_PUBLIC_ADSENSE_INFEED_LAYOUT_KEY=${_ADSENSE_INFEED_LAYOUT_KEY}
+      - --build-arg=NEXT_PUBLIC_ADSENSE_SLOT_MULTIPLEX=${_ADSENSE_SLOT_MULTIPLEX}
+      - --build-arg=NEXT_PUBLIC_GAM_REWARDED_UNIT=${_GAM_REWARDED_UNIT}
       - .
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/web:${_TAG}

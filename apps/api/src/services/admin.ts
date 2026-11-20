@@ -14,7 +14,7 @@ import type {
   VerificationRunBody,
   VerificationStatus,
 } from '@projectx/contracts';
-import { cacheTags, copyObject, r2Keys } from '@projectx/edge';
+import { cacheTags, r2Keys, toBytes } from '@projectx/edge';
 import { answerKeysEqual, canonicalizeAnswerKey, canonicalJson, sha256Hex } from '@projectx/shared';
 import type { AppDeps, AuthUser } from '../deps';
 import { ApiError, invalidState, notFound, validation } from '../lib/errors';
@@ -599,17 +599,43 @@ async function copyAssetsToPublic(r: ServiceRepos, deps: Pick<AppDeps, 'storage'
   const assets = await r.content.assetsByIds([...ids]);
   const missing = [...ids].filter((x) => !assets.some((a) => a.id === x));
   if (missing.length) throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet: missing.map((m) => `image asset ${m} does not exist`) } });
+  const unmet = (m: string) => new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet: [m] } });
   for (const a of assets) {
     if (a.bucket === 'PUBLIC_ASSETS') continue;
     const ext = a.mime_type === 'image/png' ? 'png' : a.mime_type === 'image/jpeg' ? 'jpg' : 'webp';
-    const key = r2Keys.publicAsset(a.sha256, ext);
+    let bytes: Uint8Array;
+    let contentType: string;
     try {
-      await copyObject(deps.storage.SOURCE_DOCS, a.r2_key, deps.storage.PUBLIC_ASSETS, key, { cacheControl: 'public, max-age=31536000, immutable' });
+      const src = await deps.storage.SOURCE_DOCS.get(a.r2_key);
+      if (!src) throw new Error('source object not found');
+      bytes = await toBytes(src.body);
+      contentType = src.contentType;
     } catch (e) {
-      deps.logger.error('asset copy failed', { asset_id: a.id, error: String(e) });
-      throw new ApiError('PUBLISH_REQUIREMENTS_NOT_MET', 'Publish requirements not met', { details: { unmet: [`image asset ${a.id} could not be copied to public storage`] } });
+      deps.logger.error('asset read failed', { asset_id: a.id, error: String(e) });
+      throw unmet(`image asset ${a.id} could not be read from storage`);
     }
-    await r.admin.moveAssetToPublic(a.id, key);
+    // Derived crop keys are per question number, so re-processing a paper overwrites them. Publishing the bytes
+    // only when they still match the fingerprint recorded at extraction stops a later run's crop going live.
+    if (a.sha256 && (await sha256Hex(bytes)) !== a.sha256) {
+      deps.logger.error('asset bytes changed since extraction', { asset_id: a.id, r2_key: a.r2_key });
+      throw unmet(`image asset ${a.id} changed after extraction; re-extract the paper before publishing`);
+    }
+    // An identical image in another question already owns the content-addressed key: this row gets its own key,
+    // otherwise it would stay private and the API would drop it from the question.
+    const keys = [r2Keys.publicAsset(a.sha256, ext), r2Keys.publicAsset(a.sha256, ext).replace(`.${ext}`, `-${a.id.slice(0, 8)}.${ext}`)];
+    let moved = false;
+    for (const key of keys) {
+      try {
+        if (!(await deps.storage.PUBLIC_ASSETS.head(key))) {
+          await deps.storage.PUBLIC_ASSETS.put(key, bytes, { contentType, cacheControl: 'public, max-age=31536000, immutable' });
+        }
+      } catch (e) {
+        deps.logger.error('asset copy failed', { asset_id: a.id, error: String(e) });
+        throw unmet(`image asset ${a.id} could not be copied to public storage`);
+      }
+      if ((moved = await r.admin.moveAssetToPublic(a.id, key))) break;
+    }
+    if (!moved) throw unmet(`image asset ${a.id} could not be made public`);
   }
 }
 
