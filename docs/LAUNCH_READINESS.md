@@ -9,8 +9,8 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 | Piece | Where | State |
 |---|---|---|
-| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `projectx-web-00013-l64`, image `web-staging-12`) | Live from `main` (PRs #24–#29): question links open the exact question, Free/Plus pricing, security headers, past-year questions with official keys, NTA/JAB credits and takedown terms. Rollback: `projectx-web-00010-rqb` (pre-PYQ) |
-| API | Cloud Run `projectx-api`, revision `projectx-api-00019-qrq` (image `api:staging-12`; rollback `projectx-api-00016-f8k`) | Everything on `main` incl. `public_page`, premium filter, 1 MiB body cap, worker publish paths. Jobs `pyq-official` and `publish-official` (dry run by default). Rewarded credits off |
+| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `projectx-web-00014-rtc`, image `web-staging-13`) | Live from `main` (PRs #24–#29): question links open the exact question, Free/Plus pricing, security headers, past-year questions with official keys, NTA/JAB credits and takedown terms. Rollback: `projectx-web-00010-rqb` (pre-PYQ) |
+| API | Cloud Run `projectx-api`, revision `projectx-api-00020-s4p` (image `api:staging-13`; rollback `projectx-api-00016-f8k`) | Everything on `main` incl. `public_page`, premium filter, 1 MiB body cap, worker publish paths. Jobs `pyq-official`, `rate-difficulty` (live mode; nightly schedule needs one IAM grant, see Needs you) and `publish-official` (dry run). Rewarded credits off |
 | Database | Supabase (Mumbai) | Migrations 0001–0027 applied (0027 on 2026-11-20: guard + family trigger + STATS source; no row changes) |
 | Payments | Razorpay, **Live mode** since 2026-11-19 | Account activated, tabbyprep.in approved, live keys in Secret Manager, `BILLING_ALLOW_LIVE=true`, live webhook (4 events) |
 | Ads | AdSense publisher `ca-pub-2970121715798701` | Site submitted for review 2026-11-19; verification tag live. Ads are not switched on in any build yet |
@@ -42,7 +42,7 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 | JEE Advanced PYQs (302 keyed) | JEE Advanced has no subjects/chapters in the taxonomy yet |
 | 3,347 PYQs without an official key | Link NTA final keys (`keys nta-final` via `pxw-ingest`): 2025 is on NTA's site, 2019–2020 via the Internet Archive |
 | Worked solutions for PYQs | Written by people (admin solutions editor), or an AI step if one is approved later |
-| Difficulty for PYQs | Not rated yet; a STATS job rating from attempts (≥ 30 attempts) is not built |
+| Difficulty for PYQs | Built: `rate-difficulty` rates from first attempts once 20+ students tried (no AI; `apps/api/src/content/difficulty-stats.ts`). Until then "not rated yet" |
 | Hard questions | Classification: the published bank has no Hard questions yet |
 | Indexing | Enough published, solved questions per chapter |
 | `www.tabbyprep.in` | www does not load yet (DNS record or its certificate); the apex works |
@@ -56,6 +56,8 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 5. Give your account the ADMIN or REVIEWER role (`insert into user_roles …`, `PRODUCTION_SETUP.md` §1.6), then tag the remaining PYQ chapters in `/admin/questions/` and re-run `pyq-official` (publish).
 6. Spot-check a few published PYQ pages per chapter (wrong chapter → change it in the question editor; wrong question → unpublish).
 7. Before switching on search indexing: decide whether PYQ pages should be indexed at all (licence risk accepted 2026-11-20, see `CONTENT_SOURCES.md` §3).
+8. Let the nightly difficulty rating run: grant the scheduler identity permission to start the job (needs the project owner role): `gcloud run jobs add-iam-policy-binding rate-difficulty --region asia-south1 --member serviceAccount:projectx-api@projectx-staging-a7k2.iam.gserviceaccount.com --role roles/run.invoker`. The Cloud Scheduler job `rate-difficulty-nightly` (03:00 IST) already exists. Until then run it by hand: `gcloud run jobs execute rate-difficulty --region asia-south1`.
+9. Question reports from students land in the `doubts` table as `[REPORT:reason] …`; there is no admin screen for them yet. Read them with `select created_at, question_id, body from doubts where body like '[REPORT:%' order by created_at desc`.
 
 ## Needs legal
 
