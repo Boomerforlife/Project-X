@@ -51,6 +51,7 @@ export function pickQuestions(opts: Parameters<typeof local.pickQuestions>[0]): 
 export function startPractice(opts: StartOpts): Promise<string> {
   return API ? remote.startPractice(opts) : Promise.resolve(local.startPractice(opts));
 }
+export { rememberPapers } from "@/lib/session/store";
 export function startPaper(paperId: string, mode: "cbt" | "test" | "learning", retryOf?: string): Promise<string> {
   return API ? remote.startPaper(paperId, mode, retryOf) : Promise.resolve(local.startPaper(paperId, mode, retryOf));
 }

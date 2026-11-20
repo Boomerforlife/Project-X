@@ -93,7 +93,7 @@ function Instructions({ attempt: a, onStart }: { attempt: Attempt; onStart: () =
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
           <p className="text-sm font-semibold tracking-tight">Computer-based test</p>
-          <span className="rounded-sm border border-review/40 px-1.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-review">Demo</span>
+          {paper?.isDemo && <span className="rounded-sm border border-review/40 px-1.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-review">Demo</span>}
         </div>
       </header>
       <main id="main" className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -154,7 +154,7 @@ function Instructions({ attempt: a, onStart }: { attempt: Attempt; onStart: () =
             <Button size="lg" className="w-full" disabled={!ok} onClick={onStart}>
               Start test
             </Button>
-            <Link href={a.paperId ? `/tests/${a.paperId}/` : "/tests/"} className="block text-center text-sm text-fg-muted hover:text-fg">
+            <Link href={paper ? `/tests/${paper.id}/` : "/tests/"} className="block text-center text-sm text-fg-muted hover:text-fg">
               Not now
             </Link>
           </aside>
@@ -451,7 +451,7 @@ function Exam({ attempt: a, candidate }: { attempt: Attempt; candidate: string }
           <Button variant="secondary" onClick={() => setExitOpen(false)}>
             Stay
           </Button>
-          <ButtonLink href={a.paperId ? `/tests/${a.paperId}/` : "/tests/"}>Leave for now</ButtonLink>
+          <ButtonLink href={a.paperId && catalog.paper(a.paperId) ? `/tests/${a.paperId}/` : "/tests/"}>Leave for now</ButtonLink>
         </div>
       </Dialog>
       <ReportDialog open={report} onClose={() => setReport(false)} />

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { apiFetch, type ApiResult } from "./http";
 import { ApiError } from "./errors";
 import {
+  PaperSummarySchema,
   PracticeQuestionSchema,
   PublicChapterSchema,
   PublicExamSchema,
@@ -42,6 +43,11 @@ export async function taxonomyExams() {
 
 export async function taxonomyTree(exam: string) {
   return wrap(await apiFetch(`/taxonomy/tree${qs({ exam })}`, { schema: TaxonomyTreeSchema }));
+}
+
+/** Complete previous-year papers of an exam (full-paper practice), newest first. */
+export async function listPapers(exam: string) {
+  return wrap(await apiFetch(`/public/papers${qs({ exam })}`, { schema: z.array(PaperSummarySchema) }));
 }
 
 export async function publicExam(slug: string) {

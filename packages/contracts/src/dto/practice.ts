@@ -76,11 +76,17 @@ export const AttemptResultSchema = z
   .openapi('AttemptResult');
 export type AttemptResult = z.infer<typeof AttemptResultSchema>;
 
+/** The previous-year paper a PYQ_PAPER session was started from. */
+export const PaperRefSchema = z.object({ slug: SlugSchema, title: z.string() }).openapi('PaperRef');
+export type PaperRef = z.infer<typeof PaperRefSchema>;
+
 export const SessionSummarySchema = SessionProgressSchema.extend({
   mode: PracticeModeSchema,
   started_at: TsSchema,
   ui_mode: z.enum(['learning', 'test']),
   time_limit_sec: z.int().nullable(),
+  /** PYQ_PAPER sessions only (absent on older API builds). */
+  paper: PaperRefSchema.nullable().optional(),
 }).openapi('SessionSummary');
 export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 
@@ -106,3 +112,22 @@ export const SessionDetailSchema = z
   .openapi('SessionDetail');
 export type SessionDetail = z.infer<typeof SessionDetailSchema>;
 
+
+/**
+ * A complete previous-year paper that can be sat as a full paper (every question with an official answer is
+ * published). `question_count` is what the student gets; questions NTA dropped (no official answer) are not counted.
+ */
+export const PaperSummarySchema = z
+  .object({
+    slug: SlugSchema,
+    title: z.string(),
+    year: z.int(),
+    exam_date: z.string().nullable(),
+    shift: z.int().nullable(),
+    exam: ExamRefSchema,
+    question_count: z.int(),
+    duration_min: z.int(),
+    sections: z.array(z.object({ subject: SubjectRefSchema, question_count: z.int() })),
+  })
+  .openapi('PaperSummary');
+export type PaperSummary = z.infer<typeof PaperSummarySchema>;

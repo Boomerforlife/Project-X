@@ -8,7 +8,7 @@ import { ADS_CONFIG, adsenseReady } from "@/lib/ads/config";
 import { plans } from "@/lib/api/billing";
 import { freeTierEntitlements } from "@/lib/api/monetization";
 import { compareGroups, plusHighlights } from "@/lib/billing/compare";
-import { PAPERS_VISIBLE } from "@/lib/data";
+import { FULL_PAPERS } from "@/lib/data";
 import { pageMetadata } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 
@@ -35,7 +35,7 @@ export default async function PricingPage() {
   const groups = compareGroups({
     free,
     freeFullPapersPerMonth: data?.free.full_papers_per_month ?? null,
-    papersVisible: PAPERS_VISIBLE,
+    papersVisible: FULL_PAPERS,
     adsLive: adsenseReady("display"),
     adsPlanned: /^ca-pub-\d{10,20}$/.test(ADS_CONFIG.client),
   });
@@ -44,7 +44,7 @@ export default async function PricingPage() {
       q: "What stays free?",
       a:
         "Every practice question, step-by-step solutions, bookmarks, the review list, the mistake notebook, progress tracking, the diagnostic and a basic study plan." +
-        (PAPERS_VISIBLE && data ? ` Free accounts also get ${data.free.full_papers_per_month} full papers a month.` : ""),
+        (FULL_PAPERS && data ? ` Free accounts also get ${data.free.full_papers_per_month} full papers a month.` : ""),
     },
     { q: "Does it renew automatically?", a: "No. Every pass is a single payment. When it ends you go back to Free; your history, bookmarks, plans and results stay." },
     { q: "I already have Plus. Can I buy more?", a: "Yes. A new pass starts when your current one ends, so you never lose days." },

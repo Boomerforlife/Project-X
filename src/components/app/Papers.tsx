@@ -4,7 +4,7 @@ import { AdSlot } from "@/components/ads/AdSlot";
 import { QuotaExceededError } from "@/lib/billing/quota";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ExamId, Paper } from "@/contracts";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -14,7 +14,12 @@ import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { relativeDay } from "@/lib/demo/dates";
 import { scoreAttempt } from "@/lib/demo/scoring";
-import { demoLogin, startPaper, useDemo } from "@/lib/demo/store";
+import { demoLogin, rememberPapers, startPaper, useDemo } from "@/lib/demo/store";
+import { flags } from "@/lib/api/env";
+import { listPapers } from "@/lib/api/public";
+import type { PaperSummary } from "@/lib/api/schemas";
+import { examFromApi, examToApi, subjectFromApi } from "@/lib/api/adapters/ids";
+import { InlineLoader } from "@/components/states/Loading";
 import { PAPERS_ENABLED } from "@/lib/demo/progress";
 import { toast } from "@/components/ui/Toast";
 import { Kitty } from "@/components/brand/Kitty";
@@ -75,7 +80,158 @@ function PapersComingSoon() {
 
 export function PapersHub() {
   if (!PAPERS_ENABLED) return <PapersComingSoon />;
+  if (DATA_SOURCE === "api" && flags.papers === "on") return <ApiPapersHub />;
   return <PapersHubInner />;
+}
+
+/* ---------------- /tests/ with the API's real previous-year papers (papers flag "on") ---------------- */
+
+type Loaded = { status: "loading" } | { status: "error" } | { status: "ok"; papers: PaperSummary[] };
+
+function ApiPapersHub() {
+  const s = useDemo();
+  const params = useSearchParams();
+  const fromParam = params.get("exam") as ExamId | null;
+  const [exam, setExam] = useState<ExamId | null>(fromParam && fromParam in EXAMS ? fromParam : null);
+  const current: ExamId = exam ?? s?.user?.exam ?? "jee-main";
+  // Results are keyed by exam and retry count, so switching exams or retrying shows "loading" without a sync setState.
+  const [tries, setTries] = useState(0);
+  const [result, setResult] = useState<{ key: string; value: Loaded } | null>(null);
+  const key = `${current}:${tries}`;
+  useEffect(() => {
+    let live = true;
+    listPapers(examToApi(current)).then(
+      (r) => {
+        rememberPapers(r.data.flatMap((p) => {
+          const ex = examFromApi(p.exam.slug);
+          return ex ? [{ slug: p.slug, title: p.title, exam: ex, durationMin: p.duration_min }] : [];
+        }));
+        if (live) setResult({ key, value: { status: "ok", papers: r.data } });
+      },
+      (err: unknown) => {
+        // An exam the API has no papers for answers 404: that is an empty list, not an error.
+        const value: Loaded = (err as { status?: number }).status === 404 ? { status: "ok", papers: [] } : { status: "error" };
+        if (live) setResult({ key, value });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [current, key]);
+  const loaded: Loaded = result?.key === key ? result.value : { status: "loading" };
+  const retry = useCallback(() => setTries((n) => n + 1), []);
+
+  const papers = loaded.status === "ok" ? loaded.papers : [];
+  const years = [...new Set(papers.map((p) => p.year))].sort((a, b) => b - a);
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <Eyebrow>Full papers</Eyebrow>
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold sm:text-4xl">Previous-year papers</h1>
+          <p className="mt-2 max-w-2xl text-fg-muted">
+            Sit a real NTA paper in the exam-style CBT: timer, question palette, sections and mark-for-review. Answers are checked against NTA&rsquo;s official final key when you submit.
+          </p>
+        </div>
+        <Segmented label="Exam" value={current} onChange={(v) => setExam(v)} options={EXAM_LIST.map((e) => ({ id: e.id, label: e.name }))} />
+      </div>
+
+      <CbtExplainer />
+
+      <section aria-labelledby="pyq-h" className="mt-12" aria-busy={loaded.status === "loading"}>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 id="pyq-h" className="text-xl font-semibold">
+            {EXAMS[current].name} papers
+          </h2>
+          <p className="text-xs text-fg-muted">Free accounts have a monthly full-paper limit. Plus is unlimited.</p>
+        </div>
+        {loaded.status === "loading" && <InlineLoader label="Loading papers…" className="mt-6" />}
+        {loaded.status === "error" && (
+          <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-fg-muted">
+            Couldn&rsquo;t load the papers.
+            <Button size="sm" variant="secondary" onClick={retry}>
+              Try again
+            </Button>
+          </div>
+        )}
+        {loaded.status === "ok" && papers.length === 0 && (
+          <p className="mt-6 text-sm text-fg-muted">No full {EXAMS[current].name} papers yet. Chapter practice is available now.</p>
+        )}
+        {s &&
+          years.map((y) => (
+            <div key={y} className="mt-5">
+              <h3 className="mb-3 font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">{y}</h3>
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {papers
+                  .filter((p) => p.year === y)
+                  .map((p) => (
+                    <ApiPaperTile key={p.slug} paper={p} s={s} />
+                  ))}
+              </ul>
+            </div>
+          ))}
+      </section>
+      <AdSlot placement="tests-list" />
+    </div>
+  );
+}
+
+function ApiPaperTile({ paper: p, s }: { paper: PaperSummary; s: DemoState }) {
+  const start = useStart();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const atts = attemptsFor(s, p.slug);
+  const done = atts.filter((a) => a.status === "submitted");
+  const open = atts.find((a) => a.status === "in_progress");
+  const go = async (mode: "cbt" | "learning") => {
+    setBusy(true);
+    try {
+      await start(p.slug, mode, mode === "cbt" ? done[0]?.id : undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <li>
+      <Card className="flex h-full flex-col p-5">
+        <p className="font-semibold leading-snug">{p.title.replace(`${p.exam.name} `, "")}</p>
+        <p className="mt-1 text-sm tabular-nums text-fg-muted">
+          {p.question_count} questions · {p.duration_min} min
+        </p>
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+          {p.sections.map((sec) => {
+            const sub = subjectFromApi(sec.subject.segment, sec.subject.name)?.subject;
+            return (
+              <span key={sec.subject.slug} className={cn("text-xs tabular-nums", sub ? SUBJECT_STYLE[sub].text : "text-fg-muted")}>
+                {sec.subject.name} {sec.question_count}
+              </span>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-xs text-fg-muted">Official NTA answer key · worked solutions coming</p>
+        <p className="mt-1 min-h-5 text-xs text-fg-muted">
+          {open ? "Attempt in progress" : done.length ? `${done.length} attempt${done.length === 1 ? "" : "s"} submitted` : "Not attempted yet"}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {open ? (
+            <Button size="sm" onClick={() => router.push(open.mode === "cbt" ? `/cbt/?id=${open.id}` : `/practice/session/?id=${open.id}`)}>
+              Resume
+            </Button>
+          ) : (
+            <Button size="sm" pixel disabled={busy} onClick={() => void go("cbt")}>
+              <Icon name="monitor" className="size-4" /> {done.length ? "Retry in CBT" : "Start in CBT"}
+            </Button>
+          )}
+          {!open && (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void go("learning")}>
+              Practise untimed
+            </Button>
+          )}
+        </div>
+      </Card>
+    </li>
+  );
 }
 
 function PapersHubInner() {

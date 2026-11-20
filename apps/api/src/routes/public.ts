@@ -1,5 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
+  PaperListQuery,
+  PaperSummarySchema,
   ChapterQuery,
   PublicChapterSchema,
   PublicExamSchema,
@@ -171,6 +173,15 @@ export function registerPublic(app: App, g: Guards): void {
     const q = valid(c, 'query', RelatedQuery);
     const r = await catalog.relatedQuestions(store(c), p.slug, q.limit);
     return send(c, 200, r.data, { cache: 'PUBLIC_CONTENT', tags: r.tags });
+  });
+
+  const papers = defineRoute({
+    method: 'get', path: '/public/papers', summary: 'Complete previous-year papers of an exam (full-paper practice)', tags: ['public'], access: 'public', cache: 'PUBLIC_LIST', rl: 'RL_PUBLIC',
+    request: { query: PaperListQuery }, data: z.array(PaperSummarySchema),
+  })(g);
+  app.openapi(papers, async (c: Ctx) => {
+    const r = await catalog.listPapers(store(c), valid(c, 'query', PaperListQuery).exam);
+    return send(c, 200, r.data, { cache: 'PUBLIC_LIST', tags: r.tags });
   });
 
   const exam = defineRoute({
