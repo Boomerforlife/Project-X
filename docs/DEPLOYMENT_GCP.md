@@ -1,5 +1,6 @@
 # Deployment on Google Cloud (replaces the Cloudflare Workers/R2 plan for the API)
 Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 (INR 450; alerts only, it does not stop spending).
+Live (2026-11-20): API `projectx-api-00020-s4p` (image `api:staging-13`; rollback `projectx-api-00016-f8k`), web `projectx-web-00014-rtc` (image `web-staging-13`; rollback `projectx-web-00010-rqb`), served at https://tabbyprep.in through Firebase Hosting.
 * **API** = Cloud Run service `projectx-api`, image built by Cloud Build from the root `Dockerfile` (entry `apps/api/src/server.ts`).
 * **Storage** = 3 Cloud Storage buckets (`…-source-docs`, `…-public-assets`, `…-user-uploads`). `source-docs` and `user-uploads` are private
   (public access prevention enforced). `public-assets` was opened on 2026-11-20, when the first image questions were published:
@@ -7,10 +8,10 @@ Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 
   still refused). Only the publish path copies images there. To close it again: remove that binding and run
   `gcloud storage buckets update gs://projectx-staging-a7k2-public-assets --public-access-prevention` (image questions then break).
 * **Jobs** (Cloud Run Jobs, API image, same env and secrets as the service, no Razorpay keys): `pyq-official` (publish official-key
-  PYQs without AI, `docs/CONTENT_SOURCES.md` §7.1) and `publish-official` (AI route, unused). Both default to dry run.
+  PYQs without AI, `docs/CONTENT_SOURCES.md` §7.1), `rate-difficulty` (difficulty from students' first attempts, live mode; Cloud Scheduler `rate-difficulty-nightly` at 03:00 IST exists, but it needs `roles/run.invoker` for `projectx-api@…` on the job, see `LAUNCH_READINESS.md`) and `publish-official` (AI route, unused). `pyq-official` and `publish-official` default to dry run.
   After changing the API image, point the jobs at it: `gcloud run jobs update <job> --image=<api image>`.
   PowerShell: quote env lists (`--update-env-vars 'A=1,B=2'`); unquoted, gcloud receives one variable `A="1 B=2"`.
-* **Secrets** = Secret Manager: `database-url` (you set it with `infra/gcp/set-database-url.ps1`), `signing-secret`, `ip-hash-secret`, `web-revalidate-secret`.
+* **Secrets** = Secret Manager: `database-url` (you set it with `infra/gcp/set-database-url.ps1`), `signing-secret`, `ip-hash-secret`, `web-revalidate-secret` (version 2 is the clean one: version 1 ended in a carriage return, so cache purges failed until it was replaced on 2026-11-20; the code now trims it).
 * **Identity** = service account `projectx-api@…` (bucket objectAdmin on the 3 buckets, secretAccessor on its secrets).
 * **Caching**: Next caches pages and is told to refresh via the revalidate webhook; the API sets Cache-Control; Firebase Hosting's CDN (in front of the web) is cleared by a new Hosting release (`infra/gcp/firebase-hosting.sh deploy`).
 * **Rate limit** is per instance (in memory). Add Cloud Armor only if abuse appears.

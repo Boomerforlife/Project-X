@@ -39,7 +39,8 @@ Target: Supabase Postgres 15+ and PGlite (PG 18) — PG ≤15 SQL only. All tabl
 | `0023_problem_title_cleanup.sql` | Cleaner problem titles (LaTeX spacing and escaped symbols removed) |
 | `0024_study_plans.sql` | Study plans (Tabby Plus), built from a diagnostic session |
 | `0025_link_keys_clears_stale_official.sql` | Re-linking official keys clears a stale OFFICIAL answer when the key is dropped or cannot be mapped |
-| `0026_classification_rewards_billing_fixes.sql` | Question difficulty metadata, rewarded-ad tables, `billing_orders.refunded_paise`. Additive only. **Not yet applied to the live database (live is at 0025).** |
+| `0026_classification_rewards_billing_fixes.sql` | Question difficulty metadata, rewarded-ad tables, `billing_orders.refunded_paise`. Additive only. Applied to the live database 2026-11-20. |
+| `0027_official_pyq_without_ai.sql` | Publish guard allows a null `difficulty` only for `OFFICIAL_KEY_MATCHED` questions (official-key PYQs published without AI). PYQs do not join problem families. `questions.difficulty_source` accepts `'STATS'` (set by the `rate-difficulty` job). Applied to the live database 2026-11-20. |
 
 Seeds (`supabase/seed/`, idempotent `insert … on conflict (slug) do update`): `0001_exams.sql`, `0002_subjects.sql`,
 `0003_chapters_jee_main.sql`, `0004_topics_jee_main.sql`, `0005_sources.sql`. Dev-only fixtures (never prod):
@@ -230,7 +231,7 @@ Triggers on `questions` (functions in `app_private`, `security definer set searc
   when `new.publication_status='PUBLISHED'` — all must hold else raise `PUBLISH_REQUIREMENTS_NOT_MET: <reason>`:
   verification_status in ('OFFICIAL_KEY_MATCHED','HUMAN_VERIFIED'); current_solution_id not null and that version
   belongs to this question with `review_status='APPROVED'`; answer_key not null and `answer_key = final_answer` of current
-  solution (jsonb equality after app canonicalisation); subject_id, chapter_id, difficulty not null; MCQ types have ≥2 options
+  solution (jsonb equality after app canonicalisation); subject_id, chapter_id not null, difficulty not null (except `OFFICIAL_KEY_MATCHED` PYQs, 0027); MCQ types have ≥2 options
   and every `correct_option_ids` element is an option of this question; NUMERICAL has 0 options.
   DISPUTED while PUBLISHED → trigger forces `publication_status='DRAFT'` (auto-unpublish; API purges cache).
 

@@ -57,7 +57,7 @@ Authentication → URL configuration: Site URL = the web URL, and add `https://<
 ```bash
 W=https://<web url>
 curl -s -o /dev/null -w '%{http_code}\n' $W/                   # 200
-curl -s $W/jee/ | grep -o '[0-9]* questions' | head -1          # live counts (433 questions loaded)
+curl -s $W/jee/ | grep -o '[0-9]* questions' | head -1          # live counts (433 questions loaded on 2026-11-16; 1,956 published on 2026-11-20)
 curl -s $W/robots.txt; curl -s $W/sitemap.xml | head            # sitemap stays empty until NEXT_PUBLIC_ALLOW_INDEXING=true
 ```
 Then sign up in the browser, start a chapter practice, answer, finish, and check Mistakes / Bookmarks / Progress.

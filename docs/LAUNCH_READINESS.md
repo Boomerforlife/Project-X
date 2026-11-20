@@ -11,7 +11,7 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 |---|---|---|
 | Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `projectx-web-00014-rtc`, image `web-staging-13`) | Live from `main` (PRs #24–#29): question links open the exact question, Free/Plus pricing, security headers, past-year questions with official keys, NTA/JAB credits and takedown terms. Rollback: `projectx-web-00010-rqb` (pre-PYQ) |
 | API | Cloud Run `projectx-api`, revision `projectx-api-00020-s4p` (image `api:staging-13`; rollback `projectx-api-00016-f8k`) | Everything on `main` incl. `public_page`, premium filter, 1 MiB body cap, worker publish paths. Jobs `pyq-official`, `rate-difficulty` (live mode; nightly schedule needs one IAM grant, see Needs you) and `publish-official` (dry run). Rewarded credits off |
-| Database | Supabase (Mumbai) | Migrations 0001–0027 applied (0027 on 2026-11-20: guard + family trigger + STATS source; no row changes) |
+| Database | Supabase (Mumbai) | Migrations 0001–0027 applied (0026 and 0027 on 2026-11-20; 0027: publish guard allows null difficulty for official-key PYQs, PYQs stay out of problem families, `difficulty_source` accepts STATS) |
 | Payments | Razorpay, **Live mode** since 2026-11-19 | Account activated, tabbyprep.in approved, live keys in Secret Manager, `BILLING_ALLOW_LIVE=true`, live webhook (4 events) |
 | Ads | AdSense publisher `ca-pub-2970121715798701` | Site submitted for review 2026-11-19; verification tag live. Ads are not switched on in any build yet |
 | Sign-in | Supabase Auth | Email and Google |
@@ -30,7 +30,7 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 | Problem library | `/practice/` chapter groups, filters, solved state, today's problem | live API returns problems |
 | Analytics | Cookieless daily counters; DNT / GPC honoured | `src/lib/analytics.ts`, migration 0019 |
 | Legal | Final Terms, Privacy (AdSense / Google cookie disclosure, DPDP rights, under-18 rules), Refund and cancellation, Contact | `src/app/(site)/{terms,privacy,refund-policy,contact}` |
-| Quality | Lint and typecheck clean; tests: web 92, api 116, db 255 (plus ai, contracts, plans, shared, edge) | run on main, 2026-11-20 |
+| Quality | Lint and typecheck clean; tests: web 92, api 121, db 255 (plus ai, contracts, plans, shared, edge) | run on main, 2026-11-20 |
 | Previous-year publishing (no AI) | Keyword chapter classifier (100 % precision on 433 tagged questions), official answer-only publish job, migration 0027, admin bulk chapter tagging for the rest | `apps/api/test/pyq-official.sql.test.ts`, `docs/CONTENT_SOURCES.md` §7.1 |
 
 ## Blocked

@@ -24,7 +24,7 @@ Local dev on the Windows workstation: start `next dev` from **PowerShell**. From
 
 ## 1. Supabase (owner: Owner B, with the user for the dashboard)
 
-1. **Migrations.** The live DB has 0001–0025. Next: `0026_classification_rewards_billing_fixes` (additive; back up first, see
+1. **Migrations.** The live DB has 0001–0027 (0026 and 0027 applied 2026-11-20). For a new migration, back up first (see
    `docs/MONETIZATION_HANDOVER.md` §6). `supabase link --project-ref gardheietftxyforposh` then `supabase db push`
    (the CLI uses a temporary login role; no DB password needed). Check after 0026: `select code from ad_reward_rules` returns `extra_full_paper`.
 2. **Auth → URL configuration** (done). Site URL `https://tabbyprep.in`. Redirect URLs: `https://tabbyprep.in/**`, `https://projectx-staging-a7k2.web.app/**`, `https://projectx-web-*.run.app/**`, `http://localhost:3000/**`.
@@ -57,7 +57,7 @@ Project `projectx-staging-a7k2`, service `projectx-api`. Runbook: `docs/DEPLOYME
    `WEB_BASE_URL=https://tabbyprep.in` (parent payment links), `FREE_FULL_PAPERS_PER_MONTH=2` (default). `BILLING_ALLOW_LIVE=true` is set
    automatically by the deploy script while live keys are stored (the API refuses live keys without it). Optional `REWARDED_ADS_ENABLED=true`.
 3. **CPU allocation.** Default (throttled) CPU is fine: the server waits for each request's background work before releasing the response (`DEPLOYMENT_GCP.md`, hardening).
-4. **Next redeploy from `main`** (after migration 0026) adds `/entitlements`, `/rewards/*`, `/admin/classify/*` and checkout verify.
+4. **Redeploy from `main`** (after migration 0026, done 2026-11-20) adds `/entitlements`, `/rewards/*`, `/admin/classify/*` and checkout verify.
    Checks: `GET /api/v1/billing/plans` returns 4 plans and `payments_enabled: true`; `GET /api/v1/entitlements` returns 200.
 5. **Cold starts.** Scales to zero; the first request after idle takes about 2 s (precompiled `dist/server.mjs`). `--min-instances=1` removes it (small cost).
 6. Budget alert ≈ ₹450 stays the safety net.

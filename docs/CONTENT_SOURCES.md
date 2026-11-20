@@ -175,9 +175,9 @@ Review and publish go through the admin API (`apps/api/src/routes/admin`):
 5. Approve (ADMIN or REVIEWER): `POST /admin/questions/{id}/approve` with the solution version id. This sets the
    current solution and `HUMAN_VERIFIED`.
 6. Publish (ADMIN only): `POST /admin/questions/{id}/publish`. The database publish guard
-   (`questions_publication_guard`, migrations 0013 and 0014) refuses with `PUBLISH_REQUIREMENTS_NOT_MET` unless the
+   (`questions_publication_guard`, migrations 0013, 0014 and 0027) refuses with `PUBLISH_REQUIREMENTS_NOT_MET` unless the
    question is `OFFICIAL_KEY_MATCHED` or `HUMAN_VERIFIED`, has an approved current solution whose final answer equals
-   the answer key, has subject, chapter and difficulty, and its options match its type.
+   the answer key, has subject and chapter and, except for official-key PYQs (0027), a difficulty, and its options match its type.
 7. Undo: `POST /admin/questions/{id}/unpublish`, `/archive`, or `/dispute` (which auto-unpublishes).
 
 Rows without `difficulty` or `solution` import fine but cannot be published until a reviewer adds them (the validator

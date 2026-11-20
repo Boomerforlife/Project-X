@@ -70,7 +70,7 @@ ProjectX/
     edge/               Cache classes + tags, purge drivers, rate limiter, signed URLs, storage adapters (local, gcs, legacy r2)
     ai/                 Gemini client + mock, prompts, verification rules, SymPy bridge, job runner CLI
   supabase/
-    migrations/         0001 ... 0026 SQL migrations (the schema; live DB is at 0025)
+    migrations/         0001 ... 0027 SQL migrations (the schema; live DB is at 0027)
     seed/               Reference data: exams, subjects, chapters, topics, sources
     fixtures/           Demo questions and dev users (never for production)
     shim/               Fake Supabase roles/auth.users so PGlite can run the migrations (never for production)
@@ -380,7 +380,7 @@ final authority.
 | 0013 | Publication guard trigger |
 | 0014 | Guard hardening (runs on insert and every update of a published row; deferred re-checks when solutions/options change; semantic numeric comparison of keys; attempt session must belong to same user; promote re-checks licence) |
 | 0015 | `profiles.class_level` (11/12/dropper) and `practice_sessions.ui_mode` + `time_limit_sec` (added for the web integration) |
-| 0016-0026 | Later migrations (helper search_path pin, shared rate limits, billing, analytics, AI-checked practice-only publishing, problem families, study plans, classification and rewards). See `DATABASE_SCHEMA.md` and the files in `supabase/migrations/`. 0026 is not yet applied to the live DB. |
+| 0016-0027 | Later migrations (helper search_path pin, shared rate limits, billing, analytics, AI-checked practice-only publishing, problem families, study plans, classification and rewards, official-key PYQs without AI). See `DATABASE_SCHEMA.md` and the files in `supabase/migrations/`. 0026 and 0027 are applied to the live DB (2026-11-20). |
 
 ### 6.3 Roles and RLS (row level security)
 
@@ -728,7 +728,7 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 ## 17. What is built vs stubbed / mock (be honest)
 
 **Built and tested locally (PGlite, mocks, synthetic data):**
-- Full schema (26 migrations in the repo; the live DB is at 0025), RLS, triggers, publication guard, job queue, streak/daily activity.
+- Full schema (27 migrations in the repo; the live DB is at 0027), RLS, triggers, publication guard, job queue, streak/daily activity.
 - The whole API surface with OpenAPI generation, including billing, analytics, study plans and admin classification endpoints.
 - Web app against the API: public pages, auth screens, practice sessions, attempts, bookmarks, mistakes, progress, streak, onboarding.
 - Cache tag/purge plumbing including the web revalidate webhook.
@@ -741,7 +741,7 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 
 **Still unverified or open:**
 - **Gemini** status: I did not verify whether a live key is in use; model ids and prices in the repo are placeholders to re-check.
-- Migration 0026 is in the repo but not yet applied to the live database.
+- Migrations 0026 and 0027 are applied to the live database (2026-11-20).
 - The old Cloudflare-specific paths (Workers Caching purge, Hyperdrive, OpenNext) were never run and are no longer planned.
 - The syllabus seed (20/20/14 chapters) needs checking against the current NTA bulletin.
 - Known limitation: two source questions with byte-identical images share one `question_assets` row (needs a join table).

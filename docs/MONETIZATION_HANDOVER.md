@@ -30,7 +30,7 @@ Pricing kept exactly as configured: Monthly ₹59/30 d, Quarterly ₹149/90 d (R
 | Free **basic study plan** (≤ `FREE_PLAN_MAX_DAYS`=7 days, ≤ `FREE_PLAN_MAX_DAILY_MINUTES`=60 min/day, free problems only). Plus: 14 days / 120 min / every problem. A lapsed Plus plan longer than the free limits locks read-only as before. | `plans/routes.ts`, `plans/service.ts`, `StudyPlan.tsx` |
 | **Rewarded-ad credits** engine: rules are DB rows (`ad_reward_rules`). Single-use server nonce, minimum seconds, daily and monthly caps under a per-user lock; grants only on `GRANTED`. Seeded rule: +1 full paper/month, 1/day, 3/month. The credit raises the real full-paper quota. | `apps/api/src/rewards/`, migration 0026 |
 | **Admin classification**: list any status with filters (exam, subject, chapter / "no chapter", difficulty incl. **UNCLASSIFIED**, year, type, status, id/text search) and real counts; bulk set difficulty / chapter / topic (≤ 200, one transaction, rule-breaking rows skipped with reasons, audit-logged, family difficulty refreshed, caches purged); preview with the original crops via 10-minute signed URLs. Web page `/admin/questions/` (reviewer/admin; keyboard 0–3, J/K). | `apps/api/src/classify/`, `src/components/admin/ClassifyQuestions.tsx` |
-| Difficulty provenance: `difficulty_source` (ADMIN/AI/IMPORT), `difficulty_set_by`, `difficulty_set_at`, kept honest by a trigger (a writer that doesn't declare itself is stored as "not recorded"). Unclassified stays `NULL`, deliberately not a new enum value, because the publication guard relies on NULL to refuse publishing. **Nothing was auto-classified.** | migration 0026 |
+| Difficulty provenance: `difficulty_source` (ADMIN/AI/IMPORT/STATS), `difficulty_set_by`, `difficulty_set_at`, kept honest by a trigger (a writer that doesn't declare itself is stored as "not recorded"). Unclassified stays `NULL`, deliberately not a new enum value, because the publication guard relies on NULL to refuse publishing. **Nothing was auto-classified.** | migration 0026 |
 | **Ad manager** (web): server eligibility + placement registry + blocked routes + per-page budget (mobile 1, desktop 2) + per-session caps + in-feed spacing, overridable with `NEXT_PUBLIC_ADS_POLICY`. Never in CBT, sessions, tests, diagnostic/plan, auth, onboarding, pricing, checkout, account, admin, legal or error pages, and never inside a question or solution. | `src/lib/ads/policy.ts` (+ tests), `src/components/ads/*` |
 | AdSense units: display (dashboard bottom, tests list, results bottom, notebook/progress bottom), in-feed (problem library, between rows / subject sections only), multiplex (public content pages). Labelled "Advertisement", lazy-loaded near the viewport, unfilled/blocked slots collapse, no ad-blocker nagging, non-personalised by default (audience includes minors), test mode via `data-adtest`. | `AdSlot.tsx`, `loaders.ts` |
 | Rewarded ad (Google Ad Manager GPT) on the full-paper limit screen: opt-in, with "No thanks", cancel, honest outcome messages and "Go ad-free with Plus". Google's player provides the close/skip control and countdown. **No fake skip button and no simulated completion.** | `RewardedOffer.tsx`, `FullPaperLimit.tsx` |
@@ -40,7 +40,7 @@ Pricing kept exactly as configured: Monthly ₹59/30 d, Quarterly ₹149/90 d (R
 
 **B. Implemented, waiting on credentials or account setup**: AdSense units (site approval, then unit ids), rewarded ads (Ad Manager account + rewarded unit + `REWARDED_ADS_ENABLED=true`). Razorpay live payments: done 2026-11-19.
 
-**C. Needs your manual action**: section 5, plus classifying the 7,357 drafts (the tool is ready; the judgement is a human's).
+**C. Needs your manual action**: section 5, plus classifying the remaining drafts (5,834 in total) (the tool is ready; the judgement is a human's).
 
 **D. Needs Google approval**: AdSense site approval for tabbyprep.in (requested 2026-11-19); Ad Manager account approval (rewarded web inventory). Razorpay KYC and live activation: done 2026-11-19.
 
@@ -142,7 +142,7 @@ To turn rewarded on, deploy the API with `REWARDED_ADS_ENABLED=true infra/gcp/de
 7. Grant yourself the REVIEWER/ADMIN role (`insert into user_roles …` as before), open `/admin/questions/`, classify a few drafts.
 
 ## 7. Outstanding issues and decisions
-- **Content**: 7,357 PYQs still need chapter + difficulty + a solution + verification before publishing. The classification tool handles chapter/difficulty; solutions and verification are the existing pipeline (Owner B). Hard is still 0 in the published bank, so plans and diagnostics say so honestly.
+- **Content**: 5,834 drafts still need chapter + difficulty + a solution + verification before publishing. The classification tool handles chapter/difficulty; solutions and verification are the existing pipeline (Owner B). Hard is still 0 in the published bank, so plans and diagnostics say so honestly.
 - **Recurring subscriptions**: kept prepaid passes (your existing design). Razorpay Subscriptions (auto-debit/UPI mandates) is a separate build and a product call.
 - **Rewarded ads trust limit** (above): acceptable for a one-paper reward; don't attach bigger rewards without server-verifiable inventory.
 - **Ads on minors' devices**: non-personalised by default; get a legal view (DPDP) before turning that off.
