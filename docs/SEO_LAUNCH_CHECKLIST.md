@@ -29,7 +29,25 @@ Until both hold, every page is `noindex` and `sitemap.xml` is empty. Turn it on 
 - [ ] Lighthouse on `/`, a chapter page and a question page: LCP < 2.5 s and CLS < 0.1 on mobile.
 - [ ] Search Console: verify the domain (DNS TXT) and submit `https://<domain>/sitemap.xml`.
 - [ ] Analytics consent decision: the built-in analytics are cookieless aggregate counters (no consent banner needed for them). Adding any third-party tool needs a privacy-policy update first.
-- [ ] Set `NEXT_PUBLIC_ALLOW_INDEXING=true` on **Production only** (never on previews) and redeploy.
+- [x] Set `NEXT_PUBLIC_ALLOW_INDEXING=true` on **Production only** (never on previews) and redeploy. Done 2026-11-21:
+  build substitution `_ALLOW_INDEXING=true` (default `false` in `cloudbuild.web.yaml`), image `web:web-ownerb-20261121-seo`.
+
+## Question pages (2026-11-21)
+
+- [x] 4,449 official-key JEE Main PYQs listed in the sitemap (`sitemap_include`, migration 0030): published, indexable, in an
+  active chapter, stem text >= 40 chars. A trigger lists future PYQs when they are published or tagged out of a hidden chapter.
+  AI-checked practice items stay NOINDEX and out of the sitemap.
+- [x] Title and H1 lead with the question's own words (what a student searches), then "JEE Main 2024 PYQ"; the description adds
+  the paper, subject and chapter.
+- [x] Image-only stems show their machine-read text as a labelled "Text version" under the original image, so the words are
+  in the page HTML (not only in `alt`).
+- [x] Chapter pages link every public question of the chapter (grouped by year), not only the first 12 cards.
+- [x] No question rich-result markup: Google's Education Q&A covers flashcards only, and `QAPage` is for user-submitted
+  answers. Breadcrumb JSON-LD stays.
+- [ ] Search Console: verify the **domain property** (DNS TXT on tabbyprep.in), submit `https://tabbyprep.in/sitemap.xml`,
+  and request indexing for `/`, `/jee/` and a few chapter pages. Same for Bing Webmaster Tools (it can import from Search Console).
+- [ ] When Owner A's OCR lands clean text/LaTeX in `structured_content`, the text version disappears automatically (the stem
+  then has text blocks) and titles improve; slugs built from garbled OCR can be renamed (old slugs redirect).
 
 ## After launch
 

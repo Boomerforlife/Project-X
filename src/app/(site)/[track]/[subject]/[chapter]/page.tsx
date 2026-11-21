@@ -7,7 +7,9 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { PAPERS_VISIBLE, getChapter, getChapters, getQuestionCounts, getQuestions, getSubjects } from "@/lib/data";
-import { TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
+import { richTextToPlain } from "@/components/content/RichText";
+import type { QuestionCard } from "@/contracts";
+import { TRACKS, TRACK_INFO, isTrack, type Track } from "@/lib/exams";
 import { isChapterIndexable } from "@/lib/indexing";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -118,6 +120,7 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
                   </ButtonLink>
                 </div>
               )}
+              <AllQuestions questions={qs} shown={shown} track={track} chapter={c.name} />
             </>
           ) : (
             <EmptyState
@@ -173,4 +176,51 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
       </div>
     </>
   );
+}
+
+/**
+ * Every remaining public question of the chapter as a plain link, newest paper first. Gives students (and crawlers)
+ * a path to each question page beyond the 12 cards shown above.
+ */
+function AllQuestions({ questions, shown, track, chapter }: { questions: QuestionCard[]; shown: QuestionCard[]; track: Track; chapter: string }) {
+  const seen = new Set(shown.map((q) => q.id));
+  const rest = questions.filter((q) => q.publicPage && !seen.has(q.id));
+  if (rest.length === 0) return null;
+  const byYear = new Map<string, QuestionCard[]>();
+  for (const q of [...rest].sort((a, b) => (b.year ?? 0) - (a.year ?? 0))) {
+    const key = q.year ? String(q.year) : "Other";
+    byYear.set(key, [...(byYear.get(key) ?? []), q]);
+  }
+  return (
+    <section aria-labelledby="all-h" className="mt-12">
+      <h2 id="all-h" className="mb-4 text-lg font-semibold">
+        More {chapter} questions
+      </h2>
+      <div className="space-y-6">
+        {[...byYear].map(([year, list]) => (
+          <div key={year}>
+            <h3 className="mb-2 font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">
+              {year === "Other" ? "Other questions" : `Previous-year questions ${year}`}
+            </h3>
+            <ul className="space-y-1.5 text-sm">
+              {list.map((q) => (
+                <li key={q.id}>
+                  <Link href={`/${track}/questions/${q.slug}/`} className="line-clamp-1 text-fg-soft underline-offset-4 hover:text-fg hover:underline">
+                    {linkText(q)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function linkText(q: QuestionCard): string {
+  const plain = richTextToPlain(q.stem).replace(/\s+/g, " ").trim();
+  if (plain.length >= 12) return plain.length > 140 ? `${plain.slice(0, 139).trimEnd()}…` : plain;
+  // No readable text: fall back to the slug's words ("a-person-has-three-bags-jee-main-2026").
+  return q.slug.replace(/-/g, " ");
 }

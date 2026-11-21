@@ -110,6 +110,13 @@ export const Question = z.object({
   publicPage: z.boolean(),
   /** Server robots decision (API mode). Undefined means "no opinion" (treated as indexable). */
   indexable: z.boolean().optional(),
+  /** API mode: the backend's title/description, written from the question's own words. */
+  seo: z.object({ title: z.string(), description: z.string() }).optional(),
+  /**
+   * Machine-read text of a stem that is shown as an image (previous-year papers). Shown as a labelled
+   * "text version" under the original so the question's words are in the page; the image stays authoritative.
+   */
+  textVersion: z.string().optional(),
 });
 export type Question = z.infer<typeof Question>;
 

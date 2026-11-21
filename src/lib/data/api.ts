@@ -136,13 +136,22 @@ function cardsOf(page: PublicChapter): QuestionCard[] {
   return page.questions.map((q) => toQuestionCard(q, { exam, subject: sub.subject }));
 }
 
-/** One backend chapter's published questions (first 100). */
+/** Upper bound on one chapter's listing (pages of 100); the largest JEE Main chapter is well under this. */
+const CHAPTER_CARD_CAP = 1500;
+
+/** One backend chapter's published questions, every page (the chapter page links each one: crawl paths). */
 async function apiChapterCards(chapterSlug: string): Promise<QuestionCard[]> {
   "use cache";
   cacheLife(CONTENT);
-  const r = await publicChapter(chapterSlug, { limit: 100 });
-  tagAll(r.tags);
-  return cardsOf(r.data);
+  const out: QuestionCard[] = [];
+  let cursor: string | undefined;
+  do {
+    const r = await publicChapter(chapterSlug, { limit: 100, cursor });
+    tagAll(r.tags);
+    out.push(...cardsOf(r.data));
+    cursor = r.meta?.page?.next_cursor ?? undefined;
+  } while (cursor && out.length < CHAPTER_CARD_CAP);
+  return out;
 }
 
 export async function apiChapterQuestions(subject: SubjectId, chapter: string, track?: Track): Promise<QuestionCard[]> {

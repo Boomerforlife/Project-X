@@ -162,6 +162,21 @@ describe("content adapters on recorded API fixtures", () => {
     expect(() => Question.parse(q)).not.toThrow();
   });
 
+  it("an image-only stem exposes its machine-read alt text as a text version, and the backend SEO is kept", () => {
+    const pq = structuredClone(load("question-demo.json", PublicQuestionSchema));
+    const words = "The ionization energy of sodium in kJ mol-1, if radiation of wavelength 242 nm is just sufficient";
+    pq.content = [{ type: "image", asset_id: "a1", url: "https://x/a1.png", alt: words, width: 800, height: 200 }];
+    const q = toQuestion(pq);
+    expect(q.textVersion).toBe(words);
+    expect(q.seo).toEqual({ title: pq.seo.title, description: pq.seo.description });
+    expect(() => Question.parse(q)).not.toThrow();
+    // A placeholder alt or a stem that already has text gets no text version.
+    pq.content = [{ type: "image", asset_id: "a1", url: "https://x/a1.png", alt: "Question 12 (image ab12cd34ef56)", width: 800, height: 200 }];
+    expect(toQuestion(pq).textVersion).toBeUndefined();
+    pq.content = [{ type: "paragraph", text: words }, { type: "image", asset_id: "a1", url: "https://x/a1.png", alt: words, width: 800, height: 200 }];
+    expect(toQuestion(pq).textVersion).toBeUndefined();
+  });
+
   it("toChapters unions the tree with the editorial overlay", () => {
     const tree = load("tree-jee-main.json", TaxonomyTreeSchema);
     const chapters = toChapters([tree], chapterFx);
