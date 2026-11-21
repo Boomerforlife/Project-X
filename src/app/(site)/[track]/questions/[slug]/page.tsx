@@ -42,13 +42,16 @@ export async function generateMetadata({ params }: PageProps<"/[track]/questions
     const data = await load(p.track, p.slug);
     if (data.kind !== "ok") return NOT_FOUND_METADATA;
     const { q, s, c, track, sol } = data;
-    const plain = richTextToPlain(q.stem);
-    // Previous-year questions are images (no text stem): name them by their paper instead of an empty excerpt.
-    const label = plain.length >= 20 ? (plain.length > 60 ? plain.slice(0, 57).trimEnd() + "…" : plain) : sourceLabel(q.source);
+    const words = questionWords(q);
     const worked = (sol?.steps.length ?? 0) > 0 ? " Worked solution included." : " Official answer key included.";
+    // Lead with the question's own words: that is what a student types into a search box.
+    const title = words ? `${clip(words, 58)} | ${shortSource(q, c.name)}` : `${c.name} question: ${sourceLabel(q.source)}`;
+    const description = words
+      ? clip(`${clip(words, 105)} ${sourceLabel(q.source)}, ${s.name} (${c.name}).${worked}`, 165)
+      : `${TRACK_INFO[track].name} ${s.name} · ${c.name}. ${sourceLabel(q.source)}.${worked}`;
     return pageMetadata({
-      title: `${c.name} question: ${label}`,
-      description: `${TRACK_INFO[track].name} ${s.name} · ${c.name}. ${plain.length >= 20 ? `${plain.slice(0, 120)}${plain.length > 120 ? "…" : ""}` : sourceLabel(q.source) + "."}${worked}`,
+      title,
+      description,
       path: `/${track}/questions/${q.slug}/`,
       // Disputed or solution-less questions stay out of the index until resolved.
       noindex: !isQuestionIndexable(q),
@@ -76,9 +79,9 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
           { name: c.name, path: `/${track}/${s.id}/${c.slug}/` },
           { name: "Question", path: `/${track}/questions/${q.slug}/` },
         ]}
-        eyebrow="Practice question"
-        title={c.name}
-        titleClass="text-2xl sm:text-3xl"
+        eyebrow={`${c.name} · ${q.source.kind === "pyq" ? "Previous-year question" : "Practice question"}`}
+        title={heading(q, c.name)}
+        titleClass="text-xl! sm:text-2xl! leading-snug"
       >
         <div className="mt-6 flex flex-wrap items-center gap-2">
           <SubjectTag subject={s.id} label={s.name} />
@@ -101,6 +104,17 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
           <div className="text-lg leading-relaxed">
             <Blocks blocks={q.blocks} fallback={q.stem} />
           </div>
+          {q.textVersion && (
+            <section aria-labelledby="tv-h" className="mt-4 rounded-md border border-line bg-surface/40 p-4">
+              <h2 id="tv-h" className="text-xs font-medium uppercase tracking-wider text-fg-muted">
+                Text version
+              </h2>
+              <p className="mt-2 leading-relaxed text-fg-soft">{q.textVersion}</p>
+              <p className="mt-2 text-xs text-fg-subtle">
+                Read automatically from the question paper, so symbols and formulas may be garbled. The image above is the original.
+              </p>
+            </section>
+          )}
 
           {q.options.length > 0 && (
             <ol className="mt-8 space-y-3" aria-label="Options">
@@ -157,6 +171,33 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
       </div>
     </>
   );
+}
+
+/** The question's own words: its text stem, else the machine-read text of an image stem. Empty when neither reads. */
+function questionWords(q: Question): string {
+  const plain = richTextToPlain(q.stem).replace(/\s+/g, " ").trim();
+  if (plain.length >= 20) return plain;
+  return q.textVersion ?? "";
+}
+
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.(-]+$/, "")}…`;
+}
+
+/** "JEE Main 2024 PYQ" for previous-year questions, else the chapter (keeps titles short). */
+function shortSource(q: Question, chapter: string): string {
+  if (q.source.kind !== "pyq") return chapter;
+  const exam = q.exams.some((e) => e === "jee-advanced") ? "JEE Advanced" : q.exams.some((e) => e === "neet") ? "NEET" : "JEE Main";
+  return `${exam} ${q.source.year} PYQ`;
+}
+
+/** H1: the start of the question itself (unique per page); the chapter name when the question has no readable text. */
+function heading(q: Question, chapter: string): string {
+  const words = questionWords(q);
+  return words ? clip(words, 110) : `${chapter} question`;
 }
 
 function SourceLabel({ q }: { q: Question }) {

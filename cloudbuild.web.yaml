@@ -8,6 +8,8 @@ substitutions:
   _SUPABASE_PUBLISHABLE_KEY: ""
   _SITE_URL: ""
   _AUTH_GOOGLE: "off"
+  # "true" lets search engines index public pages (production domain only; docs/SEO_LAUNCH_CHECKLIST.md).
+  _ALLOW_INDEXING: "false"
   # "on" = full papers from the API (GET /public/papers); "demo" = fixture papers; "off" hides /tests/.
   _FEATURE_PAPERS: "off"
   # Ads stay off until AdSense units exist (docs/MONETIZATION_HANDOVER.md section 5). The publisher id is built in.
@@ -31,6 +33,7 @@ steps:
       - --build-arg=NEXT_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}
       - --build-arg=NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${_SUPABASE_PUBLISHABLE_KEY}
       - --build-arg=NEXT_PUBLIC_SITE_URL=${_SITE_URL}
+      - --build-arg=NEXT_PUBLIC_ALLOW_INDEXING=${_ALLOW_INDEXING}
       - --build-arg=NEXT_PUBLIC_AUTH_GOOGLE=${_AUTH_GOOGLE}
       - --build-arg=NEXT_PUBLIC_FEATURE_PAPERS=${_FEATURE_PAPERS}
       - --build-arg=NEXT_PUBLIC_ADS=${_ADS}

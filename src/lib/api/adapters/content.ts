@@ -177,7 +177,22 @@ export function toQuestion(q: PublicQuestion): Question {
     // AI-checked (not human-verified) items are practice-only: no public question page (same rule as the card adapters).
     publicPage: q.attribution.origin !== "AI_GENERATED",
     indexable: q.indexable && q.seo.robots === "index,follow",
+    seo: { title: q.seo.title, description: q.seo.description },
+    ...textVersionOf(q.content),
   };
+}
+
+/** A stem that is only images (scanned papers) gets its images' machine-read alt text as a "text version". */
+function textVersionOf(blocks: readonly PublicContentBlock[]): { textVersion?: string } {
+  if (blocks.some((b) => b.type !== "image")) return {};
+  const text = blocks
+    .flatMap((b) => (b.type === "image" ? [b.alt.trim()] : []))
+    .filter((t) => t.length > 0)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Placeholder alts ("Question 12 (image ab12...)") and fragments carry no words worth showing.
+  return text.length >= 40 && !/^Question \d+ \(image /.test(text) ? { textVersion: text } : {};
 }
 
 const GENERATED_BY = {
