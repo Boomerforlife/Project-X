@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { getChapter, getPublicQuestions, getQuestionPage, getQuestions, getRelatedQuestions, getSubjects } from "@/lib/data";
 import { TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
+import { stripPaperHeader } from "@/lib/api/adapters/blocks";
 import { sourceLabel } from "@/lib/source";
 import { SITE } from "@/lib/site";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
@@ -53,8 +54,9 @@ export async function generateMetadata({ params }: PageProps<"/[track]/questions
       title,
       description,
       path: `/${track}/questions/${q.slug}/`,
-      // Disputed or solution-less questions stay out of the index until resolved.
-      noindex: !isQuestionIndexable(q),
+      // Disputed or solution-less questions stay out of the index until resolved; so does an image-only question with
+      // no readable text (a thin page: nothing for a search engine or AI answer engine to read).
+      noindex: !isQuestionIndexable(q) || !words,
       ogType: "article",
     });
   });
@@ -180,7 +182,7 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
 
 /** The question's own words: its text stem, else the machine-read text of an image stem. Empty when neither reads. */
 function questionWords(q: Question): string {
-  const plain = richTextToPlain(q.stem).replace(/\s+/g, " ").trim();
+  const plain = stripPaperHeader(richTextToPlain(q.stem).replace(/\s+/g, " ").trim());
   if (plain.length >= 20) return plain;
   return q.textVersion ?? "";
 }

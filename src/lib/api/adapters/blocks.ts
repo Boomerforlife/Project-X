@@ -55,10 +55,29 @@ export function figuresNotInBlocks<A extends { id: string }>(assets: readonly A[
 }
 
 /**
- * Backend excerpts are cut at 200 chars and can end inside `$...$`. Drop an
- * unterminated math span so KaTeX never sees a dangling delimiter.
+ * NTA's scanned JEE Main papers print a per-question header ("Orientation : Vertical Correct Marks : 4 Wrong Marks : 1",
+ * or "Orientation Vertical • ●") that OCR reads into the stem text. It is paper chrome, not the question, so it is
+ * dropped from the start of any text we derive titles, headings, descriptions and excerpts from. Only a LEADING run is
+ * removed: the same words later in a stem are left alone.
  */
-export function safeExcerpt(text: string): string {
+const PAPER_HEADER_TOKEN =
+  /^(?:orientation\s*:?\s*(?:vertical|horizontal)\b|correct\s+marks\s*:?\s*[-+]?\d+(?:\.\d+)?|wrong\s+marks\s*:?\s*[-+]?\d+(?:\.\d+)?|[•●▪■◦,;:])\s*/i;
+
+export function stripPaperHeader(text: string): string {
+  let out = text.trimStart();
+  for (let m = PAPER_HEADER_TOKEN.exec(out); m && m[0].length > 0; m = PAPER_HEADER_TOKEN.exec(out)) {
+    out = out.slice(m[0].length);
+  }
+  return out;
+}
+
+/**
+ * Backend excerpts are cut at 200 chars and can end inside `$...$`. Drop an
+ * unterminated math span so KaTeX never sees a dangling delimiter. Also drops a
+ * leading scanned-paper header (see `stripPaperHeader`).
+ */
+export function safeExcerpt(raw: string): string {
+  const text = stripPaperHeader(raw);
   const dollars: number[] = [];
   for (let i = 0; i < text.length; i++) {
     if (text[i] === "\\") {

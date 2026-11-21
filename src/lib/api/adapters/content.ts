@@ -21,7 +21,7 @@ import type {
   SubjectId,
   VerificationStatus,
 } from "@/contracts";
-import { blocksToRichText, imageAssets, safeExcerpt } from "./blocks";
+import { blocksToRichText, imageAssets, safeExcerpt, stripPaperHeader } from "./blocks";
 import { difficultyFromApi, examFromApi, subjectFromApi, typeFromApi } from "./ids";
 
 type PublicVerification = PublicQuestion["verification"]["status"];
@@ -185,12 +185,14 @@ export function toQuestion(q: PublicQuestion): Question {
 /** A stem that is only images (scanned papers) gets its images' machine-read alt text as a "text version". */
 function textVersionOf(blocks: readonly PublicContentBlock[]): { textVersion?: string } {
   if (blocks.some((b) => b.type !== "image")) return {};
-  const text = blocks
-    .flatMap((b) => (b.type === "image" ? [b.alt.trim()] : []))
-    .filter((t) => t.length > 0)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const text = stripPaperHeader(
+    blocks
+      .flatMap((b) => (b.type === "image" ? [b.alt.trim()] : []))
+      .filter((t) => t.length > 0)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
   // Placeholder alts ("Question 12 (image ab12...)") and fragments carry no words worth showing.
   return text.length >= 40 && !/^Question \d+ \(image /.test(text) ? { textVersion: text } : {};
 }
