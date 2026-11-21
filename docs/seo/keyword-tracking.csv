@@ -1,0 +1,36 @@
+group,keyword,target_url,intent,priority,autocomplete_seen_2026_11_21,baseline_gsc_position,baseline_gsc_impressions_28d,baseline_gsc_clicks_28d,date_baseline,latest_position,latest_impressions_28d,latest_clicks_28d,date_latest,notes
+branded,tabbyprep,/,navigational,P0,no suggestions (no brand demand yet),,,,,,,,,Must rank #1. Live site said "Tabby" until 64f09b7.
+branded,tabby prep,/,navigational,P0,collides with Tabby BNPL suggestions,,,,,,,,,Watch for SERP confusion with Tabby payments.
+branded,tabbyprep jee,/,navigational,P0,,,,,,,,,,
+high-intent,online jee preparation,/,commercial,P2,yes,,,,,,,,,Dominated by coaching brands; long horizon.
+high-intent,jee preparation platform,/,commercial,P2,,,,,,,,,,
+high-intent,jee practice online,/jee/,commercial,P1,"yes (""jee practice questions online"")",,,,,,,,,
+high-intent,online jee question bank,/jee/,commercial,P2,"yes (""jee question bank chapter wise"")",,,,,,,,,
+high-intent,best website for jee pyqs,/,commercial,P2,yes,,,,,,,,,Earned via mentions/listicles more than on-page.
+question,jee main chapter wise pyq,/jee/,informational,P1,yes,,,,,,,,,
+question,jee main chapter wise questions,/jee/,informational,P1,yes,,,,,,,,,
+question,jee main previous year questions,/jee/,informational,P1,yes,,,,,,,,,Papers hub /jee/pyq/ is hidden in prod (papers flag); map to /jee/ until it ships.
+question,jee mains questions with solutions,/jee/,informational,P2,yes,,,,,,,,,Blocked on worked solutions (4449 indexed pages have answer only).
+question,jee advanced practice questions,(none),informational,P3,yes,,,,,,,,,0 published JEE Advanced questions. No page until content exists.
+analysis,jee main chapter wise weightage,/jee/chapter-weightage/,informational,P1,yes (+2026/2027/analysis),,,,,,,,,New page; counted from our own data.
+analysis,jee main chapter wise weightage physics,/jee/chapter-weightage/#physics,informational,P1,yes,,,,,,,,,
+analysis,jee main chapter wise weightage chemistry,/jee/chapter-weightage/#chemistry,informational,P1,yes,,,,,,,,,
+analysis,jee main chapter wise weightage maths,/jee/chapter-weightage/#mathematics,informational,P1,yes,,,,,,,,,
+subject,jee main physics pyq,/jee/physics/,informational,P1,yes,,,,,,,,,
+subject,jee main chemistry pyq,/jee/chemistry/,informational,P1,yes,,,,,,,,,
+subject,jee mains maths practice questions,/jee/mathematics/,informational,P1,yes,,,,,,,,,
+subject,jee physics practice questions,/jee/physics/,informational,P2,yes,,,,,,,,,
+chapter,kinematics jee mains pyq,/jee/physics/kinematics/,informational,P0,yes,,,,,,,,,Template for all 57 chapters: "<chapter> jee mains pyq".
+chapter,electrostatics jee mains pyq,/jee/physics/electrostatics/,informational,P0,,,,,,,,,,
+chapter,rotational motion jee mains pyq,/jee/physics/rotational-motion/,informational,P0,,,,,,,,,,
+chapter,thermodynamics jee mains questions with solutions,/jee/physics/thermodynamics/,informational,P1,yes,,,,,,,,,
+chapter,matrices jee mains questions with solutions,/jee/mathematics/matrices-and-determinants/,informational,P1,yes,,,,,,,,,
+chapter,probability jee mains questions with solutions,/jee/mathematics/statistics-and-probability/,informational,P1,yes,,,,,,,,,
+chapter,integration jee mains questions with solutions,/jee/mathematics/integral-calculus/,informational,P1,yes,,,,,,,,,
+chapter,limits jee mains questions with solutions,/jee/mathematics/limit-continuity-and-differentiability/,informational,P1,yes,,,,,,,,,
+chapter,trigonometry jee main questions with solutions,/jee/mathematics/trigonometry/,informational,P1,yes,,,,,,,,,
+year,jee main 2026 pyq chapterwise,/jee/,informational,P1,yes (+physics/chemistry/maths),,,,,,,,,Candidate for a year filter page once /jee/pyq/2026/ ships.
+mock,free jee mock test,(planned) /jee/mock-tests/,commercial,P1,yes (+without login/chapter wise),,,,,,,,,Free plan: 2 full papers a month; needs a public landing page.
+long-tail,jee preparation without coaching,(planned) /resources/jee-main-self-study/,informational,P2,yes,,,,,,,,,Editorial; see calendar.
+long-tail,where to practice questions for jee mains,/,informational,P2,yes,,,,,,,,,
+long-tail,practice jee questions online for free,/,commercial,P1,,,,,,,,,,

@@ -20,7 +20,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // A track with no active content (inactive exam) is a noindex "coming soon" page: not listed.
     if (subjects.length === 0) continue;
     // Hubs are listed only when they lead to real content (mirrors the pages' robots decision).
-    if (isTrackIndexable(chapters, counts)) out.push({ url: absoluteUrl(`/${track}/`), priority: 0.9 });
+    if (isTrackIndexable(chapters, counts)) {
+      out.push({ url: absoluteUrl(`/${track}/`), priority: 0.9 });
+      // Weightage page is noindex only when the track has no questions, so it is listed with its hub.
+      out.push({ url: absoluteUrl(`/${track}/chapter-weightage/`), priority: 0.8 });
+    }
     out.push(
       ...subjects.filter((s) => isSubjectIndexable(s.id, chapters, counts)).map((s) => ({ url: absoluteUrl(`/${track}/${s.id}/`), priority: 0.8 })),
     );

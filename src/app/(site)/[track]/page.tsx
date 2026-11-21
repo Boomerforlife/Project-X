@@ -7,7 +7,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { FULL_PAPERS, PAPERS_VISIBLE, getChapters, getExams, getPublicPapers, getQuestionCounts, getSubjects } from "@/lib/data";
-import { EXAMS, TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
+import { EXAMS, TRACKS, TRACK_INFO, examLabel, isTrack } from "@/lib/exams";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
@@ -18,19 +18,26 @@ export async function generateStaticParams() {
 const COPY = {
   jee: {
     title: "JEE Main & Advanced practice by subject and chapter",
-    description: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with step-by-step solutions, attempt full papers in an exam-style CBT, and track what to revisit.",
-    descriptionNoPapers: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with step-by-step solutions and track what to revisit.",
+    description: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with answers checked against the official key, attempt full papers in an exam-style CBT, and track what to revisit.",
+    descriptionNoPapers: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with answers checked against the official key and track what to revisit.",
     heading: "JEE practice",
+    /** Used while JEE Main is the only exam with questions: no claim about JEE Advanced. */
+    mainOnly: {
+      title: "JEE Main Chapter-wise Questions: Physics, Chemistry & Maths PYQs",
+      description: (n: string) =>
+        `${n} JEE Main questions, most of them previous-year questions (PYQs), sorted by chapter across Physics, Chemistry and Mathematics, with answers. Practise free online in learning or timed mode, then sit full papers in an exam-style CBT.`,
+      heading: "JEE Main chapter-wise practice",
+    },
     lede: "One syllabus, two exams. Practise chapter by chapter, then sit full JEE Main or JEE Advanced papers in the exam-style interface.",
-    ledeNoPapers: "One syllabus, two exams. Practise chapter by chapter with step-by-step solutions.",
+    ledeNoPapers: "One syllabus, two exams. Practise chapter by chapter and check every answer.",
   },
   neet: {
     title: "NEET UG practice by subject and chapter",
-    description: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise with step-by-step solutions and sit full NEET papers in an exam-style CBT.",
-    descriptionNoPapers: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise with step-by-step solutions.",
+    description: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise and check every answer, then sit full NEET papers in an exam-style CBT.",
+    descriptionNoPapers: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise and check every answer.",
     heading: "NEET practice",
     lede: "Physics, Chemistry, Botany and Zoology, chapter by chapter — then full papers in the exam-style interface.",
-    ledeNoPapers: "Physics, Chemistry, Botany and Zoology, chapter by chapter, with step-by-step solutions.",
+    ledeNoPapers: "Physics, Chemistry, Botany and Zoology, chapter by chapter, with every answer checked.",
   },
 } as const;
 
@@ -42,9 +49,10 @@ export async function generateMetadata({ params }: PageProps<"/[track]">) {
     const [subjects, chapters, counts, papers] = await Promise.all([getSubjects(track), getChapters({ track }), getQuestionCounts(track), getPublicPapers({ track })]);
     // Only claim full papers when real (non-demo) papers exist; only index when some chapter has enough published questions.
     const hasPapers = papers.some((p) => !p.isDemo);
+    const mainOnly = track === "jee" && examLabel(track, await getExams(track)) === "JEE Main" && counts.total > 0 ? COPY.jee.mainOnly : null;
     return pageMetadata({
-      title: COPY[track].title,
-      description: hasPapers ? COPY[track].description : COPY[track].descriptionNoPapers,
+      title: mainOnly?.title ?? COPY[track].title,
+      description: mainOnly ? mainOnly.description(counts.total.toLocaleString("en-IN")) : hasPapers ? COPY[track].description : COPY[track].descriptionNoPapers,
       path: `/${track}/`,
       noindex: subjects.length === 0 || !isTrackIndexable(chapters, counts),
     });
@@ -65,7 +73,7 @@ export default async function TrackHubPage({ params }: PageProps<"/[track]">) {
           { name: info.name, path: `/${track}/` },
         ]}
         eyebrow={(exams.length ? exams : info.exams).map((e) => EXAMS[e].name).join(" · ")}
-        title={COPY[track].heading}
+        title={track === "jee" && exams.length === 1 && exams[0] === "jee-main" && counts.total > 0 ? COPY.jee.mainOnly.heading : COPY[track].heading}
         lede={papers.some((p) => !p.isDemo) ? COPY[track].lede : COPY[track].ledeNoPapers}
       >
         <div className="mt-8 flex flex-wrap gap-2">
@@ -74,6 +82,11 @@ export default async function TrackHubPage({ params }: PageProps<"/[track]">) {
               <span className={SUBJECT_STYLE[s.id].text}>{s.name}</span>
             </Link>
           ))}
+          {counts.total > 0 && (
+            <Link href={`/${track}/chapter-weightage/`} className="rounded-md border border-line px-3 py-1.5 text-sm text-fg-soft hover:border-line-strong hover:text-fg">
+              Chapter-wise weightage →
+            </Link>
+          )}
           {subjects.length > 0 && (
             <Link href={`/${track}/pyq/`} className="rounded-md border border-line px-3 py-1.5 text-sm text-fg-soft hover:border-line-strong hover:text-fg">
               Previous year papers →

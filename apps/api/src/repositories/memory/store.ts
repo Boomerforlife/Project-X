@@ -252,7 +252,7 @@ function contentRepo(s: MemoryState): ContentRepo {
           const held = qs.some((q) => q.answer_key !== null && q.publication_status !== 'PUBLISHED');
           const by = new Map<string, number>();
           for (const q of pub) if (q.subject_id) by.set(q.subject_id, (by.get(q.subject_id) ?? 0) + 1);
-          return { p, n: pub.length, held, sections: [...by].map(([subject_id, n]) => ({ subject_id, n })) };
+          return { p, n: pub.length, held: held || pub.length * 10 < qs.length * 9, sections: [...by].map(([subject_id, n]) => ({ subject_id, n })) };
         })
         .filter((x) => x.n > 0 && !x.held)
         .sort((a, b) => (b.p.exam_date ?? '').localeCompare(a.p.exam_date ?? '') || (b.p.shift ?? 0) - (a.p.shift ?? 0) || a.p.slug.localeCompare(b.p.slug))

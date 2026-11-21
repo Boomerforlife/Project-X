@@ -7,28 +7,37 @@ import { ButtonLink } from "@/components/ui/Button";
 import type { VerificationStatus } from "@/contracts";
 import { cn } from "@/lib/cn";
 import type { Chapter, Subject } from "@/contracts";
-import { FULL_PAPERS, PAPERS_VISIBLE, getChapters, getSubjects } from "@/lib/data";
-import { EXAM_LIST } from "@/lib/exams";
+import { brandFacts, fmt, type TrackFacts } from "@/lib/brand-facts";
+import { FULL_PAPERS, PAPERS_VISIBLE, getChapters, getExams, getSubjects } from "@/lib/data";
+import { EXAMS, EXAM_LIST } from "@/lib/exams";
 import { pageMetadata, siteJsonLd } from "@/lib/seo";
 import { DATA_SOURCE, SITE } from "@/lib/site";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
+/** Brand first, then what students search for ("online JEE practice", "JEE Main PYQs"). */
+const HOME_TITLE = `${SITE.name}: Free JEE Main PYQs & Chapter-wise Practice Online`;
+
 export const metadata = {
-  ...pageMetadata({ title: `${SITE.name} — ${SITE.tagline}`, description: SITE.description, path: "/" }),
-  title: { absolute: `${SITE.name} — ${SITE.tagline}` },
+  ...pageMetadata({ title: HOME_TITLE, description: SITE.description, path: "/" }),
+  title: { absolute: HOME_TITLE },
 };
 
 export default async function HomePage() {
-  const [subjects, chapters] = await Promise.all([getSubjects(), getChapters()]);
+  const [subjects, chapters, facts, jeeExams] = await Promise.all([getSubjects(), getChapters(), brandFacts().catch(() => []), getExams("jee")]);
+  const jee = facts.find((f) => f.track === "jee");
+  // Only exams that have questions today are named in the hero (no JEE Advanced/NEET claims before they exist).
+  const live = facts.flatMap((f) => (f.track === "jee" ? jeeExams.map((e) => EXAMS[e].name) : [f.name]));
 
   return (
     <>
       <JsonLd data={siteJsonLd()} />
-      <Hero />
+      <Hero exams={live} neet={facts.some((f) => f.track === "neet")} />
+      {jee && <Inside facts={jee} />}
       <Loop />
       <ExamsSection subjects={subjects} chapters={chapters} />
       <Modes />
       <Trust />
+      <CommonQuestions facts={jee} />
       <ClosingCta />
     </>
   );
@@ -38,26 +47,31 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">{children}</p>;
 }
 
-function Hero() {
+function Hero({ exams, neet }: { exams: string[]; neet: boolean }) {
   return (
     <section className="relative overflow-hidden border-b border-line">
       <div aria-hidden className="dot-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_70%_40%,black,transparent_70%)]" />
       <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pt-16 pb-20 sm:px-6 md:grid-cols-[1.15fr_1fr] md:pt-24 md:pb-28">
         <div>
           <p className="pixel-corners inline-flex items-center gap-2 bg-surface-2 px-3 py-1.5 font-pixel text-[0.7rem] uppercase tracking-widest text-fg-soft">
-            <span aria-hidden className="size-1.5 bg-ok" /> JEE Main · JEE Advanced · NEET
+            <span aria-hidden className="size-1.5 bg-ok" /> {exams.length ? exams.join(" · ") : "JEE Main"} · Physics · Chemistry · Maths
           </p>
-          <h1 className="mt-6 text-[2.6rem] leading-[1.02] font-semibold sm:text-6xl lg:text-[4.25rem]">
-            Practise.
-            <br />
-            Understand.
-            <br />
-            <span className="caret-block">Improve</span>
+          {/* One H1 that says what the site is (read by search engines and screen readers); the display line stays the visual. */}
+          <h1 className="mt-6">
+            <span className="block max-w-md text-lg leading-snug font-medium text-fg-soft sm:text-xl">
+              {SITE.name}: online JEE preparation with previous-year questions, chapter by chapter
+            </span>{" "}
+            <span className="mt-5 block text-[2.6rem] leading-[1.02] font-semibold sm:text-6xl lg:text-[4.25rem]">
+              Practise.
+              <br />
+              Understand.
+              <br />
+              <span className="caret-block">Improve</span>
+            </span>
           </h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-fg-muted">
-            {FULL_PAPERS
-              ? "Practise JEE and NEET questions chapter by chapter, sit full papers in an exam-style CBT, read clear step-by-step solutions, and keep the mistakes worth revisiting in one place."
-              : "Practise JEE questions chapter by chapter, read clear step-by-step solutions, and keep the mistakes worth revisiting in one place."}
+            Practise {neet ? "JEE and NEET" : "JEE Main"} previous-year questions chapter by chapter{FULL_PAPERS ? ", sit full papers in an exam-style CBT" : ""}, check
+            every answer, and keep the mistakes worth revisiting in one place. Free to start.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <ButtonLink href="/signup/" size="lg" pixel>
@@ -111,7 +125,7 @@ function Loop() {
             ))}
           </div>
         </LoopStep>
-        <LoopStep n={2} title="Understand" body="See the answer and a step-by-step solution, with an honest label for how it was checked. Ask for a hint before you give up.">
+        <LoopStep n={2} title="Understand" body="See the answer, with a step-by-step solution where one is written and an honest label for how it was checked.">
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2 text-ok">
               <span aria-hidden>✓</span> Correct, option B
@@ -202,7 +216,9 @@ function Modes() {
 }
 
 function Trust() {
-  const shown: VerificationStatus[] = ["official_key_checked", "human_reviewed", "ai_checked", "disputed"];
+  // Only labels questions actually carry today (search engines and AI assistants repeat this list as features).
+  // Add "human_reviewed" back once questions are reviewed by a person.
+  const shown: VerificationStatus[] = ["official_key_checked", "ai_checked", "disputed"];
   return (
     <section aria-labelledby="trust-h" className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 md:grid-cols-[1fr_1.2fr]">
       <div>
@@ -317,6 +333,131 @@ function ExamsSection({ subjects, chapters }: { subjects: Subject[]; chapters: C
           );
         })}
       </div>
+    </section>
+  );
+}
+
+/**
+ * What is on the site, in counts read from the API (never rounded up), with links into the most-asked chapters. Tells
+ * a first-time visitor (and a crawler) what TabbyPrep actually contains without signing in.
+ */
+function Inside({ facts }: { facts: TrackFacts }) {
+  const subjects = facts.subjects.filter((s) => s.questions > 0);
+  return (
+    <section aria-labelledby="inside-h" className="border-b border-line">
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+        <SectionLabel>What&rsquo;s inside</SectionLabel>
+        <h2 id="inside-h" className="mt-3 max-w-3xl text-3xl font-semibold sm:text-4xl">
+          {fmt(facts.questions)} JEE Main questions, sorted by chapter.
+        </h2>
+        <p className="mt-4 max-w-2xl leading-relaxed text-fg-muted">
+          Most are previous-year questions from official JEE Main papers published by the National Testing Agency, shown as they were set, with their answers; a
+          smaller set are practice questions written for the site and labelled as such. Open any chapter to see its questions and how often it has been asked, then
+          practise it free.
+        </p>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {subjects.map((s) => {
+            const all = facts.chapters.filter((c) => c.subject === s.id);
+            const top = [...all].sort((a, b) => b.questions - a.questions).slice(0, 4);
+            const style = SUBJECT_STYLE[s.id as keyof typeof SUBJECT_STYLE];
+            return (
+              <div key={s.id} className="rounded-xl border border-line bg-surface p-6">
+                <h3 className={cn("text-xl font-semibold", style?.text)}>
+                  <Link href={`/${facts.track}/${s.id}/`} className="underline-offset-4 hover:underline">
+                    JEE Main {s.name}
+                  </Link>
+                </h3>
+                <p className="mt-1 text-sm tabular-nums text-fg-muted">
+                  {fmt(s.questions)} questions · {all.length} chapters
+                </p>
+                <p className="mt-5 text-xs text-fg-subtle">Most-asked chapters</p>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {top.map((c) => (
+                    <li key={c.slug} className="flex items-baseline justify-between gap-3">
+                      <Link href={`/${facts.track}/${c.subject}/${c.slug}/`} className="text-fg-soft underline-offset-4 hover:text-fg hover:underline">
+                        {c.name}
+                      </Link>
+                      <span className="shrink-0 text-xs tabular-nums text-fg-subtle">{c.questions}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          <Link href={`/${facts.track}/`} className="text-fg-soft hover:text-fg">
+            All {facts.chapters.length} chapters <span aria-hidden>→</span>
+          </Link>
+          <Link href={`/${facts.track}/chapter-weightage/`} className="text-fg-soft hover:text-fg">
+            JEE Main chapter-wise weightage <span aria-hidden>→</span>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Questions students ask before they sign up, answered in visible text only: no FAQPage markup (CLAUDE.md §15). Every
+ * answer must stay true; counts come from the API.
+ */
+function CommonQuestions({ facts }: { facts?: TrackFacts }) {
+  const items: { q: string; a: React.ReactNode }[] = [
+    {
+      q: `What is ${SITE.name}?`,
+      a: (
+        <>
+          {SITE.name} is an independent online JEE preparation site. It collects JEE Main previous-year questions (PYQs) chapter by chapter so you can practise
+          one topic at a time, check each answer, and keep a notebook of the questions you got wrong. <Link href="/about/">More about {SITE.name}</Link>.
+        </>
+      ),
+    },
+    {
+      q: "Is it free?",
+      a: (
+        <>
+          Yes. Practice questions are unlimited on the free plan{FULL_PAPERS ? ", which also includes a few full papers in the exam-style CBT each month" : ""}. An
+          optional paid plan adds more: <Link href="/pricing/">see what each plan includes</Link>.
+        </>
+      ),
+    },
+    {
+      q: "Where do the questions and answers come from?",
+      a: `Most are previous-year questions from the official JEE Main papers, with answers matched to the answer keys published by the National Testing Agency (NTA). A smaller set are practice questions written for the site, labelled as such. Each question page shows how its answer was checked. ${SITE.name} is not affiliated with NTA.`,
+    },
+    {
+      q: "Can I prepare for JEE without coaching?",
+      a: "Many students do much of their preparation on their own. What helps most is regular practice on real exam questions and an honest review of mistakes, which is what this site is for. It does not replace learning the concepts from your textbooks or teachers.",
+    },
+    ...(facts
+      ? [
+          {
+            q: "Which chapters come up most often?",
+            a: (
+              <>
+                It differs by subject. The <Link href={`/${facts.track}/chapter-weightage/`}>chapter-wise weightage page</Link> counts the questions per chapter
+                and per year across the previous-year questions here.
+              </>
+            ),
+          },
+        ]
+      : []),
+  ];
+  return (
+    <section aria-labelledby="faq-h" className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+      <SectionLabel>Questions</SectionLabel>
+      <h2 id="faq-h" className="mt-3 text-3xl font-semibold sm:text-4xl">
+        Before you start
+      </h2>
+      <dl className="mt-10 grid gap-x-12 gap-y-8 md:grid-cols-2 [&_a]:text-fg [&_a]:underline [&_a]:underline-offset-2">
+        {items.map((i) => (
+          <div key={i.q}>
+            <dt className="font-semibold">{i.q}</dt>
+            <dd className="mt-2 text-sm leading-relaxed text-fg-muted">{i.a}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

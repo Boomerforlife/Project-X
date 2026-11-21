@@ -14,7 +14,7 @@ import { SITE } from "@/lib/site";
 
 export const metadata = pageMetadata({
   title: `Pricing: Free and ${SITE.name} Plus`,
-  description: `Practice and step-by-step solutions are free. ${SITE.name} Plus adds longer study plans, the full diagnostic report and more problem versions. One-time passes, no auto-renewal.`,
+  description: `Practice questions and answers are free. ${SITE.name} Plus adds longer study plans, the full diagnostic report and more problem versions. One-time passes, no auto-renewal.`,
   path: "/pricing/",
 });
 
@@ -43,7 +43,7 @@ export default async function PricingPage() {
     {
       q: "What stays free?",
       a:
-        "Every practice question, step-by-step solutions, bookmarks, the review list, the mistake notebook, progress tracking, the diagnostic and a basic study plan." +
+        "Every practice question with its answer (and step-by-step solution where one is written), bookmarks, the review list, the mistake notebook, progress tracking, the diagnostic and a basic study plan." +
         (FULL_PAPERS && data ? ` Free accounts also get ${data.free.full_papers_per_month} full papers a month.` : ""),
     },
     { q: "Does it renew automatically?", a: "No. Every pass is a single payment. When it ends you go back to Free; your history, bookmarks, plans and results stay." },

@@ -33,7 +33,7 @@ export interface Out<T> {
 /** Exam duration of a full paper, in minutes (NTA: JEE Main 3 h, NEET 3 h 20 min; JEE Advanced 3 h per paper). */
 const PAPER_MINUTES: Record<string, number> = { 'jee-main': 180, 'jee-advanced': 180, neet: 200, 'neet-ug': 200 };
 
-/** Complete previous-year papers of an exam, newest first (only papers whose every keyed question is published). */
+/** Complete previous-year papers of an exam, newest first (every keyed question published, and at least 90% of the paper). */
 export async function listPapers(store: Store, examSlug: string): Promise<Out<PaperSummary[]>> {
   return store.service(async (r) => {
     const tax = new TaxIndex(await r.taxonomy.load());

@@ -42,7 +42,9 @@ export function compareGroups(i: CompareInput): CompareGroup[] {
   const lim = i.free?.limits;
   const practice: CompareRow[] = [
     { feature: "Practice questions", detail: "Chapter, subject and mixed sets", free: yes("Unlimited"), plus: yes("Unlimited") },
-    { feature: "Step-by-step solutions", detail: "With the answer check status shown", free: yes(), plus: yes() },
+    // Previous-year questions carry the official answer key; written step-by-step solutions exist only for some questions
+    // (2026-11-21: none of the indexed PYQs has one yet), so the row promises answers and "solutions where written".
+    { feature: "Answers and solutions", detail: "Official answer key on previous-year questions; step-by-step solutions where written", free: yes(), plus: yes() },
   ];
   // The API strips these for free users, but no published solution has them yet (2026-11-20), so the row stays off
   // until content does; switch `solutionExtras` on then.

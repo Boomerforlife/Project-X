@@ -160,6 +160,9 @@ function contentRepo(tx: Tx): ContentRepo {
           group by p.id
          having count(*) filter (where q.publication_status='PUBLISHED') > 0
             and count(*) filter (where q.answer_key is not null and q.publication_status<>'PUBLISHED') = 0
+            -- A full paper: NTA drops a few questions (no key), never most of them. Papers whose keys are mostly
+            -- missing (e.g. 1 of 89 published) are not offered as full papers.
+            and count(*) filter (where q.publication_status='PUBLISHED') * 10 >= count(*) * 9
           order by p.exam_date desc nulls last, p.shift desc nulls last, p.slug`,
         [examId],
       );
