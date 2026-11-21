@@ -3,6 +3,7 @@
 import type { Question, ResponseValue, Solution } from "@/contracts";
 import { Blocks } from "@/components/content/Blocks";
 import { figuresNotInBlocks } from "@/lib/api/adapters/blocks";
+import { acceptedOptionIds } from "@/lib/practice/check";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 
@@ -31,7 +32,7 @@ export function QuestionBody({
 }) {
   const chosen = new Set(answer?.optionIds ?? []);
   const key = solution?.answer;
-  const correctIds = new Set(key?.type === "single_correct" ? [key.optionId] : key?.type === "multiple_correct" ? key.optionIds : []);
+  const correctIds = new Set(acceptedOptionIds(key));
   const multi = q.type === "multiple_correct";
 
   const toggle = (id: string) => {

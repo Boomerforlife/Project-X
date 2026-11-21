@@ -21,7 +21,7 @@ import type {
   SubjectId,
   VerificationStatus,
 } from "@/contracts";
-import { blocksToRichText, imageAssets, safeExcerpt } from "./blocks";
+import { blocksToRichText, imageAssets, safeExcerpt, stripPaperHeader } from "./blocks";
 import { difficultyFromApi, examFromApi, subjectFromApi, typeFromApi } from "./ids";
 
 type PublicVerification = PublicQuestion["verification"]["status"];
@@ -185,12 +185,14 @@ export function toQuestion(q: PublicQuestion): Question {
 /** A stem that is only images (scanned papers) gets its images' machine-read alt text as a "text version". */
 function textVersionOf(blocks: readonly PublicContentBlock[]): { textVersion?: string } {
   if (blocks.some((b) => b.type !== "image")) return {};
-  const text = blocks
-    .flatMap((b) => (b.type === "image" ? [b.alt.trim()] : []))
-    .filter((t) => t.length > 0)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const text = stripPaperHeader(
+    blocks
+      .flatMap((b) => (b.type === "image" ? [b.alt.trim()] : []))
+      .filter((t) => t.length > 0)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
   // Placeholder alts ("Question 12 (image ab12...)") and fragments carry no words worth showing.
   return text.length >= 40 && !/^Question \d+ \(image /.test(text) ? { textVersion: text } : {};
 }
@@ -225,9 +227,11 @@ export function solutionFromApi(
   const labelOf = (id: string) => optionLabelById.get(id) ?? id;
   let answer: Solution["answer"];
   if (fa.type === "SINGLE_MCQ") {
+    const labels = fa.correct_labels?.length ? [...fa.correct_labels] : fa.correct_option_ids.map(labelOf);
     answer = {
       type: "single_correct",
-      optionId: fa.correct_labels?.[0] ?? labelOf(fa.correct_option_ids[0]!),
+      optionId: labels[0]!,
+      ...(labels.length > 1 ? { alsoAccepted: labels.slice(1) } : {}),
     };
   } else if (fa.type === "MULTI_MCQ") {
     answer = {
@@ -235,11 +239,13 @@ export function solutionFromApi(
       optionIds: fa.correct_labels?.length ? [...fa.correct_labels] : fa.correct_option_ids.map(labelOf),
     };
   } else {
+    const ranges = fa.accepted_ranges.map((r) => ({ min: Number(r.min), max: Number(r.max) })).filter((r) => Number.isFinite(r.min) && Number.isFinite(r.max));
     answer = {
       type: "numerical",
       value: Number(fa.display_value),
       tolerance: 0,
       display: fa.display_value,
+      ...(ranges.length ? { ranges } : {}),
     };
   }
   return {

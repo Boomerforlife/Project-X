@@ -3,9 +3,10 @@ import { cn } from "@/lib/cn";
 import { sourceLabel } from "@/lib/source";
 import { DIFFICULTY_LABEL, QUESTION_TYPE_LABEL, SUBJECT_STYLE } from "@/lib/subjects";
 
-export function Chip({ className, children }: { className?: string; children: React.ReactNode }) {
+export function Chip({ className, children, title }: { className?: string; children: React.ReactNode; title?: string }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex h-6 items-center gap-1.5 rounded-sm border border-line px-2 text-xs font-medium text-fg-soft",
         className,
@@ -28,8 +29,10 @@ export function SubjectTag({ subject, label }: { subject: SubjectId; label: stri
 
 export function DifficultyChip({ difficulty }: { difficulty: Difficulty }) {
   const bars = { easy: 1, medium: 2, hard: 3 }[difficulty];
+  // Exam bodies publish no difficulty: every rating we show is an estimate (rubric-based, later student results).
   return (
-    <Chip>
+    <Chip title="Estimated difficulty, not an official rating">
+      <span className="sr-only">Estimated difficulty: </span>
       <span aria-hidden className="flex items-end gap-px">
         {[1, 2, 3].map((n) => (
           <span key={n} className={cn("w-[3px]", n <= bars ? "bg-fg-soft" : "bg-line-strong")} style={{ height: 3 + n * 2 }} />

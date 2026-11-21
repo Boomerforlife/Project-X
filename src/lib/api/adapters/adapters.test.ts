@@ -16,7 +16,7 @@ import {
   TaxonomyExamSchema,
   TaxonomyTreeSchema,
 } from "../schemas";
-import { blocksToRichText, figuresNotInBlocks, imageAssets, safeExcerpt } from "./blocks";
+import { blocksToRichText, figuresNotInBlocks, imageAssets, safeExcerpt, stripPaperHeader } from "./blocks";
 import { chapterSummary, practiceToCard, toChapters, toCounts, toQuestion, toQuestionCard, toSolution, toSubject } from "./content";
 import { difficultyFromApi, examFromApi, examToApi, subjectFromApi, typeFromApi, typeToApi } from "./ids";
 
@@ -85,6 +85,19 @@ describe("blocks", () => {
     expect(safeExcerpt("Cost is \\$5 and $x$ ok")).toBe("Cost is \\$5 and $x$ ok");
     expect(safeExcerpt("plain")).toBe("plain");
   });
+  it("strips the scanned-paper header OCR reads into JEE Main stems, only at the start", () => {
+    expect(stripPaperHeader("Orientation : Vertical Correct Marks : 4 Wrong Marks : 1 The equation of the normal is :")).toBe(
+      "The equation of the normal is :",
+    );
+    expect(stripPaperHeader("Orientation Vertical • ● Let n > 2 be an integer.")).toBe("Let n > 2 be an integer.");
+    expect(stripPaperHeader("Orientation : Vertical Correct Marks : 4 Wrong Marks : 1 , if the eccentricity is √5")).toBe("if the eccentricity is √5");
+    // Real question text that merely mentions marks or orientation is untouched.
+    expect(stripPaperHeader("A student scores 4 marks per correct answer. Correct Marks : 4")).toBe(
+      "A student scores 4 marks per correct answer. Correct Marks : 4",
+    );
+    expect(stripPaperHeader("Orientation of a dipole in a uniform field")).toBe("Orientation of a dipole in a uniform field");
+    expect(safeExcerpt("Orientation : Vertical Correct Marks : 4 Wrong Marks : 1 Find $x$")).toBe("Find $x$");
+  });
 });
 
 describe("content adapters on recorded API fixtures", () => {
@@ -135,7 +148,17 @@ describe("content adapters on recorded API fixtures", () => {
     num.solution.final_answer = { type: "NUMERICAL", accepted_ranges: [{ min: "9.9", max: "10.1" }], display_value: "10" };
     num.question_type = "NUMERICAL";
     const a = toSolution(num).answer;
-    expect(a).toEqual({ type: "numerical", value: 10, tolerance: 0, display: "10" });
+    expect(a).toEqual({ type: "numerical", value: 10, tolerance: 0, display: "10", ranges: [{ min: 9.9, max: 10.1 }] });
+  });
+
+  it("keeps every option the official key accepts for a single-correct question", () => {
+    const pq = structuredClone(load("question-demo.json", PublicQuestionSchema));
+    if (pq.solution.final_answer.type !== "SINGLE_MCQ") throw new Error("fixture changed");
+    const [first, second] = pq.options;
+    pq.solution.final_answer = { type: "SINGLE_MCQ", correct_option_ids: [first!.id, second!.id], correct_labels: [first!.label, second!.label] };
+    const s = toSolution(pq);
+    expect(s.answer).toEqual({ type: "single_correct", optionId: first!.label, alsoAccepted: [second!.label] });
+    expect(() => Solution.parse(s)).not.toThrow();
   });
 
   it("official key matched maps to official_key provenance", () => {
@@ -168,6 +191,9 @@ describe("content adapters on recorded API fixtures", () => {
     pq.content = [{ type: "image", asset_id: "a1", url: "https://x/a1.png", alt: words, width: 800, height: 200 }];
     const q = toQuestion(pq);
     expect(q.textVersion).toBe(words);
+    pq.content = [{ type: "image", asset_id: "a1", url: "https://x/a1.png", alt: `Orientation : Vertical Correct Marks : 4 Wrong Marks : 1 ${words}`, width: 800, height: 200 }];
+    expect(toQuestion(pq).textVersion).toBe(words);
+    pq.content = [{ type: "image", asset_id: "a1", url: "https://x/a1.png", alt: words, width: 800, height: 200 }];
     expect(q.seo).toEqual({ title: pq.seo.title, description: pq.seo.description });
     expect(() => Question.parse(q)).not.toThrow();
     // A placeholder alt or a stem that already has text gets no text version.

@@ -6,7 +6,7 @@ import type { AnswerKey } from "@/contracts";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { useDemo } from "@/lib/demo/store";
-import { isCorrect } from "@/lib/practice/check";
+import { acceptedOptionIds, answerLabel, isCorrect } from "@/lib/practice/check";
 
 /**
  * Try a public question without an account: pick an option (or type a number), check it, see the answer, move on to
@@ -85,7 +85,7 @@ export function PublicTry({
     }
   }
 
-  const correctIds = answer?.type === "single_correct" ? [answer.optionId] : answer?.type === "multiple_correct" ? answer.optionIds : [];
+  const correctIds = acceptedOptionIds(answer);
 
   return (
     <div className="mt-3">
@@ -237,9 +237,7 @@ function SignupPrompt({ count, onClose }: { count: number; onClose: () => void }
 
 function answerText(a: AnswerKey | null): string {
   if (!a) return "";
-  if (a.type === "numerical") return a.display ?? String(a.value);
-  if (a.type === "single_correct") return `option ${a.optionId}`;
-  return `options ${a.optionIds.join(", ")}`;
+  return answerLabel(a);
 }
 
 /** Adds this question to the answered set (signed out) and returns how many distinct questions are in it. */

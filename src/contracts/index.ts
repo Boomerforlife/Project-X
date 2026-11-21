@@ -134,7 +134,12 @@ export type QuestionCard = Pick<
 };
 
 export const AnswerKey = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("single_correct"), optionId: z.string() }),
+  z.object({
+    type: z.literal("single_correct"),
+    optionId: z.string(),
+    /** Other options the official key also accepts (NTA sometimes accepts two answers to a single-correct question). */
+    alsoAccepted: z.array(z.string()).optional(),
+  }),
   z.object({ type: z.literal("multiple_correct"), optionIds: z.array(z.string()).min(1) }),
   z.object({
     type: z.literal("numerical"),
@@ -143,6 +148,8 @@ export const AnswerKey = z.discriminatedUnion("type", [
     tolerance: z.number().nonnegative().default(0),
     /** API mode: exact display string from the server (preferred by answerText). */
     display: z.string().optional(),
+    /** API mode: every accepted [min, max] range from the key (several when NTA accepts more than one value). Wins over value/tolerance. */
+    ranges: z.array(z.object({ min: z.number(), max: z.number() })).optional(),
   }),
 ]);
 export type AnswerKey = z.infer<typeof AnswerKey>;
