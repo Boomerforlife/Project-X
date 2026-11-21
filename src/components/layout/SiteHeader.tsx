@@ -1,9 +1,16 @@
+import { liveTracks } from "@/lib/live-tracks";
 import { Wordmark } from "./Wordmark";
 import { DesktopNav, HeaderActions, MobileNav, type NavVariant } from "./NavLinks";
 
 export { Wordmark };
 
-export function SiteHeader({ variant = "site" }: { variant?: NavVariant }) {
+/** Public header: an exam section (NEET) is only in the nav once it has published questions. */
+export async function PublicSiteHeader() {
+  const live = await liveTracks();
+  return <SiteHeader hidden={live.includes("neet") ? [] : ["/neet/"]} />;
+}
+
+export function SiteHeader({ variant = "site", hidden = [] }: { variant?: NavVariant; hidden?: readonly string[] }) {
   return (
     <header data-chrome className="sticky top-0 z-50 border-b border-line bg-bg/85 backdrop-blur-md supports-[backdrop-filter]:bg-bg/70">
       <a
@@ -16,11 +23,11 @@ export function SiteHeader({ variant = "site" }: { variant?: NavVariant }) {
         <div className="flex items-center gap-7">
           <Wordmark href={variant === "app" ? "/dashboard/" : "/"} />
           <nav aria-label="Primary" className="hidden lg:block">
-            <DesktopNav variant={variant} />
+            <DesktopNav variant={variant} hidden={hidden} />
           </nav>
         </div>
         <HeaderActions variant={variant} />
-        <MobileNav variant={variant} />
+        <MobileNav variant={variant} hidden={hidden} />
       </div>
     </header>
   );

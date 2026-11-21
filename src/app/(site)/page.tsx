@@ -34,7 +34,7 @@ export default async function HomePage() {
       <Hero exams={live} neet={facts.some((f) => f.track === "neet")} />
       {jee && <Inside facts={jee} />}
       <Loop />
-      <ExamsSection subjects={subjects} chapters={chapters} />
+      <ExamsSection subjects={subjects} chapters={chapters} neet={facts.some((f) => f.track === "neet")} />
       <Modes />
       <Trust />
       <CommonQuestions facts={jee} />
@@ -273,12 +273,12 @@ function ClosingCta() {
   );
 }
 
-function ExamsSection({ subjects, chapters }: { subjects: Subject[]; chapters: Chapter[] }) {
+function ExamsSection({ subjects, chapters, neet }: { subjects: Subject[]; chapters: Chapter[]; neet: boolean }) {
   return (
     <section aria-labelledby="exams-h" className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <SectionLabel>Exams</SectionLabel>
       <h2 id="exams-h" className="mt-3 max-w-2xl text-3xl font-semibold sm:text-4xl">
-        JEE and NEET, organised the way you revise.
+        {neet ? "JEE and NEET" : "JEE"}, organised the way you revise.
       </h2>
       <div className="mt-10 grid gap-px overflow-hidden rounded-xl border border-line bg-line md:grid-cols-3">
         {EXAM_LIST.map((e) => {

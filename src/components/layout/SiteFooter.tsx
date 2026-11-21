@@ -1,33 +1,43 @@
 import Link from "next/link";
-import { PAPERS_VISIBLE, getSubjects } from "@/lib/data";
-import { TRACK_INFO } from "@/lib/exams";
+import { PAPERS_VISIBLE, getExams, getSubjects } from "@/lib/data";
+import { TRACK_INFO, examLabel } from "@/lib/exams";
+import { liveTracks } from "@/lib/live-tracks";
 import { SITE } from "@/lib/site";
 import { Wordmark } from "./Wordmark";
 
 export async function SiteFooter() {
   // The footer must never take the whole site down: if the API is unreachable, fall back to
   // plain subject links (navigation only, no content) and let the page itself show its error state.
-  const jee = await getSubjects("jee").catch(() =>
-    TRACK_INFO.jee.subjects.map((id) => ({ id, name: id.charAt(0).toUpperCase() + id.slice(1), summary: "" })),
-  );
+  const fallback = (t: "jee" | "neet") => TRACK_INFO[t].subjects.map((id) => ({ id, name: id.charAt(0).toUpperCase() + id.slice(1), summary: "" }));
+  const [jee, jeeExams, live] = await Promise.all([
+    getSubjects("jee").catch(() => fallback("jee")),
+    getExams("jee").catch(() => TRACK_INFO.jee.exams),
+    liveTracks(),
+  ]);
+  // NEET gets a column only once it has published questions (no links to empty or missing pages before that).
+  const neet = live.includes("neet") ? await getSubjects("neet").catch(() => []) : [];
   const cols = [
     {
       title: "JEE",
       links: [
-        { href: "/jee/", label: "JEE Main & Advanced" },
+        // Name only the exams that have questions ("JEE Main" today), never an exam we do not cover yet.
+        { href: "/jee/", label: examLabel("jee", jeeExams) },
         ...jee.map((s) => ({ href: `/jee/${s.id}/`, label: s.name })),
         { href: "/jee/pyq/", label: "JEE papers" },
       ],
     },
-    {
-      title: "NEET",
-      links: [
-        { href: "/neet/", label: "NEET UG" },
-        { href: "/neet/biology/", label: "Biology" },
-        { href: "/neet/physics/", label: "Physics" },
-        { href: "/neet/pyq/", label: "NEET papers" },
-      ],
-    },
+    ...(neet.length
+      ? [
+          {
+            title: "NEET",
+            links: [
+              { href: "/neet/", label: "NEET UG" },
+              ...neet.map((s) => ({ href: `/neet/${s.id}/`, label: s.name })),
+              { href: "/neet/pyq/", label: "NEET papers" },
+            ],
+          },
+        ]
+      : []),
     {
       title: "Study",
       links: [
@@ -52,7 +62,7 @@ export async function SiteFooter() {
 
   return (
     <footer data-chrome className="mt-24 border-t border-line">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_repeat(4,1fr)]">
+      <div className={`mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 ${cols.length >= 4 ? "md:grid-cols-[1.4fr_repeat(4,1fr)]" : "md:grid-cols-[1.4fr_repeat(3,1fr)]"}`}>
         <div className="space-y-3">
           <Wordmark />
           <p className="max-w-xs text-sm text-fg-muted">{SITE.tagline}.</p>
