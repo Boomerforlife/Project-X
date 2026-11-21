@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { GUIDES } from "@/content/guides";
 import { getChapters, getPublicPapers, getQuestionCounts, getSitemapQuestions, getSubjects } from "@/lib/data";
 import { TRACKS } from "@/lib/exams";
 import { isChapterIndexable, isSubjectIndexable, isTrackIndexable } from "@/lib/indexing";
@@ -8,6 +9,11 @@ import { INDEXABLE, absoluteUrl } from "@/lib/site";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!INDEXABLE) return [];
   const out: MetadataRoute.Sitemap = [{ url: absoluteUrl("/"), priority: 1 }, { url: absoluteUrl("/about/"), priority: 0.6 }];
+  // Editorial guides (/resources/ is noindex until at least one guide exists, so it is listed only then).
+  if (GUIDES.length) {
+    out.push({ url: absoluteUrl("/resources/"), priority: 0.7 });
+    out.push(...GUIDES.map((g) => ({ url: absoluteUrl(`/resources/${g.slug}/`), lastModified: g.updated, priority: 0.7 })));
+  }
   for (const track of TRACKS) {
     const [subjects, chapters, counts, papers] = await Promise.all([
       getSubjects(track),

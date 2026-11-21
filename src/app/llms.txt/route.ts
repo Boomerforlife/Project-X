@@ -3,6 +3,7 @@
  * things the public pages say (no separate content for bots), with counts read from the API, and points to the pages
  * worth reading. Not a ranking signal for Google Search; it helps assistants describe the site correctly.
  */
+import { GUIDES } from "@/content/guides";
 import { brandFacts, fmt } from "@/lib/brand-facts";
 import { PAPERS_VISIBLE } from "@/lib/data";
 import { SITE, absoluteUrl } from "@/lib/site";
@@ -40,6 +41,9 @@ export async function GET() {
     `- [Free and Plus plans](${absoluteUrl("/pricing/")})`,
     `- [Contact](${absoluteUrl("/contact/")})`,
     "",
+    ...(GUIDES.length
+      ? ["## Guides", "", ...GUIDES.map((g) => `- [${g.title}](${absoluteUrl(`/resources/${g.slug}/`)}): ${g.description}`), ""]
+      : []),
     "## Optional",
     "",
     `- [Sitemap of every public page](${absoluteUrl("/sitemap.xml")})`,

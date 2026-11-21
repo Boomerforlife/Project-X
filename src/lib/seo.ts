@@ -103,5 +103,22 @@ export function siteJsonLd() {
   ];
 }
 
+/** Article markup for editorial guides. Describes only what the page shows: no ratings, no invented author. */
+export function articleJsonLd(a: { title: string; description: string; path: string; published: string; updated: string }) {
+  const org = { "@type": "Organization", "@id": `${SITE.url}/#organization`, name: SITE.name, url: `${SITE.url}/` };
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: a.title,
+    description: a.description,
+    mainEntityOfPage: absoluteUrl(a.path),
+    datePublished: a.published,
+    dateModified: a.updated,
+    inLanguage: "en-IN",
+    author: org,
+    publisher: { ...org, logo: { "@type": "ImageObject", url: absoluteUrl("/logo.png") } },
+  };
+}
+
 /** Official social/brand profiles (Instagram, YouTube, X, LinkedIn...). Add each URL here once the account exists. */
 export const SITE_PROFILES: string[] = [];
