@@ -8,7 +8,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
   return (
     <html lang="en-IN" data-theme="dark">
       <body className="min-h-dvh bg-bg text-fg antialiased">
-        <title>Something went wrong · Tabby</title>
+        <title>Something went wrong · TabbyPrep</title>
         <RouteError error={error} retry={retry} home="/dashboard/" />
       </body>
     </html>

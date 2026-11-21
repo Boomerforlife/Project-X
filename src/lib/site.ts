@@ -1,14 +1,15 @@
 /**
  * Site-wide configuration.
  *
- * `name` is a WORKING NAME — the product name has not been decided yet.
- * Change it here and it propagates to metadata, JSON-LD, and the wordmark.
+ * `name` is the brand as it is searched and as the domain spells it (tabbyprep.in). Change it here and it propagates
+ * to metadata, JSON-LD, the wordmark and llms.txt. `alternateNames` tell search engines the other spellings people use.
  */
 export const SITE = {
-  name: "Tabby",
-  tagline: "Deliberate practice for JEE & NEET",
+  name: "TabbyPrep",
+  alternateNames: ["Tabby Prep", "Tabby"],
+  tagline: "Free JEE Main PYQs and chapter-wise practice online",
   description:
-    "Practise JEE and NEET questions chapter by chapter, sit full papers in an exam-style CBT, understand every solution, and keep track of the mistakes worth revisiting.",
+    "TabbyPrep is a JEE preparation site with thousands of JEE Main previous-year questions (PYQs) sorted by chapter, with official NTA answer keys, timed practice, full papers in an exam-style CBT, and a mistake notebook.",
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, ""),
   locale: "en_IN",
 } as const;
