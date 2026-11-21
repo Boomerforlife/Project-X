@@ -150,13 +150,16 @@ async function doRefresh() {
   if (!token) return signedOut();
   try {
     const [me] = await Promise.all([api.me(), registry.loadTaxonomy()]);
+    // Auth events also fire for the same user (token refresh, tab regaining focus). Keep what is already loaded then:
+    // wiping it lost in-memory sessions (single questions have no server copy) and showed "Session not found".
+    const sameUser = userId === me.id && state.user !== null;
     userId = me.id;
     prefs = readPrefs(me.id);
     for (const stub of Object.values(prefs.reviewStubs)) if (!registry.getQuestion(stub.id)) registry.putQuestion(stub);
     const user = toDemoUser(me, prefs);
     status = "ready";
     statusMessage = "";
-    set({ ...EMPTY, user, review: prefs.review, attempts: loadLocalPapers(me.id) });
+    set(sameUser ? { ...state, user, review: prefs.review, attempts: { ...state.attempts, ...loadLocalPapers(me.id) } } : { ...EMPTY, user, review: prefs.review, attempts: loadLocalPapers(me.id) });
     if (user.onboarded) await loadPrivate(user.exam);
   } catch (e) {
     if (isApiError(e) && e.status === 401) return signedOut();
@@ -517,6 +520,12 @@ function startSingle(opts: StartOpts): string {
   };
   patchState((s) => ({ ...s, attempts: { ...s.attempts, [id]: a } }));
   return id;
+}
+
+/** Question id inside a single-question session id (`single_<questionId>_<time>`), else null. */
+export function singleQuestionId(attemptId: string): string | null {
+  const m = /^single_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9]+$/.exec(attemptId);
+  return m ? m[1]! : null;
 }
 
 /** Public question page -> practice: load the question (no solution is kept) and start a single attempt. */

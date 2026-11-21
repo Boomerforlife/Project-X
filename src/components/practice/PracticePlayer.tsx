@@ -14,7 +14,7 @@ import { LoadingScreen, SESSION_MESSAGES } from "@/components/states/Loading";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { isAnswered, outcomeFor } from "@/lib/demo/scoring";
-import { checkAnswer, ensureAttempt, setCurrent, setResponse, submitAttempt, toggleBookmark, toggleReview, usePending, useSubmitState, useDemo } from "@/lib/demo/store";
+import { checkAnswer, ensureAttempt, setCurrent, setResponse, singleQuestionId, startSingleBySlug, submitAttempt, toggleBookmark, toggleReview, usePending, useSubmitState, useDemo } from "@/lib/demo/store";
 import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt, DemoState } from "@/lib/demo/types";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -36,14 +36,29 @@ export function PracticeSession() {
   // API mode: a reload, deep link or second device loads the session from the server.
   const [loaded, setLoaded] = useState<string | null>(null);
   const hasUser = Boolean(s?.user);
+  const signedOut = s !== null && !s.user;
+  const userExam = s?.user?.exam;
+  // A single-question session lives only in the browser that started it. Its link (copied, shared, opened elsewhere)
+  // still names the question: a visitor gets the free public page, a signed-in student a fresh attempt at it.
+  const singleQ = id ? singleQuestionId(id) : null;
+  useEffect(() => {
+    if (!API || !singleQ || !signedOut) return;
+    router.replace(`/jee/questions/${singleQ}/`);
+  }, [singleQ, signedOut, router]);
   useEffect(() => {
     if (!API || !id || !hasUser || a) return;
     let live = true;
-    void ensureAttempt(id).finally(() => live && setLoaded(id));
+    if (singleQ && userExam) {
+      startSingleBySlug(singleQ, userExam)
+        .then((fresh) => live && router.replace(`/practice/session/?id=${fresh}`))
+        .catch(() => live && setLoaded(id));
+    } else {
+      void ensureAttempt(id).finally(() => live && setLoaded(id));
+    }
     return () => {
       live = false;
     };
-  }, [id, hasUser, a]);
+  }, [id, hasUser, a, singleQ, userExam, router]);
 
   useEffect(() => {
     if (a?.status === "submitted") router.replace(`/results/?id=${a.id}`);
@@ -51,7 +66,7 @@ export function PracticeSession() {
   }, [a?.status, a?.mode, a?.id, router]);
 
   if (s === null) return <SessionLoading />;
-  if (!s.user) return <DemoRequired />;
+  if (!s.user) return API && singleQ ? <LoadingScreen messages={SESSION_MESSAGES} label="Opening the question" /> : <DemoRequired />;
   if (!a && API && id && loaded !== id) return <LoadingScreen messages={SESSION_MESSAGES} label="Loading your practice session" />;
   if (!a) {
     return (

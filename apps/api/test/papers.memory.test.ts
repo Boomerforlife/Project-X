@@ -79,3 +79,14 @@ describe('full previous-year papers', () => {
     expect(mixed.questions.map((q: { id: string }) => q.id)).not.toContain(IDS.qNum);
   });
 });
+
+describe('public question by id (shared practice links)', () => {
+  it('redirects a question id to its public slug, and 404s ids without a public page', async () => {
+    const h = setup();
+    const r = await h.req(`/public/questions/${IDS.qSingle}`);
+    expect(r.status).toBe(301);
+    expect((await j(r)).error.details).toMatchObject({ slug: 'demo-single' });
+    expect((await h.req(`/public/questions/${IDS.qNum}`)).status).toBe(404); // paper-only: no public page
+    expect((await h.req(`/public/questions/${IDS.qDraft}`)).status).toBe(404); // unpublished
+  });
+});
