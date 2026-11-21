@@ -227,9 +227,11 @@ export function solutionFromApi(
   const labelOf = (id: string) => optionLabelById.get(id) ?? id;
   let answer: Solution["answer"];
   if (fa.type === "SINGLE_MCQ") {
+    const labels = fa.correct_labels?.length ? [...fa.correct_labels] : fa.correct_option_ids.map(labelOf);
     answer = {
       type: "single_correct",
-      optionId: fa.correct_labels?.[0] ?? labelOf(fa.correct_option_ids[0]!),
+      optionId: labels[0]!,
+      ...(labels.length > 1 ? { alsoAccepted: labels.slice(1) } : {}),
     };
   } else if (fa.type === "MULTI_MCQ") {
     answer = {
@@ -237,11 +239,13 @@ export function solutionFromApi(
       optionIds: fa.correct_labels?.length ? [...fa.correct_labels] : fa.correct_option_ids.map(labelOf),
     };
   } else {
+    const ranges = fa.accepted_ranges.map((r) => ({ min: Number(r.min), max: Number(r.max) })).filter((r) => Number.isFinite(r.min) && Number.isFinite(r.max));
     answer = {
       type: "numerical",
       value: Number(fa.display_value),
       tolerance: 0,
       display: fa.display_value,
+      ...(ranges.length ? { ranges } : {}),
     };
   }
   return {

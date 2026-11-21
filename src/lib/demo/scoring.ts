@@ -8,6 +8,7 @@ import { catalog } from "@/lib/data/catalog";
 import { registry } from "@/lib/session/registry";
 import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt } from "./types";
+import { answerLabel as keyAnswerLabel, isCorrect } from "@/lib/practice/check";
 
 export type Outcome = "correct" | "incorrect" | "partial" | "unattempted";
 
@@ -20,13 +21,11 @@ export function judge(q: Question, sol: Solution | null, a: ResponseValue | null
   if (!isAnswered(a) || !sol) return { outcome: "unattempted", correctCount: 0 };
   const ans = sol.answer;
   if (ans.type === "numerical") {
-    const v = Number(a!.value);
-    if (!Number.isFinite(v)) return { outcome: "incorrect", correctCount: 0 };
-    return { outcome: Math.abs(v - ans.value) <= Math.max(ans.tolerance, 1e-9) ? "correct" : "incorrect", correctCount: 0 };
+    return { outcome: isCorrect(ans, [], String(a!.value ?? "")) ? "correct" : "incorrect", correctCount: 0 };
   }
   const chosen = new Set(a!.optionIds ?? []);
   if (ans.type === "single_correct") {
-    return { outcome: chosen.size === 1 && chosen.has(ans.optionId) ? "correct" : "incorrect", correctCount: 0 };
+    return { outcome: isCorrect(ans, [...chosen], "") ? "correct" : "incorrect", correctCount: 0 };
   }
   const right = new Set(ans.optionIds);
   const wrongChosen = [...chosen].some((id) => !right.has(id));
@@ -129,7 +128,7 @@ export function answerLabel(q: Question, a: ResponseValue | null | undefined) {
 export function keyLabel(sol: Solution | null) {
   if (!sol) return "—";
   const a = sol.answer;
-  if (a.type === "numerical") return String(a.value);
-  if (a.type === "single_correct") return a.optionId;
+  if (a.type === "numerical") return keyAnswerLabel(a);
+  if (a.type === "single_correct") return [a.optionId, ...(a.alsoAccepted ?? [])].join(" or ");
   return a.optionIds.slice().sort().join(", ");
 }

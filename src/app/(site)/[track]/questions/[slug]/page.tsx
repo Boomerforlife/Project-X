@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { getChapter, getPublicQuestions, getQuestionPage, getQuestions, getRelatedQuestions, getSubjects } from "@/lib/data";
 import { TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
+import { answerLabel } from "@/lib/practice/check";
 import { stripPaperHeader } from "@/lib/api/adapters/blocks";
 import { sourceLabel } from "@/lib/source";
 import { SITE } from "@/lib/site";
@@ -145,7 +146,7 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
             </PracticeLink>
           </div>
 
-          <SolutionBlock q={q} sol={sol} />
+          <SolutionBlock sol={sol} />
         </article>
 
         <aside className="space-y-8 text-sm lg:pt-1">
@@ -218,10 +219,8 @@ function SourceLabel({ q }: { q: Question }) {
   );
 }
 
-function answerText(q: Question, a: AnswerKey) {
-  if (a.type === "numerical") return a.display ?? String(a.value);
-  if (a.type === "single_correct") return `Option ${a.optionId}`;
-  return `Options ${a.optionIds.join(", ")}`;
+function answerText(a: AnswerKey) {
+  return answerLabel(a, "Option");
 }
 
 const PROVENANCE: Record<Solution["answerProvenance"], string> = {
@@ -241,7 +240,7 @@ const AUTHOR: Record<Solution["generatedBy"], string> = {
  * Answer + solution are in the server HTML (useful, crawlable) but collapsed
  * by default so a student is never spoiled before they try.
  */
-function SolutionBlock({ q, sol }: { q: Question; sol: Solution | null }) {
+function SolutionBlock({ sol }: { sol: Solution | null }) {
   if (!sol) {
     return (
       <div className="mt-10 rounded-lg border border-dashed border-line-strong p-5 text-sm text-fg-muted">
@@ -260,7 +259,7 @@ function SolutionBlock({ q, sol }: { q: Question; sol: Solution | null }) {
       <div className="space-y-6 border-t border-line p-5">
         <div>
           <p className="font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">Answer</p>
-          <p className="mt-2 text-2xl font-semibold">{answerText(q, sol.answer)}</p>
+          <p className="mt-2 text-2xl font-semibold">{answerText(sol.answer)}</p>
           <p className="mt-1 text-xs text-fg-muted">{PROVENANCE[sol.answerProvenance]}</p>
         </div>
         <div>

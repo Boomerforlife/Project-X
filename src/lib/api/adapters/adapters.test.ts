@@ -148,7 +148,17 @@ describe("content adapters on recorded API fixtures", () => {
     num.solution.final_answer = { type: "NUMERICAL", accepted_ranges: [{ min: "9.9", max: "10.1" }], display_value: "10" };
     num.question_type = "NUMERICAL";
     const a = toSolution(num).answer;
-    expect(a).toEqual({ type: "numerical", value: 10, tolerance: 0, display: "10" });
+    expect(a).toEqual({ type: "numerical", value: 10, tolerance: 0, display: "10", ranges: [{ min: 9.9, max: 10.1 }] });
+  });
+
+  it("keeps every option the official key accepts for a single-correct question", () => {
+    const pq = structuredClone(load("question-demo.json", PublicQuestionSchema));
+    if (pq.solution.final_answer.type !== "SINGLE_MCQ") throw new Error("fixture changed");
+    const [first, second] = pq.options;
+    pq.solution.final_answer = { type: "SINGLE_MCQ", correct_option_ids: [first!.id, second!.id], correct_labels: [first!.label, second!.label] };
+    const s = toSolution(pq);
+    expect(s.answer).toEqual({ type: "single_correct", optionId: first!.label, alsoAccepted: [second!.label] });
+    expect(() => Solution.parse(s)).not.toThrow();
   });
 
   it("official key matched maps to official_key provenance", () => {
