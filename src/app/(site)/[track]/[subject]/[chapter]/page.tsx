@@ -4,6 +4,7 @@ import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { QuestionList } from "@/components/content/QuestionList";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
+import { PracticeLink } from "@/components/practice/PublicTry";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { PAPERS_VISIBLE, getChapter, getChapters, getQuestionCounts, getQuestions, getSubjects } from "@/lib/data";
@@ -75,6 +76,9 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
   const base = `/practice/new/?exam=${info.primaryExam}&subject=${s.id}&chapter=${c.slug}`;
   // Public pages first (crawlable), then the rest as previews.
   const shown = [...qs.filter((q) => q.publicPage), ...qs.filter((q) => !q.publicPage)].slice(0, PREVIEW);
+  // Signed-out visitors practise right on the public question pages (no login); the first one starts the chapter.
+  const firstPublic = qs.find((q) => q.publicPage);
+  const startPublic = firstPublic ? `/${track}/questions/${firstPublic.slug}/` : null;
 
   return (
     <>
@@ -101,15 +105,15 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
         lede={c.summary}
       >
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <ButtonLink href={`${base}&mode=learning`} pixel>
+          <PracticeLink signedInHref={`${base}&mode=learning`} publicHref={startPublic ?? `${base}&mode=learning`} pixel>
             <Icon name="play" className="size-3.5" /> Practise this chapter
-          </ButtonLink>
+          </PracticeLink>
           <ButtonLink href={`${base}&mode=test`} variant="secondary">
             <Icon name="clock" className="size-4" /> Timed test
           </ButtonLink>
           {total > 0 && (
             <span className="text-sm tabular-nums text-fg-muted">
-              {total} question{total === 1 ? "" : "s"} available
+              {total} question{total === 1 ? "" : "s"} available · free, no sign-up needed to start
             </span>
           )}
         </div>
@@ -129,9 +133,9 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
               {total > PREVIEW && (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-line-strong p-4 text-sm">
                   <span className="text-fg-muted">{total - PREVIEW} more questions are available in practice.</span>
-                  <ButtonLink href={`${base}&mode=learning`} size="sm" variant="secondary">
+                  <PracticeLink signedInHref={`${base}&mode=learning`} publicHref={startPublic ?? `${base}&mode=learning`} size="sm" variant="secondary">
                     Practise all {total}
-                  </ButtonLink>
+                  </PracticeLink>
                 </div>
               )}
               <ChapterAnalysis stats={stats} chapter={c.name} exam={exam} track={track} />

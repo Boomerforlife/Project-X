@@ -4,10 +4,10 @@ import { Blocks } from "@/components/content/Blocks";
 import { richTextToPlain } from "@/components/content/RichText";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DifficultyChip, SubjectTag, TypeChip, VERIFICATION_COPY, VerificationBadge } from "@/components/ui/Badges";
-import { ButtonLink } from "@/components/ui/Button";
+import { PracticeLink, PublicTry } from "@/components/practice/PublicTry";
 import type { AnswerKey, Question, Solution } from "@/contracts";
 import { cn } from "@/lib/cn";
-import { getChapter, getPublicQuestions, getQuestionPage, getRelatedQuestions, getSubjects } from "@/lib/data";
+import { getChapter, getPublicQuestions, getQuestionPage, getQuestions, getRelatedQuestions, getSubjects } from "@/lib/data";
 import { TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
 import { isQuestionIndexable } from "@/lib/indexing";
 import { sourceLabel } from "@/lib/source";
@@ -67,7 +67,16 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
   if (data.kind === "moved") permanentRedirect(`/${p.track}/questions/${data.slug}/`);
   if (data.kind !== "ok") notFound();
   const { q, s, c, sol, track } = data;
-  const related = (await getRelatedQuestions(q.slug, 4)).filter((x) => x.id !== q.id && x.publicPage);
+  const [relatedAll, chapterQs] = await Promise.all([
+    getRelatedQuestions(q.slug, 4),
+    getQuestions({ subject: s.id, chapter: c.slug, track }).catch(() => []),
+  ]);
+  const related = relatedAll.filter((x) => x.id !== q.id && x.publicPage);
+  // "Next question": the following public question of the same chapter (wraps to the first), so a visitor can keep going.
+  const publicInChapter = chapterQs.filter((x) => x.publicPage);
+  const at = publicInChapter.findIndex((x) => x.slug === q.slug);
+  const next = publicInChapter.length > 1 ? publicInChapter[(at + 1) % publicInChapter.length] : undefined;
+  const nextHref = next && next.slug !== q.slug ? `/${track}/questions/${next.slug}/` : null;
 
   return (
     <>
@@ -116,26 +125,22 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
             </section>
           )}
 
-          {q.options.length > 0 && (
-            <ol className="mt-8 space-y-3" aria-label="Options">
-              {q.options.map((o) => (
-                <li key={o.id} className="flex items-start gap-4 rounded-md border border-line px-4 py-3">
-                  <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-sm bg-surface-3 text-sm font-semibold">{o.id}</span>
-                  <div className="min-w-0 pt-0.5">
-                    <Blocks blocks={o.blocks} fallback={o.body} />
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-          {q.type === "numerical" && (
-            <p className="mt-6 text-sm text-fg-muted">Numerical answer: enter a number when you practise this question.</p>
-          )}
+          {/* Answer right here, no account needed (the answer is public on this page anyway); signed-out visitors are
+              invited to sign up after a few questions. Options stay server-rendered for crawlers and KaTeX. */}
+          <p className="mt-8 text-sm text-fg-muted">Pick an answer and check it: free, no sign-up needed.</p>
+          <PublicTry
+            slug={q.slug}
+            type={q.type}
+            options={q.options.map((o) => ({ id: o.id, node: <Blocks blocks={o.blocks} fallback={o.body} /> }))}
+            answer={sol?.answer ?? null}
+            nextHref={nextHref}
+            solutionId="solution"
+          />
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <ButtonLink href={`/practice/new/?slug=${q.slug}`} pixel>
-              Try it in practice
-            </ButtonLink>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <PracticeLink signedInHref={`/practice/new/?slug=${q.slug}`} publicHref={null} variant="secondary" size="sm">
+              Practise in your account (saves your progress)
+            </PracticeLink>
           </div>
 
           <SolutionBlock q={q} sol={sol} />
@@ -243,7 +248,7 @@ function SolutionBlock({ q, sol }: { q: Question; sol: Solution | null }) {
     );
   }
   return (
-    <details className="group mt-10 rounded-lg border border-line bg-surface open:bg-surface/60">
+    <details id="solution" className="group mt-10 scroll-mt-20 rounded-lg border border-line bg-surface open:bg-surface/60">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg p-5 font-medium select-none hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
         <span>Show answer and solution</span>
         <span aria-hidden className="font-pixel text-xs text-fg-muted transition-transform group-open:rotate-90">
