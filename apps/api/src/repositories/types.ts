@@ -437,6 +437,7 @@ export interface PracticeFilter {
   yearFrom?: number | undefined;
   yearTo?: number | undefined;
   origin?: QuestionOrigin | undefined;
+  id?: string | undefined;
 }
 
 export interface TaxonomyRepo {

@@ -555,6 +555,11 @@ export async function startSingleBySlug(slug: string, exam: ExamId, hint: { subj
 /** Looks a question up by slug in GET /practice/questions, narrowed to its chapter when known (one or two pages). */
 async function findPracticeQuestion(slug: string, exam: ExamId, hint: { subject?: SubjectId; chapter?: string }): Promise<Question | null> {
   await registry.loadTaxonomy();
+  // A question id (shared single-question link): ask for exactly that question.
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(slug)) {
+    const one = await practiceQuestions({ exam: examToApi(exam), id: slug, limit: 1 });
+    return one.data[0] ? toPracticeQuestion(one.data[0]) : null;
+  }
   const ch = hint.subject && hint.chapter ? registry.apiChapter(exam, hint.subject, hint.chapter) : null;
   let cursor: string | undefined;
   for (let page = 0; page < 20; page++) {

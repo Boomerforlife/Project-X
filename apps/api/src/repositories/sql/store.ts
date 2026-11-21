@@ -142,6 +142,7 @@ function contentRepo(tx: Tx): ContentRepo {
       if (f.yearFrom) c.push(`q.year >= ${p.add(f.yearFrom)}`);
       if (f.yearTo) c.push(`q.year <= ${p.add(f.yearTo)}`);
       if (f.origin) c.push(`q.origin=${p.add(f.origin)}::public.question_origin`);
+      if (f.id) c.push(`q.id=${p.add(f.id)}::uuid`);
       c.push(keysetWhere(p, after, ['q.published_at'], 'q.id', 'desc', ['timestamptz']));
       const r = await rows<Record<string, unknown>>(tx, `select ${Q}, q.published_at::text as _k0 from public.questions q where ${c.join(' and ')} order by q.published_at desc, q.id desc limit ${p.add(limit)}`, p.values);
       return keyed(r, 1) as never;

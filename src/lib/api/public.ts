@@ -108,6 +108,8 @@ export async function sitemapQuestions(cursor?: string, limit = 1000) {
 
 export type PracticeListParams = {
   exam: string;
+  /** One question by id (shared single-question links). */
+  id?: string;
   subject?: string;
   chapter?: string;
   topic?: string;
