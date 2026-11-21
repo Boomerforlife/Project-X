@@ -9,7 +9,8 @@ import { cn } from "@/lib/cn";
 import { PAPERS_VISIBLE, getChapter, getChapters, getQuestionCounts, getQuestions, getSubjects } from "@/lib/data";
 import { richTextToPlain } from "@/components/content/RichText";
 import type { QuestionCard } from "@/contracts";
-import { TRACKS, TRACK_INFO, isTrack, type Track } from "@/lib/exams";
+import { EXAMS, TRACKS, TRACK_INFO, isTrack, type Track } from "@/lib/exams";
+import { pct, questionStats, yearSpan, type QuestionStats } from "@/lib/chapter-stats";
 import { isChapterIndexable } from "@/lib/indexing";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -36,11 +37,16 @@ export async function generateMetadata({ params }: PageProps<"/[track]/[subject]
     const { track, subject, chapter } = await params;
     const d = await load(track, subject, chapter);
     if (!d) return NOT_FOUND_METADATA;
-    const counts = await getQuestionCounts(d.track);
-    const name = TRACK_INFO[d.track].name;
+    const [counts, qs] = await Promise.all([getQuestionCounts(d.track), getQuestions({ subject: d.s.id, chapter: d.c.slug, track: d.track })]);
+    const exam = examLabel(d.track, qs);
+    const stats = questionStats(qs);
+    const span = yearSpan(stats.years.map((y) => y.year));
+    // Titles follow what students type ("kinematics jee mains pyq"); counts are today's published questions.
     return pageMetadata({
-      title: `${d.c.name} – ${name} ${d.s.name} practice`,
-      description: `${d.c.summary} Practise ${name} ${d.c.name} questions with step-by-step solutions.`.trim(),
+      title: stats.pyq ? `${d.c.name} ${exam} PYQs: ${stats.pyq} Questions with Answers` : `${d.c.name} – ${exam} ${d.s.name} practice`,
+      description: stats.pyq
+        ? `${stats.pyq} ${exam} previous-year questions on ${d.c.name}${span ? ` from the ${span} papers` : ""}, with answers and a year-by-year count. ${d.c.summary} Practise free online.`.trim()
+        : `${d.c.summary} Practise ${exam} ${d.c.name} questions.`.trim(),
       path: `/${d.track}/${d.s.id}/${d.c.slug}/`,
       // Thin-content guard (CLAUDE.md §5): no index until the chapter has real substance.
       noindex: !isChapterIndexable(counts.byChapter.get(`${d.s.id}/${d.c.slug}`) ?? 0),
@@ -60,6 +66,8 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
     getQuestionCounts(track),
   ]);
   const total = Math.max(qs.length, counts.byChapter.get(`${s.id}/${c.slug}`) ?? 0);
+  const exam = examLabel(track, qs);
+  const stats = questionStats(qs);
   const style = SUBJECT_STYLE[s.id];
   const idx = siblings.findIndex((x) => x.slug === c.slug);
   const prev = siblings[idx - 1];
@@ -83,7 +91,13 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
             {[c.group, c.grade ? `Class ${c.grade}` : null].filter(Boolean).map((part) => ` · ${part}`)}
           </span>
         }
-        title={c.name}
+        title={
+          <>
+            {c.name}
+            {qs.length > 0 && " "}
+            {qs.length > 0 && <span className="mt-2 block text-2xl font-medium text-fg-soft sm:text-3xl">{exam} previous-year questions</span>}
+          </>
+        }
         lede={c.summary}
       >
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -120,6 +134,7 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
                   </ButtonLink>
                 </div>
               )}
+              <ChapterAnalysis stats={stats} chapter={c.name} exam={exam} track={track} />
               <AllQuestions questions={qs} shown={shown} track={track} chapter={c.name} />
             </>
           ) : (
@@ -223,4 +238,83 @@ function linkText(q: QuestionCard): string {
   if (plain.length >= 12) return plain.length > 140 ? `${plain.slice(0, 139).trimEnd()}…` : plain;
   // No readable text: fall back to the slug's words ("a-person-has-three-bags-jee-main-2026").
   return q.slug.replace(/-/g, " ");
+}
+
+/** "JEE Main" when every question on the page is from JEE Main (true today), else the track name ("JEE"). */
+function examLabel(track: Track, qs: QuestionCard[]): string {
+  const primary = TRACK_INFO[track].primaryExam;
+  return qs.length > 0 && qs.every((q) => q.exams.includes(primary)) ? EXAMS[primary].name : TRACK_INFO[track].name;
+}
+
+/**
+ * How often this chapter is asked, counted from the questions on this page: per year, MCQ vs numerical, and the
+ * difficulty mix. Unique to each chapter and answers "how many questions come from X in JEE Main?".
+ */
+function ChapterAnalysis({
+  stats,
+  chapter,
+  exam,
+  track,
+}: {
+  stats: QuestionStats;
+  chapter: string;
+  exam: string;
+  track: Track;
+}) {
+  if (stats.pyq < 5 || stats.years.length === 0) return null;
+  const span = yearSpan(stats.years.map((y) => y.year));
+  const top = [...stats.years].sort((a, b) => b.total - a.total)[0]!;
+  const rated = stats.total - stats.difficulty.unrated;
+  const pyqMcq = stats.years.reduce((n, y) => n + y.mcq, 0);
+  return (
+    <section aria-labelledby="analysis-h" className="mt-12 rounded-xl border border-line p-5 sm:p-6">
+      <h2 id="analysis-h" className="text-lg font-semibold">
+        How often {chapter} comes up in {exam}
+      </h2>
+      <p className="mt-2 text-sm leading-relaxed text-fg-muted">
+        {chapter} has {stats.pyq} previous-year questions on TabbyPrep from the {span} {exam} papers. The most in one year was {top.total}, in {top.year}.
+        About {pct(pyqMcq, stats.pyq)} are multiple-choice and {pct(stats.pyq - pyqMcq, stats.pyq)} numerical-answer.
+      </p>
+      <div className="mt-5 overflow-x-auto">
+        <table className="w-full min-w-[22rem] text-left text-sm tabular-nums">
+          <caption className="sr-only">
+            {chapter} questions per year, by type
+          </caption>
+          <thead className="text-xs text-fg-muted">
+            <tr className="border-b border-line">
+              <th scope="col" className="py-2 pr-4 font-medium">Year</th>
+              <th scope="col" className="py-2 pr-4 font-medium">Questions</th>
+              <th scope="col" className="py-2 pr-4 font-medium">MCQ</th>
+              <th scope="col" className="py-2 font-medium">Numerical</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.years.map((y) => (
+              <tr key={y.year} className="border-b border-line/60">
+                <th scope="row" className="py-2 pr-4 font-medium text-fg-soft">{y.year}</th>
+                <td className="py-2 pr-4">{y.total}</td>
+                <td className="py-2 pr-4 text-fg-muted">{y.mcq}</td>
+                <td className="py-2 text-fg-muted">{y.numerical}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rated > 0 && (
+        <p className="mt-4 text-sm text-fg-muted">
+          Difficulty mix of all {stats.total} questions on this page (estimated per question, not an official rating): {pct(stats.difficulty.easy, rated)} easy · {pct(stats.difficulty.medium, rated)} medium ·{" "}
+          {pct(stats.difficulty.hard, rated)} hard.
+        </p>
+      )}
+      <p className="mt-3 text-xs leading-relaxed text-fg-subtle">
+        Counted from the previous-year questions on this page{stats.unknownYear ? `; the ${stats.unknownYear} practice questions written for TabbyPrep are not counted` : ""}. Years
+        not listed are not in TabbyPrep yet, so this is not a count of every paper ever set. Chapters are assigned per question and a few may sit in a neighbouring
+        chapter. See{" "}
+        <Link href={`/${track}/chapter-weightage/`} className="underline underline-offset-2 hover:text-fg">
+          chapter-wise weightage for every chapter
+        </Link>
+        .
+      </p>
+    </section>
+  );
 }

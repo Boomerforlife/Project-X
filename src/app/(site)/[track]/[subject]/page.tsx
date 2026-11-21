@@ -5,8 +5,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import { getChapters, getQuestionCounts, getSubjects } from "@/lib/data";
-import { TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
+import { getChapters, getExams, getQuestionCounts, getSubjects } from "@/lib/data";
+import { TRACKS, TRACK_INFO, examLabel, isTrack } from "@/lib/exams";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
@@ -29,11 +29,13 @@ export async function generateMetadata({ params }: PageProps<"/[track]/[subject]
     const { track, subject } = await params;
     const d = await load(track, subject);
     if (!d) return NOT_FOUND_METADATA;
-    const name = TRACK_INFO[d.track].name;
-    const [chapters, counts] = await Promise.all([getChapters({ subject: d.s.id, track: d.track }), getQuestionCounts(d.track)]);
+    const [chapters, counts, exams] = await Promise.all([getChapters({ subject: d.s.id, track: d.track }), getQuestionCounts(d.track), getExams(d.track)]);
+    const name = examLabel(d.track, exams);
+    const n = counts.bySubject.get(d.s.id) ?? 0;
     return pageMetadata({
-      title: `${name} ${d.s.name}: chapter-wise practice`,
-      description: `All ${name} ${d.s.name} chapters with practice questions and step-by-step solutions. ${d.s.summary}`.trim(),
+      // The count includes practice questions written for the site, so the number is never labelled "PYQs".
+      title: n ? `${name} ${d.s.name} PYQs Chapter-wise, with Answers` : `${name} ${d.s.name}: chapter-wise practice`,
+      description: `${n ? `${n.toLocaleString("en-IN")} ${name} ${d.s.name} questions, most of them previous-year questions (PYQs),` : `${name} ${d.s.name} practice`} across ${chapters.length} chapters, with answers. Pick a chapter, practise free online and see how often each chapter is asked. ${d.s.summary}`.trim(),
       path: `/${d.track}/${d.s.id}/`,
       noindex: !isSubjectIndexable(d.s.id, chapters, counts),
     });
@@ -46,7 +48,9 @@ export default async function SubjectPage({ params }: PageProps<"/[track]/[subje
   if (!d) notFound();
   const { track, s } = d;
   const info = TRACK_INFO[track];
-  const [chapters, counts, subjects] = await Promise.all([getChapters({ subject: s.id, track }), getQuestionCounts(track), getSubjects(track)]);
+  const [chapters, counts, subjects, exams] = await Promise.all([getChapters({ subject: s.id, track }), getQuestionCounts(track), getSubjects(track), getExams(track)]);
+  const exam = examLabel(track, exams);
+  const total = counts.bySubject.get(s.id) ?? 0;
   const style = SUBJECT_STYLE[s.id];
   const groups = [...new Set(chapters.map((c) => c.group ?? ""))];
 
@@ -59,7 +63,13 @@ export default async function SubjectPage({ params }: PageProps<"/[track]/[subje
           { name: s.name, path: `/${track}/${s.id}/` },
         ]}
         eyebrow={<span className={style.text}>{info.name} · {s.name}</span>}
-        title={s.name}
+        title={
+          <>
+            {exam} {s.name}
+            {total > 0 && " "}
+            {total > 0 && <span className="mt-2 block text-2xl font-medium text-fg-soft sm:text-3xl">Chapter-wise previous-year questions</span>}
+          </>
+        }
         lede={s.summary}
       >
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -67,8 +77,13 @@ export default async function SubjectPage({ params }: PageProps<"/[track]/[subje
             <Icon name="play" className="size-3.5" /> Practise {s.name}
           </ButtonLink>
           <span className="text-sm tabular-nums text-fg-muted">
-            {chapters.length} chapters · {counts.bySubject.get(s.id) ?? 0} questions
+            {chapters.length} chapters · {total.toLocaleString("en-IN")} questions
           </span>
+          {total > 0 && (
+            <Link href={`/${track}/chapter-weightage/#${s.id}`} className="text-sm text-fg-soft underline-offset-4 hover:text-fg hover:underline">
+              Chapter-wise weightage →
+            </Link>
+          )}
         </div>
       </PageHeader>
 

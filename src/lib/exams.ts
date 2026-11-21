@@ -78,6 +78,11 @@ export function isTrack(v: string): v is Track {
   return v === "jee" || v === "neet";
 }
 
+/** The exam name to put in titles: "JEE Main" when it is the track's only exam with content, else "JEE". */
+export function examLabel(track: Track, examsWithContent: readonly ExamId[]): string {
+  return examsWithContent.length === 1 ? EXAMS[examsWithContent[0]!].name : TRACK_INFO[track].name;
+}
+
 export function trackOf(exam: ExamId): Track {
   return EXAMS[exam].track;
 }
