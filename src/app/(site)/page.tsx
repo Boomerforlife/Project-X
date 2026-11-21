@@ -125,7 +125,7 @@ function Loop() {
             ))}
           </div>
         </LoopStep>
-        <LoopStep n={2} title="Understand" body="See the answer and a step-by-step solution, with an honest label for how it was checked. Ask for a hint before you give up.">
+        <LoopStep n={2} title="Understand" body="See the answer, with a step-by-step solution where one is written and an honest label for how it was checked.">
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2 text-ok">
               <span aria-hidden>✓</span> Correct, option B

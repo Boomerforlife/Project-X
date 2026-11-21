@@ -18,8 +18,8 @@ export async function generateStaticParams() {
 const COPY = {
   jee: {
     title: "JEE Main & Advanced practice by subject and chapter",
-    description: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with step-by-step solutions, attempt full papers in an exam-style CBT, and track what to revisit.",
-    descriptionNoPapers: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with step-by-step solutions and track what to revisit.",
+    description: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with answers checked against the official key, attempt full papers in an exam-style CBT, and track what to revisit.",
+    descriptionNoPapers: "Browse JEE Physics, Chemistry and Mathematics by chapter. Practise with answers checked against the official key and track what to revisit.",
     heading: "JEE practice",
     /** Used while JEE Main is the only exam with questions: no claim about JEE Advanced. */
     mainOnly: {
@@ -29,15 +29,15 @@ const COPY = {
       heading: "JEE Main chapter-wise practice",
     },
     lede: "One syllabus, two exams. Practise chapter by chapter, then sit full JEE Main or JEE Advanced papers in the exam-style interface.",
-    ledeNoPapers: "One syllabus, two exams. Practise chapter by chapter with step-by-step solutions.",
+    ledeNoPapers: "One syllabus, two exams. Practise chapter by chapter and check every answer.",
   },
   neet: {
     title: "NEET UG practice by subject and chapter",
-    description: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise with step-by-step solutions and sit full NEET papers in an exam-style CBT.",
-    descriptionNoPapers: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise with step-by-step solutions.",
+    description: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise and check every answer, then sit full NEET papers in an exam-style CBT.",
+    descriptionNoPapers: "Browse NEET Physics, Chemistry and Biology (Botany and Zoology) by chapter. Practise and check every answer.",
     heading: "NEET practice",
     lede: "Physics, Chemistry, Botany and Zoology, chapter by chapter — then full papers in the exam-style interface.",
-    ledeNoPapers: "Physics, Chemistry, Botany and Zoology, chapter by chapter, with step-by-step solutions.",
+    ledeNoPapers: "Physics, Chemistry, Botany and Zoology, chapter by chapter, with every answer checked.",
   },
 } as const;
 
