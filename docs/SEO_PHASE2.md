@@ -200,7 +200,7 @@ sorted by chapter, with answers, timed practice, full papers in an exam-style CB
 affiliated with NTA." Add a founding story only with real, verifiable facts.
 
 **Channels, in order of expected value**
-1. **YouTube Shorts / Instagram Reels** from real PYQs: pipeline exists (`marketing/reels`, docs/MARKETING_AUTOMATION.md). Each video links the
+1. **YouTube Shorts / Instagram Reels** from real PYQs: a pipeline was described (`marketing/reels`, docs/MARKETING_AUTOMATION.md) but neither is in the repo on any branch (checked 2026-11-22); commit it before relying on it. Each video links the
    question's chapter page. Also builds brand searches ("tabbyprep"), which is the signal we have none of.
 2. **Student communities** (r/JEENEETards, r/JEE, Telegram/Discord study groups): founders answer questions with genuinely useful links (the
    weightage page, a specific chapter), disclose affiliation, follow each community's self-promotion rules. No sockpuppets.
