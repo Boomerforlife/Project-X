@@ -230,9 +230,19 @@ Outreach template (to send only after approval):
 
 ## 9. Search Console
 
-The Chrome profile available to this session is signed in as an account with **no Search Console properties**: both `sc-domain:tabbyprep.in`
-and `https://tabbyprep.in/` return "You don't have access to this property". The verified property belongs to another Google account (the
-other owner). Either add this account as a user (Settings → Users and permissions) or run the steps below from the owner account. Per the brief, the
+**Baseline, 2026-11-21** (domain property `sc-domain:tabbyprep.in`, access added the same day):
+- Performance and Page indexing reports: "Processing data, please check again in a day or so" (new property). No clicks/queries yet.
+- Sitemap `https://tabbyprep.in/sitemap.xml`: read 21 Nov, **Success, 4,508 discovered** (before the weightage page); resubmitted after the
+  da55169–6baabde deploy (4,510 URLs).
+- URL inspection: `/` indexed (last crawl 21 Nov 17:22, before the TabbyPrep rename, so Google's copy still says "Tabby"); `/jee/`, the three
+  subject pages and `/jee/physics/kinematics/` indexed with valid Breadcrumbs; `/about/` and `/jee/chapter-weightage/` unknown to Google;
+  `/jee/mathematics/co-ordinate-geometry/` "Discovered – currently not indexed" (known from the sitemap, not yet crawled: crawl budget of a new domain).
+- **Indexing requested (9, after the new revision was live)**: `/about/`, `/`, `/jee/chapter-weightage/`, `/jee/`, `/jee/physics/`,
+  `/jee/chemistry/`, `/jee/mathematics/`, `/jee/physics/kinematics/`, `/jee/mathematics/co-ordinate-geometry/`.
+
+Next checks (from 22 Nov): Page indexing reasons (watch "Crawled – currently not indexed" on question pages), first queries/impressions,
+whether titles in results show "TabbyPrep". Request indexing for the next most-asked chapters (Optics, Electrostatics, Organic Compounds
+Containing Oxygen, Limit/Continuity, Integral Calculus) a few per day. Per the brief, the
 property is verified, the sitemap is submitted, and the homepage + some pages are indexed. **Baseline to record manually** (Performance → 28 days, and
 Indexing → Pages) into `docs/seo/keyword-tracking.csv`:
 - Indexed vs Not indexed counts and top reasons ("Crawled – currently not indexed" on question pages would confirm the thin-content concern).
