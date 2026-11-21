@@ -43,6 +43,13 @@ describe('full previous-year papers', () => {
     expect((await j(await h.req('/public/papers?exam=jee-main'))).data).toEqual([]);
   });
 
+  it('hides a paper whose keys are mostly missing (less than 90% of it published)', async () => {
+    const h = setup();
+    // Two published questions plus one unkeyed draft: 2/3 published is not a full paper.
+    Object.assign(h.state.questions.find((q) => q.id === IDS.qDraft)!, { paper_id: PAPER, answer_key: null });
+    expect((await j(await h.req('/public/papers?exam=jee-main'))).data).toEqual([]);
+  });
+
   it('a paper session is the whole paper in paper order, solved or not, and names its paper', async () => {
     const h = setup();
     const t = await token(IDS.user);
