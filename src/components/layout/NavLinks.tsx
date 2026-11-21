@@ -22,9 +22,9 @@ const APP_NAV_VISIBLE: readonly NavItem[] = PAPERS_ENABLED ? APP_NAV : APP_NAV.f
 const navFor = (v: NavVariant): readonly NavItem[] => (v === "app" ? APP_NAV_VISIBLE : PRIMARY_NAV);
 const SIGNUP_LABEL = DATA_SOURCE === "api" ? "Sign up" : "Try the demo";
 
-export function DesktopNav({ variant = "site" }: { variant?: NavVariant }) {
+export function DesktopNav({ variant = "site", hidden = [] }: { variant?: NavVariant; hidden?: readonly string[] }) {
   const pathname = usePathname();
-  const nav = navFor(variant);
+  const nav = navFor(variant).filter((n) => !hidden.includes(n.href));
   return (
     <ul className="hidden items-center gap-0.5 lg:flex">
       {nav.map((item) => {
@@ -220,7 +220,7 @@ export function HeaderActions({ variant = "site" }: { variant?: NavVariant }) {
 
 const noopSubscribe = () => () => {};
 
-export function MobileNav({ variant = "site" }: { variant?: NavVariant }) {
+export function MobileNav({ variant = "site", hidden = [] }: { variant?: NavVariant; hidden?: readonly string[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const s = useDemo();
@@ -229,7 +229,7 @@ export function MobileNav({ variant = "site" }: { variant?: NavVariant }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   // The panel is portalled because the header's backdrop-filter would otherwise trap position:fixed inside it.
   const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
-  const nav = navFor(s?.user && variant === "site" ? "site" : variant);
+  const nav = navFor(s?.user && variant === "site" ? "site" : variant).filter((n) => !hidden.includes(n.href));
 
   const [lastPath, setLastPath] = useState(pathname);
   if (pathname !== lastPath) {

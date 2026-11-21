@@ -102,7 +102,7 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <Shell title={mode === "login" ? "Welcome back" : "Start practising"} sub={mode === "login" ? "Pick up where you left off." : "A focused place to practise JEE and NEET questions."}>
+    <Shell title={mode === "login" ? "Welcome back" : "Start practising"} sub={mode === "login" ? "Pick up where you left off." : "A focused place to practise previous-year exam questions."}>
       {signedIn && (
         <div className="mt-6 rounded-xl border border-line bg-surface p-4 text-sm">
           You&rsquo;re signed in as <span className="font-medium">{s!.user!.name}</span>.{" "}
@@ -245,7 +245,7 @@ function DemoAuthForm({ mode }: { mode: "login" | "signup" }) {
       </div>
       <div className="w-full max-w-md md:justify-self-end">
         <h1 className="text-3xl font-semibold">{mode === "login" ? "Welcome back" : "Start practising"}</h1>
-        <p className="mt-2 text-fg-muted">{mode === "login" ? "Pick up where you left off." : "A focused place to practise JEE and NEET questions."}</p>
+        <p className="mt-2 text-fg-muted">{mode === "login" ? "Pick up where you left off." : "A focused place to practise previous-year exam questions."}</p>
 
         {signedIn && (
           <div className="mt-6 rounded-xl border border-line bg-surface p-4 text-sm">

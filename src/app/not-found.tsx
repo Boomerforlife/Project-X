@@ -36,8 +36,8 @@ export default function NotFound() {
         <Link href="/practice/" className="text-fg underline-offset-4 hover:underline">
           Practice
         </Link>
-        <Link href="/neet/" className="text-fg underline-offset-4 hover:underline">
-          NEET
+        <Link href="/jee/" className="text-fg underline-offset-4 hover:underline">
+          JEE chapters
         </Link>
       </nav>
     </ErrorScreen>
