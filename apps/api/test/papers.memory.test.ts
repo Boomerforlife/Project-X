@@ -93,3 +93,14 @@ describe('public question by id (shared practice links)', () => {
     expect((await h.req(`/public/questions/${IDS.qSingle}`)).status).toBe(404);
   });
 });
+
+describe('practice list by id', () => {
+  it('returns exactly that question, without answers, and nothing for paper-only or unknown ids', async () => {
+    const h = setup();
+    const one = (await j(await h.req(`/practice/questions?exam=jee-main&id=${IDS.qSingle}`))).data;
+    expect(one.map((q: { id: string }) => q.id)).toEqual([IDS.qSingle]);
+    expect(JSON.stringify(one)).not.toContain('answer_key');
+    expect((await j(await h.req(`/practice/questions?exam=jee-main&id=${IDS.qNum}`))).data).toEqual([]);
+    expect((await h.req('/practice/questions?exam=jee-main&id=not-a-uuid')).status).toBe(400);
+  });
+});

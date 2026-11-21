@@ -72,6 +72,8 @@ export const PracticeListQuery = z.object({
   year_from: optInt(1978, 2100),
   year_to: optInt(1978, 2100),
   origin: QuestionOriginSchema.optional(),
+  /** One question by id (e.g. reopening a shared single-question link). Same visibility rules as the list. */
+  id: UuidSchema.optional(),
   ...pageQuery(50),
 });
 

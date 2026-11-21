@@ -234,7 +234,8 @@ function contentRepo(s: MemoryState): ContentRepo {
           (!f.types || f.types.includes(q.question_type)) &&
           (!f.yearFrom || (q.year ?? 0) >= f.yearFrom) &&
           (!f.yearTo || (q.year ?? 9999) <= f.yearTo) &&
-          (!f.origin || q.origin === f.origin),
+          (!f.origin || q.origin === f.origin) &&
+          (!f.id || q.id === f.id),
       );
       return keyset(rows, (q) => [iso(q.published_at ?? q.updated_at)], (q) => q.id, 'desc', after, limit);
     },

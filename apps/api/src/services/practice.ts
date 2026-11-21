@@ -135,6 +135,7 @@ export async function practiceList(
     year_from?: number | undefined;
     year_to?: number | undefined;
     origin?: 'PYQ' | 'AI_GENERATED' | 'EDITORIAL' | undefined;
+    id?: string | undefined;
     cursor: PageCursor | null;
     limit: number;
   },
@@ -158,6 +159,7 @@ export async function practiceList(
         yearFrom: q.year_from,
         yearTo: q.year_to,
         origin: q.origin,
+        id: q.id,
       },
       q.cursor,
       q.limit + 1,
