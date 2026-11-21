@@ -7,7 +7,7 @@ import { INDEXABLE, absoluteUrl } from "@/lib/site";
 /** Lists only pages that are indexable — mirrors each page's robots decision. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!INDEXABLE) return [];
-  const out: MetadataRoute.Sitemap = [{ url: absoluteUrl("/"), priority: 1 }];
+  const out: MetadataRoute.Sitemap = [{ url: absoluteUrl("/"), priority: 1 }, { url: absoluteUrl("/about/"), priority: 0.6 }];
   for (const track of TRACKS) {
     const [subjects, chapters, counts, papers] = await Promise.all([
       getSubjects(track),

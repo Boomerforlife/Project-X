@@ -71,20 +71,37 @@ export function breadcrumbJsonLd(crumbs: Crumb[]) {
   };
 }
 
+/**
+ * Who the site is (Organization) and what it is called (WebSite): Google reads the WebSite name/alternateName for the
+ * site name shown in results, and the Organization logo for the brand. Facts only; `sameAs` lists official profiles
+ * once they exist.
+ */
 export function siteJsonLd() {
+  const org = {
+    "@type": "Organization",
+    "@id": `${SITE.url}/#organization`,
+    name: SITE.name,
+    alternateName: SITE.alternateNames,
+    url: `${SITE.url}/`,
+    logo: { "@type": "ImageObject", url: absoluteUrl("/logo.png"), width: 512, height: 512 },
+    description: SITE.description,
+    ...(SITE_PROFILES.length ? { sameAs: SITE_PROFILES } : {}),
+  };
   return [
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: SITE.name,
-      url: SITE.url,
-      logo: absoluteUrl("/icon.svg"),
-    },
+    { "@context": "https://schema.org", ...org },
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
+      "@id": `${SITE.url}/#website`,
       name: SITE.name,
-      url: SITE.url,
+      alternateName: SITE.alternateNames,
+      url: `${SITE.url}/`,
+      description: SITE.description,
+      inLanguage: "en-IN",
+      publisher: { "@id": `${SITE.url}/#organization` },
     },
   ];
 }
+
+/** Official social/brand profiles (Instagram, YouTube, X, LinkedIn...). Add each URL here once the account exists. */
+export const SITE_PROFILES: string[] = [];

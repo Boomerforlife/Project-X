@@ -41,6 +41,7 @@ export async function SiteFooter() {
     {
       title: "Company",
       links: [
+        { href: "/about/", label: "About" },
         { href: "/contact/", label: "Contact" },
         { href: "/terms/", label: "Terms" },
         { href: "/privacy/", label: "Privacy" },
