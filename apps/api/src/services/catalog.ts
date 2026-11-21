@@ -22,7 +22,7 @@ import {
   toPublicQuestion,
   toQuestionSummary,
 } from '../mappers/question';
-import type { PageCursor, QuestionRow, Store, Taxonomy } from '../repositories/types';
+import type { PageCursor, QuestionRow, ServiceRepos, Store, Taxonomy } from '../repositories/types';
 
 export interface Out<T> {
   data: T;
@@ -261,6 +261,22 @@ export async function publicChapter(
 }
 
 // ------------------------------------------------------------------ question
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * The slug of a question's public page, by question id; null when it has no public page. Same rule as the page itself
+ * (public row AND a renderable DTO, i.e. an official-key-matched or human-verified solution).
+ */
+async function publicSlugForId(r: ServiceRepos, deps: Pick<AppDeps, 'config' | 'logger'>, id: string): Promise<string | null> {
+  const byId = await r.content.getPublishedById(id);
+  if (!byId) return null;
+  const bundle = await r.content.getPublishedBySlug(byId.question.slug);
+  if (!bundle) return null;
+  const tax = new TaxIndex(await r.taxonomy.load());
+  const assets = new AssetResolver(await r.content.assetsByIds(bundleAssetIds(bundle)), deps.config.PUBLIC_ASSETS_BASE_URL, deps.logger);
+  return toPublicQuestion(bundle, tax, assets, 0, deps.logger) ? bundle.question.slug : null;
+}
+
 export async function publicQuestion(
   store: Store,
   deps: Pick<AppDeps, 'config' | 'logger'>,
@@ -270,7 +286,8 @@ export async function publicQuestion(
     const bundle = await r.content.getPublishedBySlug(slug);
     const notFoundCache = { cls: 'PUBLIC_NOT_FOUND' as const, tags: [cacheTags.questionSlug(slug)] };
     if (!bundle) {
-      const target = await r.content.findRedirectTarget(slug);
+      // A question id (e.g. from a shared single-question practice link) resolves like an old slug: 301 to the page.
+      const target = (await r.content.findRedirectTarget(slug)) ?? (UUID_RE.test(slug) ? await publicSlugForId(r, deps, slug) : null);
       if (target) {
         throw new ApiError('MOVED_PERMANENTLY', 'Question moved', {
           details: { slug: target, canonical_path: questionPath(target) },

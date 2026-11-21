@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ResponseValue } from "@/contracts";
 import { RichText } from "@/components/content/RichText";
@@ -14,7 +14,7 @@ import { LoadingScreen, SESSION_MESSAGES } from "@/components/states/Loading";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { isAnswered, outcomeFor } from "@/lib/demo/scoring";
-import { checkAnswer, ensureAttempt, setCurrent, setResponse, submitAttempt, toggleBookmark, toggleReview, usePending, useSubmitState, useDemo } from "@/lib/demo/store";
+import { checkAnswer, ensureAttempt, publicSlugForQuestion, setCurrent, setResponse, singleQuestionId, startSingleBySlug, submitAttempt, toggleBookmark, toggleReview, usePending, useSubmitState, useDemo } from "@/lib/demo/store";
 import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt, DemoState } from "@/lib/demo/types";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -36,14 +36,42 @@ export function PracticeSession() {
   // API mode: a reload, deep link or second device loads the session from the server.
   const [loaded, setLoaded] = useState<string | null>(null);
   const hasUser = Boolean(s?.user);
+  const signedOut = s !== null && !s.user;
+  const userExam = s?.user?.exam;
+  // A single-question session lives only in the browser that started it. Its link (copied, shared, opened elsewhere)
+  // still names the question: a visitor gets the free public page, a signed-in student a fresh attempt at it.
+  const singleQ = id ? singleQuestionId(id) : null;
+  const [shared, setShared] = useState<"members" | "error" | null>(null);
   useEffect(() => {
-    if (!API || !id || !hasUser || a) return;
+    if (!API || !singleQ || !signedOut) return;
     let live = true;
-    void ensureAttempt(id).finally(() => live && setLoaded(id));
+    publicSlugForQuestion(singleQ)
+      .then((slug) => {
+        if (!live) return;
+        if (slug) router.replace(`/jee/questions/${slug}/`);
+        else setShared("members");
+      })
+      .catch(() => live && setShared("error"));
     return () => {
       live = false;
     };
-  }, [id, hasUser, a]);
+  }, [singleQ, signedOut, router]);
+  useEffect(() => {
+    if (!API || !id || !hasUser || a) return;
+    let live = true;
+    if (singleQ && userExam) {
+      publicSlugForQuestion(singleQ)
+        .catch(() => null)
+        .then((slug) => startSingleBySlug(slug ?? singleQ, userExam))
+        .then((fresh) => live && router.replace(`/practice/session/?id=${fresh}`))
+        .catch(() => live && setLoaded(id));
+    } else {
+      void ensureAttempt(id).finally(() => live && setLoaded(id));
+    }
+    return () => {
+      live = false;
+    };
+  }, [id, hasUser, a, singleQ, userExam, router]);
 
   useEffect(() => {
     if (a?.status === "submitted") router.replace(`/results/?id=${a.id}`);
@@ -51,7 +79,10 @@ export function PracticeSession() {
   }, [a?.status, a?.mode, a?.id, router]);
 
   if (s === null) return <SessionLoading />;
-  if (!s.user) return <DemoRequired />;
+  if (!s.user) {
+    if (!API || !singleQ || shared === "error") return <DemoRequired />;
+    return shared === "members" ? <MembersQuestion /> : <LoadingScreen messages={SESSION_MESSAGES} label="Opening the question" />;
+  }
   if (!a && API && id && loaded !== id) return <LoadingScreen messages={SESSION_MESSAGES} label="Loading your practice session" />;
   if (!a) {
     return (
@@ -66,6 +97,36 @@ export function PracticeSession() {
   }
   if (a.status === "submitted" || a.mode === "cbt") return <SessionLoading />;
   return <Player key={a.id} attempt={a} state={s} />;
+}
+
+/**
+ * A shared link to a question that has no free public page: practice questions whose answer is AI-checked rather than
+ * matched to an official key are shown to signed-in students only. Say so plainly and offer the free questions.
+ */
+function MembersQuestion() {
+  const path = usePathname();
+  const search = useSearchParams().toString();
+  const here = `${path}${search ? `?${search}` : ""}`;
+  return (
+    <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-24 text-center">
+      <h1 className="text-3xl font-semibold">This question needs a free account</h1>
+      <p className="mt-3 text-fg-muted">
+        It&rsquo;s a practice question whose answer was checked by AI, not matched to an official NTA answer key, so we show it to
+        signed-in students only. Thousands of previous-year questions with official answers are free to practise without signing up.
+      </p>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <ButtonLink href="/jee/" size="lg" pixel>
+          Practise free PYQs
+        </ButtonLink>
+        <ButtonLink href={`/login/?next=${encodeURIComponent(here)}`} size="lg" variant="secondary">
+          Log in
+        </ButtonLink>
+        <ButtonLink href="/signup/" size="lg" variant="ghost">
+          Create free account
+        </ButtonLink>
+      </div>
+    </div>
+  );
 }
 
 /** The focus shell has no navigation, so the full branded loader fits. */

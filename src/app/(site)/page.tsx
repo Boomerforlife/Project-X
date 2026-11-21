@@ -417,8 +417,9 @@ function CommonQuestions({ facts }: { facts?: TrackFacts }) {
       q: "Is it free?",
       a: (
         <>
-          Yes. Practice questions are unlimited on the free plan{FULL_PAPERS ? ", which also includes a few full papers in the exam-style CBT each month" : ""}. An
-          optional paid plan adds more: <Link href="/pricing/">see what each plan includes</Link>.
+          Yes. You can start answering chapter questions right away, without an account. A free account keeps your progress and mistake notebook, with
+          unlimited practice{FULL_PAPERS ? " and a few full papers in the exam-style CBT each month" : ""}. An optional paid plan adds more:{" "}
+          <Link href="/pricing/">see what each plan includes</Link>.
         </>
       ),
     },

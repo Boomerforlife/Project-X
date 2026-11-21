@@ -19,7 +19,7 @@ import type { ExamId, Question, Response, SubjectId, Solution } from "@/contract
 import { toast } from "@/components/ui/Toast";
 import { examFromApi, examToApi, subjectFromApi } from "@/lib/api/adapters/ids";
 import { setTokenProvider } from "@/lib/api/auth";
-import { flags } from "@/lib/api/env";
+import { browserBaseUrl, flags } from "@/lib/api/env";
 import { ApiError, isApiError } from "@/lib/api/errors";
 import { authSignOut, getAccessToken, onAuthChange } from "@/lib/auth/session";
 import { catalog } from "@/lib/data/catalog";
@@ -150,13 +150,16 @@ async function doRefresh() {
   if (!token) return signedOut();
   try {
     const [me] = await Promise.all([api.me(), registry.loadTaxonomy()]);
+    // Auth events also fire for the same user (token refresh, tab regaining focus). Keep what is already loaded then:
+    // wiping it lost in-memory sessions (single questions have no server copy) and showed "Session not found".
+    const sameUser = userId === me.id && state.user !== null;
     userId = me.id;
     prefs = readPrefs(me.id);
     for (const stub of Object.values(prefs.reviewStubs)) if (!registry.getQuestion(stub.id)) registry.putQuestion(stub);
     const user = toDemoUser(me, prefs);
     status = "ready";
     statusMessage = "";
-    set({ ...EMPTY, user, review: prefs.review, attempts: loadLocalPapers(me.id) });
+    set(sameUser ? { ...state, user, review: prefs.review, attempts: { ...state.attempts, ...loadLocalPapers(me.id) } } : { ...EMPTY, user, review: prefs.review, attempts: loadLocalPapers(me.id) });
     if (user.onboarded) await loadPrivate(user.exam);
   } catch (e) {
     if (isApiError(e) && e.status === 401) return signedOut();
@@ -519,6 +522,24 @@ function startSingle(opts: StartOpts): string {
   return id;
 }
 
+/** Question id inside a single-question session id (`single_<questionId>_<time>`), else null. */
+export function singleQuestionId(attemptId: string): string | null {
+  const m = /^single_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_[a-z0-9]+$/.exec(attemptId);
+  return m ? m[1]! : null;
+}
+
+/**
+ * Slug of a question's free public page, looked up by question id (the API answers an id with a redirect to the
+ * slug, which the browser follows here). Null when the question has no public page (e.g. AI-checked practice items).
+ */
+export async function publicSlugForQuestion(questionId: string): Promise<string | null> {
+  const res = await fetch(`${browserBaseUrl()}/public/questions/${encodeURIComponent(questionId)}`, { headers: { Accept: "application/json" } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Question lookup failed (${res.status})`);
+  const body = (await res.json()) as { data?: { slug?: unknown } };
+  return typeof body.data?.slug === "string" ? body.data.slug : null;
+}
+
 /** Public question page -> practice: load the question (no solution is kept) and start a single attempt. */
 export async function startSingleBySlug(slug: string, exam: ExamId, hint: { subject?: SubjectId; chapter?: string } = {}): Promise<string> {
   let r = await publicQuestion(slug);
@@ -538,7 +559,7 @@ async function findPracticeQuestion(slug: string, exam: ExamId, hint: { subject?
   let cursor: string | undefined;
   for (let page = 0; page < 20; page++) {
     const r = await practiceQuestions({ exam: examToApi(exam), ...(ch ? { chapter: ch.apiSlug } : {}), limit: 50, ...(cursor ? { cursor } : {}) });
-    const hit = r.data.find((x) => x.slug === slug);
+    const hit = r.data.find((x) => x.slug === slug || x.id === slug); // a question id also works (shared links)
     if (hit) return toPracticeQuestion(hit);
     cursor = r.meta?.page?.next_cursor ?? undefined;
     if (!cursor || r.data.length === 0) break;
