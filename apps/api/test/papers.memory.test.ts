@@ -88,5 +88,8 @@ describe('public question by id (shared practice links)', () => {
     expect((await j(r)).error.details).toMatchObject({ slug: 'demo-single' });
     expect((await h.req(`/public/questions/${IDS.qNum}`)).status).toBe(404); // paper-only: no public page
     expect((await h.req(`/public/questions/${IDS.qDraft}`)).status).toBe(404); // unpublished
+    // AI-checked only (automated checks, no official key match): no public page, so no redirect either.
+    Object.assign(h.state.questions.find((q) => q.id === IDS.qSingle)!, { verification_status: 'AUTOMATED_CHECKS_PASSED' });
+    expect((await h.req(`/public/questions/${IDS.qSingle}`)).status).toBe(404);
   });
 });
