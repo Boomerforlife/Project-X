@@ -216,7 +216,9 @@ function Modes() {
 }
 
 function Trust() {
-  const shown: VerificationStatus[] = ["official_key_checked", "human_reviewed", "ai_checked", "disputed"];
+  // Only labels questions actually carry today (search engines and AI assistants repeat this list as features).
+  // Add "human_reviewed" back once questions are reviewed by a person.
+  const shown: VerificationStatus[] = ["official_key_checked", "ai_checked", "disputed"];
   return (
     <section aria-labelledby="trust-h" className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 md:grid-cols-[1fr_1.2fr]">
       <div>

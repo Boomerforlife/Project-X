@@ -216,9 +216,23 @@ Outreach template (to send only after approval):
 > (<link to weightage page>), with the method stated. If it's useful for your students or your weightage article, you're welcome to cite it.
 > Happy to add anything you think is missing.
 
+### Measured baseline (2026-11-21, via the browser)
+
+- **Google `site:tabbyprep.in`**: 2 results (JEE Physics hub, one question page), both still titled "… - Tabby". The homepage is not listed.
+- **Google "tabbyprep"**: the site does not appear at all; Google answers "Did you mean: tabby prep" (cats, Tabby payments interviews).
+  The brand is not yet an entity Google knows: indexing of `/`, `/about/` and the hubs is the first job.
+- **Gemini, asked "What is TabbyPrep (tabbyprep.in)?"**: answered correctly from tabbyprep.in (modes, CBT, mistake notebook, verification
+  labels, free + Plus), **but** repeated two inaccuracies taken from the old site copy: "JEE Main, JEE Advanced and NEET" (fixed in da55169) and a
+  "Reviewed by a subject expert" label (no question has it; removed from the homepage legend in the next commit).
+- **Gemini, asked for the best free sites for chapter-wise JEE Main PYQs**: MARKS (MathonGo), ExamSIDE, Quizrr free PYQ tests, AcadXL, SelfStudys.
+  TabbyPrep appears only because the prompt named it. These five are the sites to study and to be listed alongside.
+- Bing `site:` search showed a CAPTCHA and was not checked.
+
 ## 9. Search Console
 
-The Search Console UI could not be read from this session (Claude-in-Chrome not connected; no Search Console API credentials). Per the brief, the
+The Chrome profile available to this session is signed in as an account with **no Search Console properties**: both `sc-domain:tabbyprep.in`
+and `https://tabbyprep.in/` return "You don't have access to this property". The verified property belongs to another Google account (the
+other owner). Either add this account as a user (Settings → Users and permissions) or run the steps below from the owner account. Per the brief, the
 property is verified, the sitemap is submitted, and the homepage + some pages are indexed. **Baseline to record manually** (Performance → 28 days, and
 Indexing → Pages) into `docs/seo/keyword-tracking.csv`:
 - Indexed vs Not indexed counts and top reasons ("Crawled – currently not indexed" on question pages would confirm the thin-content concern).
