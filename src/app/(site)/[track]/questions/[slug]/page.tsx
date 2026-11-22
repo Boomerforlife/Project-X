@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Blocks } from "@/components/content/Blocks";
-import { richTextToPlain } from "@/components/content/RichText";
+import { RichText, richTextToPlain } from "@/components/content/RichText";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DifficultyChip, SubjectTag, TypeChip, VERIFICATION_COPY, VerificationBadge } from "@/components/ui/Badges";
 import { PracticeLink, PublicTry } from "@/components/practice/PublicTry";
@@ -264,7 +264,7 @@ function SolutionBlock({ sol }: { sol: Solution | null }) {
         </div>
         <div>
           <p className="font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">Solution</p>
-          {sol.extras?.summary && <p className="mt-3 leading-relaxed text-fg-soft">{sol.extras.summary}</p>}
+          {sol.extras?.summary && <p className="mt-3 leading-relaxed text-fg-soft"><RichText value={sol.extras.summary} /></p>}
           {sol.steps.length === 0 && !sol.extras?.summary && (
             <p className="mt-3 text-sm text-fg-muted">
               A worked solution for this question isn&rsquo;t written yet. The answer above is the exam body&rsquo;s official final answer key.
