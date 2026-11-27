@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { OnwardLinks } from "@/components/site/OnwardLinks";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { brandFacts, fmt, type TrackFacts } from "@/lib/brand-facts";
 import { PAPERS_VISIBLE } from "@/lib/data";
@@ -109,6 +110,8 @@ export default async function AboutPage() {
             <Link href="/contact/">contact us</Link>.
           </Qa>
         </section>
+
+        <OnwardLinks keys={["practice", "pyqs", "studyPlans", "pricing", "contact"]} />
       </div>
     </>
   );
