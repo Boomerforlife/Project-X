@@ -435,6 +435,9 @@ export type StartOpts = {
   difficulty?: "easy" | "medium" | "hard";
   /** API mode: include questions already solved (default false). */
   includeSolved?: boolean;
+  /** API mode: previous-year questions from these years only (inclusive). */
+  yearFrom?: number;
+  yearTo?: number;
 };
 
 export async function startPractice(opts: StartOpts): Promise<string> {
@@ -449,6 +452,8 @@ export async function startPractice(opts: StartOpts): Promise<string> {
     size: Math.max(1, Math.min(opts.mode === "test" ? 20 : 50, opts.count ?? (opts.questionIds.length || 10))),
     filters: {
       ...(opts.difficulty ? { difficulty: [opts.difficulty.toUpperCase() as "EASY" | "MEDIUM" | "HARD"] } : {}),
+      ...(opts.yearFrom ? { year_from: opts.yearFrom } : {}),
+      ...(opts.yearTo ? { year_to: opts.yearTo } : {}),
       exclude_correct: src === "bookmarks" || src === "mistakes" ? false : !opts.includeSolved,
     },
     ui_mode: opts.mode,

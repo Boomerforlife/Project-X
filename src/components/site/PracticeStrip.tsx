@@ -60,6 +60,9 @@ export function PracticeStrip({ track, chapterNames }: { track: Track; chapterNa
             <Icon name="target" className="size-4" /> Weakest chapter: {weakName} ({Math.round(weak.accuracy * 100)}% over {weak.answered})
           </Link>
         )}
+        <Link href={routes.allQuestions} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 text-sm text-fg-soft hover:bg-surface-2 hover:text-fg">
+          <Icon name="list" className="size-4" /> All questions
+        </Link>
       </div>
     </section>
   );
