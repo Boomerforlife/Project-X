@@ -3,9 +3,13 @@ import { isTrackIndexable } from "@/lib/indexing";
 import { notFound } from "next/navigation";
 import { Kitty } from "@/components/brand/Kitty";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
+import { PracticeStrip } from "@/components/site/PracticeStrip";
+import { SignedOutOnly } from "@/components/site/SignedOutOnly";
 import { ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
+import { COPY as WORDS } from "@/lib/copy";
+import { routes } from "@/lib/routes";
 import { FULL_PAPERS, PAPERS_VISIBLE, getChapters, getExams, getPublicPapers, getQuestionCounts, getSubjects } from "@/lib/data";
 import { EXAMS, TRACKS, TRACK_INFO, examLabel, isTrack } from "@/lib/exams";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
@@ -65,6 +69,8 @@ export default async function TrackHubPage({ params }: PageProps<"/[track]">) {
   const info = TRACK_INFO[track];
   const [exams, subjects, chapters, counts, papers] = await Promise.all([getExams(track), getSubjects(track), getChapters({ track }), getQuestionCounts(track), getPublicPapers({ track })]);
 
+  const chapterNames = Object.fromEntries(chapters.map((c) => [`${c.subject}/${c.slug}`, c.name]));
+
   return (
     <>
       <PageHeader
@@ -78,22 +84,39 @@ export default async function TrackHubPage({ params }: PageProps<"/[track]">) {
       >
         <div className="mt-8 flex flex-wrap gap-2">
           {subjects.map((s) => (
-            <Link key={s.id} href={`#${s.id}`} className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-line-strong">
+            <Link key={s.id} href={`#${s.id}`} className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm hover:border-line-strong">
               <span className={SUBJECT_STYLE[s.id].text}>{s.name}</span>
             </Link>
           ))}
           {counts.total > 0 && (
-            <Link href={`/${track}/chapter-weightage/`} className="rounded-md border border-line px-3 py-1.5 text-sm text-fg-soft hover:border-line-strong hover:text-fg">
+            <Link href={`/${track}/chapter-weightage/`} className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm text-fg-soft hover:border-line-strong hover:text-fg">
               Chapter-wise weightage →
             </Link>
           )}
           {subjects.length > 0 && (
-            <Link href={`/${track}/pyq/`} className="rounded-md border border-line px-3 py-1.5 text-sm text-fg-soft hover:border-line-strong hover:text-fg">
-              Previous year papers →
+            <Link href={routes.pyq(track)} className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm text-fg-soft hover:border-line-strong hover:text-fg">
+              {WORDS.pyqs} →
             </Link>
+          )}
+          {subjects.length > 0 && (
+            <Link href="/resources/" className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm text-fg-soft hover:border-line-strong hover:text-fg">
+              Study guides →
+            </Link>
+          )}
+          {subjects.length > 0 && (
+            <SignedOutOnly>
+              <Link
+                href={routes.signup(routes.practice(track))}
+                className="inline-flex min-h-11 items-center rounded-md border border-line px-3 text-sm text-fg-soft hover:border-line-strong hover:text-fg"
+              >
+                {WORDS.timedTest} · free account →
+              </Link>
+            </SignedOutOnly>
           )}
         </div>
       </PageHeader>
+
+      {subjects.length > 0 && <PracticeStrip track={track} chapterNames={chapterNames} />}
 
       {subjects.length === 0 && (
         <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
@@ -131,12 +154,12 @@ export default async function TrackHubPage({ params }: PageProps<"/[track]">) {
                 <p className="mt-4 text-sm leading-relaxed text-fg-soft">{e.blurb}</p>
                 {PAPERS_VISIBLE && <p className="mt-3 text-xs text-fg-muted">Demo marking: {rules.join(" · ")}</p>}
                 <div className="mt-6 flex flex-wrap gap-2">
-                  <ButtonLink href={`/practice/new/?exam=${id}`} size="sm" pixel>
-                    <Icon name="play" className="size-3.5" /> Practise {e.short}
+                  <ButtonLink href={`#${e.subjects.find((x) => subjects.some((s) => s.id === x)) ?? "physics"}`} pixel>
+                    <Icon name="play" className="size-3.5" /> Practise {e.short} by chapter
                   </ButtonLink>
                   {FULL_PAPERS && (
-                    <ButtonLink href={`/tests/?exam=${id}`} size="sm" variant="secondary">
-                      {PAPERS_VISIBLE ? "Full papers & mocks" : "Full papers in CBT"}
+                    <ButtonLink href={routes.pyq(track)} variant="secondary">
+                      {WORDS.pyqs}
                     </ButtonLink>
                   )}
                 </div>

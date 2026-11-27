@@ -8,6 +8,7 @@ import { pct, questionStats, yearSpan, type QuestionStats } from "@/lib/chapter-
 import { cn } from "@/lib/cn";
 import { getChapters, getExams, getQuestions, getSubjects } from "@/lib/data";
 import { TRACKS, TRACK_INFO, examLabel, isTrack, type Track } from "@/lib/exams";
+import { routes } from "@/lib/routes";
 import { NOT_FOUND_METADATA, pageMetadata, safeMetadata } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
@@ -101,7 +102,7 @@ export default async function WeightagePage({ params }: PageProps<"/[track]/chap
                 <ol className="mt-3 space-y-2 text-sm">
                   {b.rows.slice(0, 5).map((r, i) => (
                     <li key={r.chapter.slug} className="flex items-baseline justify-between gap-3">
-                      <Link href={`/${track}/${b.subject.id}/${r.chapter.slug}/`} className="text-fg-soft underline-offset-4 hover:text-fg hover:underline">
+                      <Link href={routes.chapter(track, b.subject.id, r.chapter.slug)} className="inline-flex min-h-8 items-center text-fg-soft underline-offset-4 hover:text-fg hover:underline">
                         <span className="mr-2 font-pixel text-[0.65rem] text-fg-subtle">{i + 1}</span>
                         {r.chapter.name}
                       </Link>
@@ -144,10 +145,13 @@ export default async function WeightagePage({ params }: PageProps<"/[track]/chap
         </section>
 
         <div className="flex flex-wrap items-center gap-3 border-t border-line pt-8">
-          <ButtonLink href={`/practice/new/?exam=${info.primaryExam}`} pixel>
-            <Icon name="play" className="size-3.5" /> Practise free
+          <ButtonLink href={routes.practice(track)} pixel>
+            <Icon name="play" className="size-3.5" /> Practise free by chapter
           </ButtonLink>
-          <ButtonLink href={`/${track}/`} variant="secondary">
+          <ButtonLink href={routes.pyq(track)} variant="secondary">
+            PYQs
+          </ButtonLink>
+          <ButtonLink href={routes.practice(track)} variant="ghost">
             All {exam} chapters
           </ButtonLink>
         </div>
@@ -190,13 +194,12 @@ function SubjectTable({ block, years, track, exam }: { block: SubjectBlock; year
             {rows.map((r) => (
               <tr key={r.chapter.slug} className="border-b border-line/60">
                 <th scope="row" className="py-2 pr-4 font-normal">
-                  {r.stats.pyq > 0 ? (
-                    <Link href={`/${track}/${subject.id}/${r.chapter.slug}/`} className="text-fg-soft underline-offset-4 hover:text-fg hover:underline">
-                      {r.chapter.name}
-                    </Link>
-                  ) : (
-                    <span className="text-fg-subtle">{r.chapter.name}</span>
-                  )}
+                  <Link
+                    href={routes.chapter(track, subject.id, r.chapter.slug)}
+                    className={cn("underline-offset-4 hover:text-fg hover:underline", r.stats.pyq > 0 ? "text-fg-soft" : "text-fg-subtle")}
+                  >
+                    {r.chapter.name}
+                  </Link>
                 </th>
                 <td className="py-2 pr-4">{r.stats.pyq}</td>
                 <td className="py-2 pr-4 text-fg-muted">{pct(r.stats.pyq, total)}</td>

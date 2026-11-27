@@ -8,7 +8,7 @@ import { INDEXABLE, absoluteUrl } from "@/lib/site";
 /** Lists only pages that are indexable — mirrors each page's robots decision. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!INDEXABLE) return [];
-  const out: MetadataRoute.Sitemap = [{ url: absoluteUrl("/"), priority: 1 }, { url: absoluteUrl("/about/"), priority: 0.6 }];
+  const out: MetadataRoute.Sitemap = [{ url: absoluteUrl("/"), priority: 1 }, { url: absoluteUrl("/about/"), priority: 0.6 }, { url: absoluteUrl("/study-plans/"), priority: 0.6 }];
   // Editorial guides (/resources/ is noindex until at least one guide exists, so it is listed only then).
   if (GUIDES.length) {
     out.push({ url: absoluteUrl("/resources/"), priority: 0.7 });
