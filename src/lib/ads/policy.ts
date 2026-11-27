@@ -6,7 +6,12 @@
  * Free users see ads on every content page (Auto ads + the manual placements below). Never shown:
  *   - in the CBT exam shell or on a test's limit page (accidental taps next to exam controls = invalid traffic),
  *   - on sign-in, onboarding, pricing, checkout, payment links, account/billing, admin (no publisher content),
- *   - on error / not-found pages, or between a question's options or inside a solution.
+ *   - on the legal pages (privacy, terms, refund policy, contact, about),
+ *   - on error / not-found pages (they render at arbitrary paths, so they mark themselves with <NoAds />),
+ *     or between a question's options or inside a solution.
+ * One deliberate exception: the opt-in REWARDED offer ("watch one short ad for one extra paper") may appear on a
+ * test's limit page, because the student starts it themselves. Display and in-feed ads stay banned there.
+ * `pathAllowsRewarded` is the single place that says so.
  * Practice sessions (the question screen) carry one small manual unit below the question tools, untimed sessions
  * only; Auto ads placements are hidden there (MANUAL_ONLY_PREFIXES) so nothing jumps into the question.
  */
@@ -52,7 +57,19 @@ export const BLOCKED_PREFIXES = [
   "/pay/",
   "/account/",
   "/admin/",
+  // Legal / policy pages: no ads next to terms, privacy and refund text.
+  "/privacy/",
+  "/terms/",
+  "/refund-policy/",
+  "/contact/",
+  "/about/",
 ];
+
+/**
+ * Rewarded (user-initiated, opt-in) offers. Allowed wherever display ads are, plus the limit page, where the offer
+ * is the whole point (an extra paper). Never in the CBT, auth, checkout, account, admin or legal pages.
+ */
+export const REWARDED_EXTRA_PREFIXES = ["/tests/limit/"];
 
 /** Manual units only: Auto ads placements (anchors, side rails, in-page) are hidden so nothing lands inside a question. */
 export const MANUAL_ONLY_PREFIXES = ["/practice/session/"];
@@ -117,6 +134,12 @@ const withSlash = (p: string) => (p.endsWith("/") ? p : `${p}/`);
 export function pathAllowsAds(path: string): boolean {
   const p = withSlash(path || "/");
   return !BLOCKED_PREFIXES.some((b) => p.startsWith(b));
+}
+
+export function pathAllowsRewarded(path: string): boolean {
+  const p = withSlash(path || "/");
+  if (REWARDED_EXTRA_PREFIXES.some((b) => p.startsWith(b))) return true;
+  return pathAllowsAds(p);
 }
 
 export function placementAllowed(id: PlacementId, path: string): boolean {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { NoAds } from "@/components/ads/NoAds";
 import { ErrorScreen } from "@/components/states/ErrorScreen";
 import { ButtonLink } from "@/components/ui/Button";
 
@@ -15,7 +16,9 @@ export const metadata: Metadata = {
  */
 export default function NotFound() {
   return (
-    <ErrorScreen
+    <>
+      <NoAds />
+      <ErrorScreen
       kind="not-found"
       actions={
         <>
@@ -40,6 +43,7 @@ export default function NotFound() {
           JEE chapters
         </Link>
       </nav>
-    </ErrorScreen>
+      </ErrorScreen>
+    </>
   );
 }

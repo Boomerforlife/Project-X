@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   BLOCKED_PREFIXES,
   DEFAULT_POLICY,
+  PLACEMENTS,
+  type PlacementId,
   EMPTY_SESSION,
   canShowDisplay,
   deviceFor,
   infeedPositions,
   pathAllowsAds,
+  pathAllowsRewarded,
   pathManualOnly,
   placementAllowed,
   resolvePolicy,
@@ -26,6 +29,11 @@ describe("ad placement policy", () => {
       "/pay/abcdef/",
       "/account/",
       "/admin/questions/",
+      "/privacy/",
+      "/terms/",
+      "/refund-policy",
+      "/contact/",
+      "/about/",
     ]) {
       expect(pathAllowsAds(p), p).toBe(false);
     }
@@ -33,11 +41,25 @@ describe("ad placement policy", () => {
   });
 
   it("allows free users ads on content pages, and only the manual unit inside a practice session", () => {
-    for (const p of ["/", "/jee/", "/plan/", "/terms/", "/practice/session/", "/dashboard/"]) expect(pathAllowsAds(p), p).toBe(true);
+    for (const p of ["/", "/jee/", "/plan/", "/resources/", "/practice/session/", "/dashboard/"]) expect(pathAllowsAds(p), p).toBe(true);
     expect(pathManualOnly("/practice/session")).toBe(true);
     expect(pathManualOnly("/jee/physics/")).toBe(false);
     expect(placementAllowed("question-bottom", "/practice/session/")).toBe(true);
     expect(placementAllowed("question-bottom", "/cbt/")).toBe(false);
+  });
+
+  it("allows the opt-in rewarded offer on the limit page as the one exception to the display-ad ban", () => {
+    // Display and in-feed ads stay banned there...
+    expect(pathAllowsAds("/tests/limit/")).toBe(false);
+    for (const id of Object.keys(PLACEMENTS) as PlacementId[]) expect(placementAllowed(id, "/tests/limit/"), id).toBe(false);
+    // ...but the user-initiated rewarded offer is allowed, with or without the trailing slash.
+    expect(pathAllowsRewarded("/tests/limit/")).toBe(true);
+    expect(pathAllowsRewarded("/tests/limit")).toBe(true);
+    expect(pathAllowsRewarded("/jee/physics/")).toBe(true);
+    // Every other protection holds for rewarded too.
+    for (const p of ["/cbt/abc/", "/login/", "/pricing/", "/billing/success/", "/pay/x/", "/account/", "/admin/", "/terms/"]) {
+      expect(pathAllowsRewarded(p), p).toBe(false);
+    }
   });
 
   it("allows each placement only on its own pages", () => {

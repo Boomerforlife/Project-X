@@ -1,7 +1,13 @@
 "use client";
 
+import { NoAds } from "@/components/ads/NoAds";
 import { RouteError } from "@/components/app/RouteError";
 
 export default function SiteError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
-  return <RouteError error={error} retry={retry} home="/dashboard/" />;
+  return (
+    <>
+      <NoAds />
+      <RouteError error={error} retry={retry} home="/dashboard/" />
+    </>
+  );
 }
