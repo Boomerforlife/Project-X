@@ -15,6 +15,9 @@ import { isQuestionIndexable } from "@/lib/indexing";
 import { DATA_SOURCE } from "@/lib/site";
 import * as api from "./api";
 import { catalog } from "./catalog";
+import type { PyqPaper } from "./pyq";
+
+export type { PyqPaper } from "./pyq";
 
 const API = DATA_SOURCE === "api";
 
@@ -159,6 +162,35 @@ export async function getPapers(filter: { track?: Track; exam?: ExamId; kind?: "
 export async function getPublicPapers(filter: { track?: Track; exam?: ExamId; kind?: "pyq" | "mock" } = {}) {
   const papers = await getPapers(filter);
   return API ? papers.filter((p) => !p.isDemo) : papers;
+}
+
+/**
+ * Previous-year papers a public page may list and link (PYQ hub, year and paper pages). API mode with the papers flag
+ * "on": the real papers from GET /public/papers. Demo builds: the fixture papers, flagged `isDemo`. Otherwise none.
+ */
+export async function getPyqPapers(track: Track): Promise<PyqPaper[]> {
+  if (API && flags.papers === "on") return api.apiPyqPapers(track);
+  if (!FULL_PAPERS) return [];
+  const papers = await getPapers({ track, kind: "pyq" });
+  return papers
+    .filter((p) => p.year !== null)
+    .map((p) => ({
+      slug: p.id,
+      title: p.title,
+      exam: p.exam,
+      year: p.year!,
+      examDate: p.date,
+      shift: p.shift,
+      questionCount: p.questionCount ?? p.sections.reduce((n, s) => n + s.questionIds.length, 0),
+      durationMin: p.durationMinutes,
+      numericalCounted: null,
+      sections: p.sections.map((s) => ({ subject: s.subject, name: s.name, questionCount: s.questionIds.length })),
+      isDemo: p.isDemo,
+    }));
+}
+
+export async function getPyqPaper(track: Track, slug: string): Promise<PyqPaper | null> {
+  return (await getPyqPapers(track)).find((p) => p.slug === slug) ?? null;
 }
 
 export async function getPaper(id: string) {
