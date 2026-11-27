@@ -1005,10 +1005,12 @@ export async function updateUser(patch: Partial<DemoUser>): Promise<void> {
 export async function completeOnboarding(patch: Partial<DemoUser>): Promise<void> {
   if (!state.user) return;
   const user = { ...state.user, ...patch };
+  // Only what the student chose is saved. "Skip for now" passes no class or goal, so the account keeps its own values
+  // instead of the screen's defaults. The exam is always sent: progress and exam preferences are keyed by it.
   const body: PatchMeInput = {
     target_exam: examToApi(user.exam),
-    daily_goal_attempts: Math.max(1, Math.min(500, Math.round(user.dailyGoal))),
-    class_level: user.classLevel,
+    ...(patch.dailyGoal !== undefined ? { daily_goal_attempts: Math.max(1, Math.min(500, Math.round(patch.dailyGoal))) } : {}),
+    ...(patch.classLevel !== undefined ? { class_level: patch.classLevel } : {}),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
     onboarding_completed: true,
   };
