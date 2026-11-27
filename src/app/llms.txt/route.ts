@@ -5,7 +5,7 @@
  */
 import { GUIDES } from "@/content/guides";
 import { brandFacts, fmt } from "@/lib/brand-facts";
-import { PAPERS_VISIBLE } from "@/lib/data";
+import { FULL_PAPERS } from "@/lib/data";
 import { SITE, absoluteUrl } from "@/lib/site";
 
 export async function GET() {
@@ -37,7 +37,7 @@ export async function GET() {
     "",
     `- [About ${SITE.name}](${absoluteUrl("/about/")}): what the site is and where its questions come from`,
     `- [JEE practice by subject and chapter](${absoluteUrl("/jee/")})`,
-    ...(PAPERS_VISIBLE ? [`- [Full papers in an exam-style CBT](${absoluteUrl("/tests/")})`] : []),
+    ...(FULL_PAPERS ? [`- [Full JEE Main previous-year papers in an exam-style CBT](${absoluteUrl("/jee/pyq/")})`] : []),
     `- [Free and Plus plans](${absoluteUrl("/pricing/")})`,
     `- [Contact](${absoluteUrl("/contact/")})`,
     "",

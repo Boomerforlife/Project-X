@@ -18,7 +18,7 @@ export function FullPaperLimit() {
       {/* Optional, only when rewarded ads are switched on and configured; renders nothing otherwise. */}
       <RewardedOffer onGranted={() => setGranted(true)} />
       {granted && (
-        <ButtonLink href="/tests/" className="mt-4">
+        <ButtonLink href="/jee/pyq/" className="mt-4">
           Choose your paper
         </ButtonLink>
       )}

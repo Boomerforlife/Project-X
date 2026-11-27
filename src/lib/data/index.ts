@@ -140,7 +140,7 @@ export async function getSolution(questionId: string) {
 /**
  * Papers are demo fixtures in EVERY mode (plan 1.6): the backend has no paper endpoint yet. Read the
  * fixture directly (not via `catalog`, whose API-mode view is the client registry) so
- * `/tests/[paperId]` generateStaticParams stays non-empty. Public pages must go through
+ * the old `/tests/[paperId]` redirects keep working. Public pages must go through
  * `getPublicPapers`; private screens gate on the papers flag themselves.
  */
 export async function getPapers(filter: { track?: Track; exam?: ExamId; kind?: "pyq" | "mock" } = {}) {

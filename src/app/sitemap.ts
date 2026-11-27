@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { GUIDES } from "@/content/guides";
-import { getChapters, getPublicPapers, getQuestionCounts, getSitemapQuestions, getSubjects } from "@/lib/data";
+import { getChapters, getPyqPapers, getQuestionCounts, getSitemapQuestions, getSubjects } from "@/lib/data";
+import { routes } from "@/lib/routes";
 import { TRACKS } from "@/lib/exams";
 import { isChapterIndexable, isSubjectIndexable, isTrackIndexable } from "@/lib/indexing";
 import { INDEXABLE, absoluteUrl } from "@/lib/site";
@@ -19,7 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       getSubjects(track),
       getChapters({ track }),
       getQuestionCounts(track),
-      getPublicPapers({ track, kind: "pyq" }),
+      getPyqPapers(track).catch(() => []),
     ]);
     // Demo papers are never presented to crawlers as real PYQs.
     const real = papers.filter((p) => !p.isDemo);
@@ -41,6 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     );
     if (real.length) out.push({ url: absoluteUrl(`/${track}/pyq/`), priority: 0.8 });
     out.push(...[...new Set(real.map((p) => p.year))].map((y) => ({ url: absoluteUrl(`/${track}/pyq/${y}/`), priority: 0.7 })));
+    out.push(...real.map((p) => ({ url: absoluteUrl(routes.pyqPaper(track, p.year, p.slug)), priority: 0.6 })));
   }
   // API mode: exactly the backend's /public/sitemap/questions (sitemap_include); mock: indexable fixtures.
   const questions = await getSitemapQuestions();
