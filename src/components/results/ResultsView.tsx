@@ -5,11 +5,11 @@ import { PremiumUpgradePrompt } from "@/components/billing/PremiumUpgradePrompt"
 import { PaperAnalysis } from "./PaperAnalysis";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DemoRequired } from "@/components/app/DemoGate";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { QuestionBody } from "@/components/practice/QuestionBody";
-import { SourceTag } from "@/components/ui/Badges";
+import { DifficultyChip, SourceTag } from "@/components/ui/Badges";
 import { SolutionPanel } from "@/components/practice/SolutionPanel";
 import { formatClock } from "@/components/practice/useAttemptClock";
 import { RichText } from "@/components/content/RichText";
@@ -26,6 +26,8 @@ import { toast } from "@/components/ui/Toast";
 import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt } from "@/lib/demo/types";
 import { EXAMS } from "@/lib/exams";
+import { routes } from "@/lib/routes";
+import { chapterSummary, chaptersToWorkOn } from "@/lib/results/chapters";
 import { isDiagnosticAttempt } from "@/lib/plans";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
@@ -62,8 +64,8 @@ export function ResultsPage() {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">Result not found</h1>
-        <ButtonLink href="/dashboard/" className="mt-6">
-          Back to dashboard
+        <ButtonLink href={routes.home} className="mt-6">
+          Back to Home
         </ButtonLink>
       </div>
     );
@@ -72,10 +74,16 @@ export function ResultsPage() {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">This attempt is still in progress</h1>
-        <p className="mt-2 text-fg-muted">Results appear once it&rsquo;s submitted.</p>
-        <ButtonLink href={a.mode === "cbt" ? `/cbt/?id=${a.id}` : `/practice/session/?id=${a.id}`} className="mt-6">
-          Resume
-        </ButtonLink>
+        <p className="mt-2 text-fg-muted">
+          Results appear once it has been submitted. If you already submitted, it may still be saving; your answers are kept either way. Open it again to
+          {a.mode === "cbt" ? " continue, or submit it." : " continue, or finish it."}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <ButtonLink href={a.mode === "cbt" ? routes.cbt(a.id) : routes.session(a.id)}>Resume</ButtonLink>
+          <ButtonLink href={routes.home} variant="ghost">
+            Back to Home
+          </ButtonLink>
+        </div>
       </div>
     );
   }
@@ -99,6 +107,56 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
   const rows = a.questionIds
     .map((qid, i) => ({ qid, i, res: r.perQuestion.get(qid)! }))
     .filter((x) => x.res && (filter === "all" || (filter === "incorrect" ? x.res.outcome === "incorrect" || x.res.outcome === "partial" : x.res.outcome === filter)));
+
+  const track = EXAMS[a.exam].track;
+  const back = a.paperId
+    ? { href: routes.pyqPaperFromSlug(track, a.paperId), label: "Paper" }
+    : a.scope?.source === "mistakes"
+      ? { href: routes.mistakes, label: "Notebook" }
+      : a.kind === "practice"
+        ? { href: routes.practice(track), label: "Practice" }
+        : { href: routes.progressTests, label: "Progress" };
+
+  // Free, local, and only about THIS attempt: chapters where the most questions were missed.
+  const weak = useMemo(() => {
+    const items = a.questionIds.flatMap((qid) => {
+      const q = catalog.question(qid);
+      const res = r.perQuestion.get(qid);
+      return q && res ? [{ subject: q.subject, chapter: q.chapter, outcome: res.outcome }] : [];
+    });
+    return chaptersToWorkOn(items, 3);
+  }, [a.questionIds, r]);
+  const weakest = weak[0] ?? null;
+  const chapterName = (subject: string, chapter: string) => catalog.chapter(subject as never, chapter)?.name ?? chapter.replace(/-/g, " ");
+
+  // Previous / Next through the (filtered) review list; arrows only when focus is not in a field.
+  const step = useCallback(
+    (dir: 1 | -1) => {
+      if (!open) return;
+      const idx = rows.findIndex((x) => x.qid === open);
+      const next = rows[idx + dir];
+      if (!next) return;
+      setOpen(next.qid);
+      requestAnimationFrame(() =>
+        document.getElementById(`rq-${next.qid}`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }),
+      );
+    },
+    [open, rows],
+  );
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      if (e.key === "ArrowRight") step(1);
+      else if (e.key === "ArrowLeft") step(-1);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, step]);
 
   const [busy, setBusy] = useState(false);
   const launch = async (p: Promise<string>, base: "practice" | "cbt" = "practice") => {
@@ -126,14 +184,14 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <nav aria-label="Breadcrumb" className="text-sm text-fg-muted">
-        <Link href={a.paperId ? `/tests/${a.paperId}/` : "/practice/"} className="hover:text-fg">
-          ← {a.paperId ? "Paper details" : "Practice"}
+        <Link href={back.href} className="inline-flex min-h-11 items-center hover:text-fg">
+          ← {back.label}
         </Link>
       </nav>
       <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Eyebrow>
-            {EXAMS[a.exam].name} · {a.mode === "cbt" ? "CBT" : a.mode === "test" ? "Test mode" : "Learning mode"} · {relativeDay(a.submittedAt!)}
+            {EXAMS[a.exam].name} · {a.mode === "cbt" ? "CBT" : a.mode === "test" ? "Timed test" : "Learning mode"} · {relativeDay(a.submittedAt!)}
           </Eyebrow>
           <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{a.title}</h1>
           {a.retryOf && <p className="mt-1 text-sm text-fg-muted">Retry attempt — your earlier attempt is kept unchanged.</p>}
@@ -209,8 +267,38 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
         </Card>
       </div>
 
+      {/* Chapters to work on: computed here from this attempt's own responses, so free users get it too */}
+      {weak.length > 0 && (
+        <section aria-labelledby="weak-h" className="mt-4">
+          <Card className="p-6">
+            <h2 id="weak-h" className="text-sm font-medium">
+              Chapters to work on
+            </h2>
+            <p className="mt-1 text-xs text-fg-muted">Based on this attempt only: wrong and unanswered questions per chapter.</p>
+            <ul className="mt-4 divide-y divide-line">
+              {weak.map((w) => (
+                <li key={`${w.subject}/${w.chapter}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
+                  <div className="min-w-0">
+                    <p className={cn("text-sm font-medium", SUBJECT_STYLE[w.subject as keyof typeof SUBJECT_STYLE]?.text)}>{chapterName(w.subject, w.chapter)}</p>
+                    <p className="text-xs tabular-nums text-fg-muted">{chapterSummary(w)}</p>
+                  </div>
+                  <Link href={routes.chapterPractise(track, w.subject, w.chapter)} className="inline-flex min-h-11 items-center text-sm font-medium hover:underline">
+                    Practise <span className="sr-only">{chapterName(w.subject, w.chapter)}</span> &rarr;
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
+
       {/* Next actions */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        {weakest && (
+          <ButtonLink href={routes.chapterPractise(track, weakest.subject, weakest.chapter)}>
+            <Icon name="target" className="size-4" /> Practise {chapterName(weakest.subject, weakest.chapter)}
+          </ButtonLink>
+        )}
         {a.kind === "paper" && a.mode !== "cbt" && (
           <Button pixel disabled={busy} onClick={() => retry("cbt")}>
             <Icon name="monitor" className="size-4" /> Retry in exam-style CBT
@@ -223,7 +311,7 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
         )}
         {a.kind === "practice" && (
           <Button variant="secondary" disabled={busy} onClick={() => retry("test")}>
-            <Icon name="rotate" className="size-4" /> Retry as a test
+            <Icon name="rotate" className="size-4" /> Retry as a timed test
           </Button>
         )}
         {r.incorrect + r.partial > 0 && (
@@ -231,8 +319,13 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
             <Icon name="target" className="size-4" /> Practise the {r.incorrect + r.partial} you missed
           </Button>
         )}
-        <ButtonLink href="/dashboard/" variant="ghost">
-          Back to dashboard
+        {a.kind === "paper" && (
+          <ButtonLink href={routes.pyq(track)} variant="ghost">
+            Back to PYQs
+          </ButtonLink>
+        )}
+        <ButtonLink href={routes.home} variant="ghost">
+          Home
         </ButtonLink>
         <p className="w-full text-xs text-fg-muted">
           Retrying always creates a new attempt. This result stays in your history.
@@ -274,7 +367,7 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
               const meta = OUTCOME_META[res.outcome];
               const isOpen = open === qid;
               return (
-                <li key={qid}>
+                <li key={qid} id={`rq-${qid}`} className="scroll-mt-20">
                   <button
                     type="button"
                     onClick={() => setOpen(isOpen ? null : qid)}
@@ -304,6 +397,13 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
                   </button>
                   {isOpen && (
                     <div className="rise space-y-5 border-t border-line bg-bg/40 px-4 py-5 sm:px-5">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+                        <span className="font-pixel text-[0.65rem] tabular-nums text-fg-subtle">Q{i + 1}</span>
+                        <span className={SUBJECT_STYLE[q.subject]?.text}>{catalog.subject(q.subject)?.name ?? q.subject}</span>
+                        <span aria-hidden>·</span>
+                        <span>{chapterName(q.subject, q.chapter)}</span>
+                        {q.difficulty && <DifficultyChip difficulty={q.difficulty} />}
+                      </div>
                       <SourceTag source={q.source} />
                       <QuestionBody question={q} answer={a.responses[qid]?.answer ?? null} disabled solution={sol} />
                       <SolutionPanel question={q} solution={sol} />
@@ -318,6 +418,18 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
                           onClick={() => launch(startPractice({ exam: a.exam, mode: "learning", title: "Single question", questionIds: [qid], scope: { source: "single" } }))}
                         >
                           <Icon name="rotate" className="size-4" /> Try again
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
+                        <Button size="sm" variant="secondary" className="min-h-11 sm:min-h-0" disabled={rows[0]?.qid === qid} onClick={() => step(-1)}>
+                          &larr; Previous
+                        </Button>
+                        <p className="text-xs text-fg-muted" aria-live="polite">
+                          {rows.findIndex((x) => x.qid === qid) + 1} of {rows.length}
+                          <span className="hidden sm:inline"> · left and right arrow keys also work</span>
+                        </p>
+                        <Button size="sm" variant="secondary" className="min-h-11 sm:min-h-0" disabled={rows[rows.length - 1]?.qid === qid} onClick={() => step(1)}>
+                          Next &rarr;
                         </Button>
                       </div>
                     </div>
