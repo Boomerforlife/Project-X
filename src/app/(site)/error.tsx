@@ -7,7 +7,7 @@ export default function SiteError({ error, retry }: { error: Error & { digest?: 
   return (
     <>
       <NoAds />
-      <RouteError error={error} retry={retry} home="/dashboard/" />
+      <RouteError error={error} retry={retry} />
     </>
   );
 }

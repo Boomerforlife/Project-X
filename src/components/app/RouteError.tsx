@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useSyncExternalStore, useTransition } from "react";
 import { ErrorScreen, type ErrorKind } from "@/components/states/ErrorScreen";
+import { HomeButtonLink } from "@/components/layout/HomeLink";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 
@@ -39,7 +40,7 @@ export function classifyError(error: Error & { digest?: string }, online: boolea
 }
 
 /** Branded error-boundary UI: say what happened, retry for real, offer a way home. */
-export function RouteError({ error, retry, home = "/dashboard/", mascot = true }: RouteErrorProps) {
+export function RouteError({ error, retry, home, mascot = true }: RouteErrorProps) {
   const online = useOnline();
   const kind = classifyError(error, online);
   const [pending, startTransition] = useTransition();
@@ -85,9 +86,13 @@ export function RouteError({ error, retry, home = "/dashboard/", mascot = true }
           <Button pixel onClick={tryAgain} disabled={pending} aria-busy={pending}>
             {pending ? "Trying…" : "Try again"}
           </Button>
-          <ButtonLink href={home} variant="secondary">
-            Home
-          </ButtonLink>
+          {home ? (
+            <ButtonLink href={home} variant="secondary">
+              Home
+            </ButtonLink>
+          ) : (
+            <HomeButtonLink variant="secondary">Home</HomeButtonLink>
+          )}
         </>
       }
     />

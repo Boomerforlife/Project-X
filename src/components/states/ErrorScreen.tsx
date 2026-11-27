@@ -1,4 +1,4 @@
-import { Wordmark } from "@/components/layout/Wordmark";
+import { SiteHeader } from "@/components/layout/Header";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import type { MascotState } from "@/components/mascot/mascot-types";
 
@@ -35,8 +35,8 @@ export const ERROR_COPY: Record<ErrorKind, { code: string; title: string; descri
  * Full-screen branded error layout. Presentational and server-safe; the
  * interactive parts (retry, connection status) are passed in by the caller.
  *
- * It renders its own minimal top bar, and globals.css hides any surrounding
- * group-layout chrome while it is mounted, so the navigation never doubles up.
+ * It renders the site header itself (globals.css hides any surrounding group-layout chrome while it is mounted), so
+ * the navigation is always there and never doubles up.
  * `mascot={false}` is for the CBT shell, where the kitty must never appear.
  */
 export function ErrorScreen({
@@ -49,7 +49,6 @@ export function ErrorScreen({
   details,
   children,
   mascot = true,
-  homeHref = "/",
 }: {
   kind: ErrorKind;
   title?: string;
@@ -64,12 +63,13 @@ export function ErrorScreen({
   /** Contextual navigation below the actions. */
   children?: React.ReactNode;
   mascot?: boolean;
+  /** @deprecated The header's wordmark already goes Home for whoever is looking. */
   homeHref?: string;
 }) {
   const copy = ERROR_COPY[kind];
   return (
     <div data-error-screen={kind} className="flex min-h-dvh flex-col bg-bg text-fg">
-      <div className="mx-auto flex h-14 w-full max-w-6xl shrink-0 items-center px-4 sm:px-6">{mascot && <Wordmark href={homeHref} />}</div>
+      {mascot ? <SiteHeader chrome={false} tabs={false} /> : <div aria-hidden className="h-14 shrink-0" />}
       <section aria-labelledby="error-title" className="flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-4 text-center sm:px-6">
         {mascot && <TabbyMascot state={copy.mascot} className="h-28 text-fg sm:h-36" />}
         <p className="mt-10 font-pixel text-xs uppercase tracking-[0.25em] text-fg-muted">{code ?? copy.code}</p>

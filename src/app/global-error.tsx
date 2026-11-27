@@ -9,7 +9,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
     <html lang="en-IN" data-theme="dark">
       <body className="min-h-dvh bg-bg text-fg antialiased">
         <title>Something went wrong · TabbyPrep</title>
-        <RouteError error={error} retry={retry} home="/dashboard/" />
+        <RouteError error={error} retry={retry} />
       </body>
     </html>
   );
