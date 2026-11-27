@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { PublicContentBlock } from "@/contracts";
 import { cn } from "@/lib/cn";
 import { RichText, parseRichText, renderTex } from "./RichText";
+import { ZoomImage } from "./ZoomImage";
 
 /**
  * Renders structured API content blocks (API mode). Prefers `blocks`; when
@@ -33,7 +34,7 @@ function Inline({ text }: { text: string }) {
   );
 }
 
-function Block({ block }: { block: PublicContentBlock }) {
+function Block({ block, zoom }: { block: PublicContentBlock; zoom: boolean }) {
   switch (block.type) {
     case "paragraph":
       return (
@@ -46,16 +47,13 @@ function Block({ block }: { block: PublicContentBlock }) {
     case "image":
       return (
         <figure className="max-w-full">
-          {/* eslint-disable-next-line @next/next/no-img-element -- remote public asset URL; dimensions are supplied by the API when known */}
-          <img
-            src={block.url}
-            alt={block.alt}
-            width={block.width ?? undefined}
-            height={block.height ?? undefined}
-            loading="lazy"
-            decoding="async"
-            className="h-auto max-w-full rounded-md border border-line bg-white/5"
-          />
+          {zoom ? (
+            <ZoomImage src={block.url} alt={block.alt} width={block.width ?? undefined} height={block.height ?? undefined} />
+          ) : (
+            // Inside an answer option (itself a button): no nested zoom control.
+            // eslint-disable-next-line @next/next/no-img-element -- remote public asset URL; dimensions are supplied by the API when known
+            <img src={block.url} alt={block.alt} width={block.width ?? undefined} height={block.height ?? undefined} loading="lazy" decoding="async" className="q-img h-auto max-w-full rounded-md border border-line bg-white/5" />
+          )}
           {block.caption && (
             <figcaption className="mt-1 text-xs text-fg-muted">
               <Inline text={block.caption} />
@@ -107,12 +105,13 @@ function Block({ block }: { block: PublicContentBlock }) {
   }
 }
 
-export function Blocks({ blocks, fallback, className }: { blocks?: PublicContentBlock[]; fallback: string; className?: string }) {
+/** `zoom={false}` inside interactive containers (answer options are buttons): figures then render without the zoom control. */
+export function Blocks({ blocks, fallback, className, zoom = true }: { blocks?: PublicContentBlock[]; fallback: string; className?: string; zoom?: boolean }) {
   if (!blocks || blocks.length === 0) return <RichText value={fallback} className={className} />;
   return (
     <div className={cn("space-y-3", className)}>
       {blocks.map((b, i) => (
-        <Block key={i} block={b} />
+        <Block key={i} block={b} zoom={zoom} />
       ))}
     </div>
   );

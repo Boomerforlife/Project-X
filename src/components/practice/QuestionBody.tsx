@@ -104,7 +104,7 @@ export function QuestionBody({
                     {state === "right" ? <Icon name="check" className="size-4" /> : state === "wrong" ? <Icon name="x" className="size-4" /> : o.id}
                   </span>
                   <span className="min-w-0 flex-1 pt-0.5">
-                    <Blocks blocks={o.blocks} fallback={o.body} />
+                    <Blocks blocks={o.blocks} fallback={o.body} zoom={false} />
                     {revealed && (isRight || isChosen) && (
                       <span className={cn("mt-1 block text-xs font-medium", isRight ? "text-ok" : "text-bad")}>
                         {isRight && isChosen ? "Your answer · correct" : isRight ? "Correct answer" : "Your answer"}

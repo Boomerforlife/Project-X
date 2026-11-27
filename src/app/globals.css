@@ -353,3 +353,11 @@ main:has([data-error-screen]) { padding-bottom: 0; min-height: 0; }
 @media (max-width: 1023.98px) {
   html[data-tabbar] body { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
 }
+
+/* Scanned question/solution figures are white crops: dim them in the dark theme so they stop glaring (ZoomImage). */
+:root:not([data-theme="light"]) .q-img { filter: brightness(0.86) contrast(1.06); }
+
+/* Height of the signed-in bottom tab bar, for sticky bars that must sit above it (0 when there is none). */
+@media (max-width: 1023.98px) {
+  html[data-tabbar] { --tabbar-h: calc(4rem + env(safe-area-inset-bottom)); }
+}

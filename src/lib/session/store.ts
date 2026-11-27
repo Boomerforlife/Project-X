@@ -985,6 +985,30 @@ export async function postOne(a: Attempt, qid: string): Promise<AttemptResult | 
   }
 }
 
+/**
+ * A signed-in student answered on a public question page: record it as a standalone attempt (POST /practice/attempts,
+ * no session) so it counts for progress, streaks and the mistake notebook like any other answer. The page grades in
+ * the browser against the same official key; the server stays the authority. Resolves to the server's verdict, or null
+ * when nothing was recorded (signed out, invalid answer, network error).
+ */
+export async function recordStandaloneAttempt(input: { questionId: string; response: AnswerResponseInput; timeSpentSec: number }): Promise<{ isCorrect: boolean } | null> {
+  if (!userId) return null;
+  try {
+    const res = await api.submitAttempt({
+      client_attempt_id: newClientId(),
+      question_id: input.questionId,
+      response: input.response,
+      time_spent_ms: Math.max(0, Math.min(10_800_000, Math.round(input.timeSpentSec * 1000))),
+    });
+    refreshDerivedSoon();
+    return { isCorrect: res.is_correct };
+  } catch (e) {
+    handleError(e, "check", true);
+    return null;
+  }
+}
+export type AnswerResponseInput = Parameters<typeof api.submitAttempt>[0]["response"];
+
 /** Learning mode "Check": store the attempt on the server, then show what it returns. */
 export async function checkAnswer(attemptId: string, qid: string): Promise<void> {
   const a = state.attempts[attemptId];

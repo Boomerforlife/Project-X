@@ -20,7 +20,7 @@ import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { formatDuration, relativeDay } from "@/lib/demo/dates";
-import { answerLabel, keyLabel, scoreAttempt, type Outcome } from "@/lib/demo/scoring";
+import { keyLabel, responseLabel, scoreAttempt, type Outcome } from "@/lib/demo/scoring";
 import { ensureAttempt, startPaper, startPractice, toggleBookmark, useDemo } from "@/lib/demo/store";
 import { toast } from "@/components/ui/Toast";
 import { DATA_SOURCE } from "@/lib/site";
@@ -384,7 +384,7 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
                           <Icon name={meta.icon} className="size-3.5" /> {meta.label}
                         </span>
                         <span className="text-fg-muted">
-                          You: <span className="font-mono text-fg-soft">{answerLabel(q, a.responses[qid]?.answer)}</span>
+                          You: <span className="font-mono text-fg-soft">{responseLabel(q, a.responses[qid]?.answer)}</span>
                         </span>
                         <span className="text-fg-muted">
                           Key: <span className="font-mono text-fg-soft">{keyLabel(sol)}</span>

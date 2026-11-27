@@ -18,7 +18,7 @@ import type { DemoState, DemoUser, MistakeCategory, Attempt } from "./types";
 
 const API = DATA_SOURCE === "api";
 
-export type { StartOpts, StartListOpts, ListItem } from "@/lib/session/store";
+export type { StartOpts, StartListOpts, ListItem, AnswerResponseInput } from "@/lib/session/store";
 export { NoQuestionsError } from "@/lib/session/store";
 import type { StartListOpts, StartOpts } from "@/lib/session/store";
 
@@ -128,6 +128,8 @@ export function usePending(attemptId: string, qid: string): boolean {
 export const ensureAttempt: (id: string) => Promise<Attempt | null> = API ? remote.ensureAttempt : () => Promise.resolve(null);
 export const retryLoad: () => void = API ? remote.retryLoad : () => undefined;
 export const startSingleBySlug = remote.startSingleBySlug;
+/** API mode: record an answer given on a public question page (no-op in mock mode, where public pages are fixtures). */
+export const recordStandaloneAttempt: typeof remote.recordStandaloneAttempt = API ? remote.recordStandaloneAttempt : () => Promise.resolve(null);
 export const singleQuestionId = remote.singleQuestionId;
 export const publicSlugForQuestion = remote.publicSlugForQuestion;
 /** API mode: register a server-created session (diagnostic, checkpoint, plan item) under a proper title. */

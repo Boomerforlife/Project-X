@@ -1,5 +1,6 @@
 import type { Question, Solution } from "@/contracts";
 import { Blocks } from "@/components/content/Blocks";
+import { RichText } from "@/components/content/RichText";
 import { VerificationBadge } from "@/components/ui/Badges";
 import { keyLabel } from "@/lib/demo/scoring";
 import { DATA_SOURCE } from "@/lib/site";
@@ -28,12 +29,7 @@ export function SolutionPanel({ question, solution }: { question: Question; solu
   }
   return (
     <section aria-label="Solution" className="overflow-hidden rounded-xl border border-line bg-surface">
-      {solution.verification.status === "disputed" && (
-        <div role="note" className="border-b border-review/40 bg-review/5 px-5 py-3 text-sm">
-          <span className="font-medium text-review">This answer is under review.</span>{" "}
-          <span className="text-fg-soft">{solution.verification.note ?? "Treat it with caution until it is resolved."}</span>
-        </div>
-      )}
+      <DisputedNote solution={solution} className="border-b border-review/40 px-5 py-3" />
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-5 py-4">
         <div>
           <p className="font-pixel text-[0.65rem] uppercase tracking-[0.2em] text-fg-muted">Answer</p>
@@ -46,11 +42,49 @@ export function SolutionPanel({ question, solution }: { question: Question; solu
       </div>
       <div className="px-5 py-5">
         <p className="font-pixel text-[0.65rem] uppercase tracking-[0.2em] text-fg-muted">Solution</p>
-        {solution.steps.length === 0 && (
-          <p className="mt-3 text-sm text-fg-muted">
-            A worked solution for this question isn&rsquo;t written yet. The answer above is the exam body&rsquo;s official final answer key.
-          </p>
+        <SolutionSteps solution={solution} />
+      </div>
+      <p className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-3 text-xs text-fg-muted">
+        <span>{AUTHOR[solution.generatedBy]}</span>
+        {/* API practice responses carry no verification status, so no badge is claimed. */}
+        {DATA_SOURCE !== "api" && (
+          <>
+            <span aria-hidden>·</span>
+            <VerificationBadge status={solution.verification.status} note={solution.verification.note} />
+          </>
         )}
+      </p>
+    </section>
+  );
+}
+
+/** "This answer is under review": shown wherever a disputed solution appears (player, results, public page). */
+export function DisputedNote({ solution, className }: { solution: Solution; className?: string }) {
+  if (solution.verification.status !== "disputed") return null;
+  return (
+    <div role="note" className={"bg-review/5 text-sm " + (className ?? "")}>
+      <span className="font-medium text-review">This answer is under review.</span>{" "}
+      <span className="text-fg-soft">{solution.verification.note ?? "Treat it with caution until it is resolved."}</span>
+    </div>
+  );
+}
+
+/** The worked solution: summary, then numbered steps. One renderer for the player, results and public pages. */
+export function SolutionSteps({ solution }: { solution: Solution }) {
+  return (
+    <>
+      {solution.extras?.summary && (
+        <p className="mt-3 leading-relaxed text-fg-soft">
+          <RichText value={solution.extras.summary} />
+        </p>
+      )}
+      {solution.steps.length === 0 && !solution.extras?.summary && (
+        <p className="mt-3 text-sm text-fg-muted">
+          A worked solution for this question isn&rsquo;t written yet.
+          {solution.answerProvenance === "official_key" ? <> The answer above is the exam body&rsquo;s official final answer key.</> : null}
+        </p>
+      )}
+      {solution.steps.length > 0 && (
         <ol className="mt-3 space-y-4">
           {solution.steps.map((st, i) => (
             <li key={i} className="grid grid-cols-[1.75rem_1fr] gap-2">
@@ -64,17 +98,7 @@ export function SolutionPanel({ question, solution }: { question: Question; solu
             </li>
           ))}
         </ol>
-      </div>
-      <p className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-3 text-xs text-fg-muted">
-        <span>{AUTHOR[solution.generatedBy]}</span>
-        {/* API practice responses carry no verification status, so no badge is claimed. */}
-        {DATA_SOURCE !== "api" && (
-          <>
-            <span aria-hidden>·</span>
-            <VerificationBadge status={solution.verification.status} note={solution.verification.note} />
-          </>
-        )}
-      </p>
-    </section>
+      )}
+    </>
   );
 }

@@ -5,8 +5,9 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { AnswerKey } from "@/contracts";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
-import { useDemo } from "@/lib/demo/store";
+import { recordStandaloneAttempt, useDemo, type AnswerResponseInput } from "@/lib/demo/store";
 import { acceptedOptionIds, answerLabel, isCorrect } from "@/lib/practice/check";
+import { routes } from "@/lib/routes";
 
 /**
  * Try a public question without an account: pick an option (or type a number), check it, see the answer, move on to
@@ -32,7 +33,11 @@ export function PublicTry({
   options,
   answer,
   nextHref,
+  prevHref = null,
+  position = null,
   solutionId,
+  questionId,
+  optionRefs = {},
 }: {
   slug: string;
   type: "single_correct" | "multiple_correct" | "numerical";
@@ -40,11 +45,26 @@ export function PublicTry({
   /** Null when the page has no answer to check against: the options are then shown read-only. */
   answer: AnswerKey | null;
   nextHref: string | null;
+  prevHref?: string | null;
+  /** "Question 12 of 340 in Electrostatics": where this question sits in its chapter's list. */
+  position?: string | null;
   /** id of the collapsed solution <details>, opened by "See the solution". */
   solutionId: string;
+  /** API question id and option label -> option id: lets a signed-in student's answer be recorded (P0.5). */
+  questionId?: string;
+  optionRefs?: Record<string, string>;
 }) {
   const s = useDemo();
   const signedOut = s !== null && !s.user;
+  const signedIn = Boolean(s?.user);
+  // Signed in: the first check on this page is recorded on the server (progress, streak, mistake notebook). "Try again"
+  // is practice on the same page and is not recorded twice.
+  const recorded = useRef(false);
+  const openedAt = useRef<number | null>(null);
+  const [saved, setSaved] = useState<"saving" | "saved" | "failed" | null>(null);
+  useEffect(() => {
+    openedAt.current = Date.now();
+  }, []);
   const [picked, setPicked] = useState<string[]>([]);
   const [value, setValue] = useState("");
   const [result, setResult] = useState<"correct" | "wrong" | null>(null);
@@ -58,10 +78,30 @@ export function PublicTry({
     setPicked((p) => (type === "multiple_correct" ? (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]) : [id]));
   }
 
+  function record() {
+    if (!signedIn || !questionId || recorded.current) return;
+    const response: AnswerResponseInput | null =
+      type === "numerical"
+        ? { type: "NUMERICAL", value: value.trim() }
+        : type === "single_correct"
+          ? optionRefs[picked[0] ?? ""]
+            ? { type: "SINGLE_MCQ", option_id: optionRefs[picked[0]!]! }
+            : null
+          : picked.every((p) => optionRefs[p])
+            ? { type: "MULTI_MCQ", option_ids: picked.map((p) => optionRefs[p]!) }
+            : null;
+    if (!response) return;
+    recorded.current = true;
+    setSaved("saving");
+    const spent = openedAt.current ? (Date.now() - openedAt.current) / 1000 : 0;
+    void recordStandaloneAttempt({ questionId, response, timeSpentSec: spent }).then((r) => setSaved(r ? "saved" : "failed"));
+  }
+
   function check() {
     if (!answer || !canCheck) return;
     const ok = isCorrect(answer, picked, value);
     setResult(ok ? "correct" : "wrong");
+    record();
     if (!signedOut) return;
     const n = rememberAnswered(slug);
     const last = readNumber(PROMPTED_AT_KEY);
@@ -154,20 +194,23 @@ export function PublicTry({
       )}
 
       {answer !== null && (
-        <div className="mt-6 flex flex-wrap items-center gap-3">
+        // Phones: the answer bar sticks to the bottom (above the tab bar) while the options are on screen, so "Check
+        // answer" is never 1,900 px away below tall option images.
+        <div className="mt-6 flex flex-wrap items-center gap-3 max-sm:sticky max-sm:bottom-[var(--tabbar-h,0px)] max-sm:z-20 max-sm:-mx-4 max-sm:border-t max-sm:border-line max-sm:bg-bg/95 max-sm:px-4 max-sm:py-3 max-sm:backdrop-blur-md">
           {result === null ? (
-            <Button onClick={check} disabled={!canCheck}>
+            <Button onClick={check} disabled={!canCheck} className="max-sm:flex-1">
               Check answer
             </Button>
           ) : (
             <>
               {nextHref && (
-                <ButtonLink href={nextHref} pixel>
+                <ButtonLink href={nextHref} pixel className="max-sm:flex-1">
                   Next question →
                 </ButtonLink>
               )}
               <Button variant="secondary" onClick={openSolution}>
-                See the answer and solution
+                <span className="sm:hidden">Solution</span>
+                <span className="hidden sm:inline">See the answer and solution</span>
               </Button>
               <Button variant="ghost" onClick={reset}>
                 Try again
@@ -184,7 +227,29 @@ export function PublicTry({
             Not quite. The answer is {answerText(answer)}.
           </span>
         )}
+        {saved === "saved" && <span className="ml-2 text-fg-muted">{result === "wrong" ? "Saved to your progress and your mistake notebook." : "Saved to your progress."}</span>}
+        {saved === "failed" && <span className="ml-2 text-fg-muted">Couldn&rsquo;t save this one to your account.</span>}
       </p>
+
+      {(prevHref || nextHref || position) && (
+        <nav aria-label="Questions in this chapter" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm">
+          {prevHref ? (
+            <ButtonLink href={prevHref} variant="ghost" size="sm" className="max-sm:min-h-11">
+              ← Previous
+            </ButtonLink>
+          ) : (
+            <span />
+          )}
+          {position && <span className="text-xs text-fg-muted">{position}</span>}
+          {nextHref ? (
+            <ButtonLink href={nextHref} variant="ghost" size="sm" className="max-sm:min-h-11">
+              Next →
+            </ButtonLink>
+          ) : (
+            <span />
+          )}
+        </nav>
+      )}
 
       {prompt !== null && <SignupPrompt count={prompt} onClose={() => setPrompt(null)} />}
     </div>
@@ -220,10 +285,10 @@ function SignupPrompt({ count, onClose }: { count: number; onClose: () => void }
           you left off on any device.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <ButtonLink href="/signup/" pixel>
+          <ButtonLink href={routes.signup(path)} pixel>
             Create free account
           </ButtonLink>
-          <ButtonLink href={`/login/?next=${encodeURIComponent(path)}`} variant="secondary">
+          <ButtonLink href={routes.login(path)} variant="secondary">
             Log in
           </ButtonLink>
           <Button variant="ghost" onClick={onClose}>

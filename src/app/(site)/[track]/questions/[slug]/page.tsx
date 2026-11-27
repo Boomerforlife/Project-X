@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Blocks } from "@/components/content/Blocks";
-import { RichText, richTextToPlain } from "@/components/content/RichText";
+import { richTextToPlain } from "@/components/content/RichText";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DifficultyChip, SubjectTag, TypeChip, VERIFICATION_COPY, VerificationBadge } from "@/components/ui/Badges";
-import { PracticeLink, PublicTry } from "@/components/practice/PublicTry";
+import { ContinueInPlayer } from "@/components/practice/ContinueInPlayer";
+import { AUTHOR, DisputedNote, PROVENANCE, SolutionSteps } from "@/components/practice/SolutionPanel";
+import { PublicTry } from "@/components/practice/PublicTry";
 import type { AnswerKey, Question, Solution } from "@/contracts";
 import { cn } from "@/lib/cn";
 import { getChapter, getPublicQuestions, getQuestionPage, getQuestions, getRelatedQuestions, getSubjects } from "@/lib/data";
-import { TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
+import { EXAMS, TRACK_INFO, isTrack, trackOf, type Track } from "@/lib/exams";
+import { routes } from "@/lib/routes";
 import { isQuestionIndexable } from "@/lib/indexing";
 import { answerLabel } from "@/lib/practice/check";
 import { stripPaperHeader } from "@/lib/api/adapters/blocks";
@@ -75,11 +78,17 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
     getQuestions({ subject: s.id, chapter: c.slug, track }).catch(() => []),
   ]);
   const related = relatedAll.filter((x) => x.id !== q.id && x.publicPage);
-  // "Next question": the following public question of the same chapter (wraps to the first), so a visitor can keep going.
-  const publicInChapter = chapterQs.filter((x) => x.publicPage);
+  // Previous / Next walk the chapter in the same order as its list (newest paper first). Next wraps to the first, so a
+  // visitor can keep going; Previous stops at the start.
+  const ordered = [...chapterQs].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  const publicInChapter = ordered.filter((x) => x.publicPage);
   const at = publicInChapter.findIndex((x) => x.slug === q.slug);
   const next = publicInChapter.length > 1 ? publicInChapter[(at + 1) % publicInChapter.length] : undefined;
-  const nextHref = next && next.slug !== q.slug ? `/${track}/questions/${next.slug}/` : null;
+  const nextHref = next && next.slug !== q.slug ? routes.question(track, next.slug) : null;
+  const prev = at > 0 ? publicInChapter[at - 1] : undefined;
+  const prevHref = prev ? routes.question(track, prev.slug) : null;
+  const position = at >= 0 && publicInChapter.length > 1 ? `Question ${at + 1} of ${publicInChapter.length} in ${c.name}` : null;
+  const optionRefs = Object.fromEntries(q.options.flatMap((o) => (o.ref ? [[o.id, o.ref] as const] : [])));
 
   return (
     <>
@@ -91,9 +100,9 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
           { name: c.name, path: `/${track}/${s.id}/${c.slug}/` },
           { name: "Question", path: `/${track}/questions/${q.slug}/` },
         ]}
-        eyebrow={`${c.name} · ${q.source.kind === "pyq" ? "Previous-year question" : "Practice question"}`}
+        eyebrow={q.source.kind === "pyq" ? "Previous-year question" : "Practice question"}
         title={heading(q, c.name)}
-        titleClass="text-xl! sm:text-2xl! leading-snug"
+        titleClass="text-2xl! sm:text-3xl! leading-snug"
       >
         <div className="mt-6 flex flex-wrap items-center gap-2">
           <SubjectTag subject={s.id} label={s.name} />
@@ -134,16 +143,18 @@ export default async function QuestionPage({ params }: PageProps<"/[track]/quest
           <PublicTry
             slug={q.slug}
             type={q.type}
-            options={q.options.map((o) => ({ id: o.id, node: <Blocks blocks={o.blocks} fallback={o.body} /> }))}
+            options={q.options.map((o) => ({ id: o.id, node: <Blocks blocks={o.blocks} fallback={o.body} zoom={false} /> }))}
             answer={sol?.answer ?? null}
             nextHref={nextHref}
+            prevHref={prevHref}
+            position={position}
             solutionId="solution"
+            questionId={q.id}
+            optionRefs={optionRefs}
           />
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <PracticeLink signedInHref={`/practice/new/?slug=${q.slug}`} publicHref={null} variant="secondary" size="sm">
-              Practise in your account (saves your progress)
-            </PracticeLink>
+            <ContinueInPlayer exam={q.exams[0] ?? TRACK_INFO[track].primaryExam} subject={s.id} chapter={c.slug} chapterName={c.name} ids={ordered.map((x) => x.id)} startId={q.id} />
           </div>
 
           <SolutionBlock sol={sol} />
@@ -202,10 +213,16 @@ function shortSource(q: Question, chapter: string): string {
   return `${exam} ${q.source.year} PYQ`;
 }
 
-/** H1: the start of the question itself (unique per page); the chapter name when the question has no readable text. */
+/**
+ * H1: short and readable (UX audit H10): the chapter and the sitting, e.g. "Electrostatics · JEE Main 2024, Shift 1".
+ * The question itself follows in full right below; the page title keeps the question's own words for search.
+ */
 function heading(q: Question, chapter: string): string {
-  const words = questionWords(q);
-  return words ? clip(words, 110) : `${chapter} question`;
+  const src = q.source;
+  if (src.kind !== "pyq") return `${chapter} · practice question`;
+  if (src.paper) return `${chapter} · ${src.paper}`;
+  const sitting = [src.session, src.shift ? `Shift ${src.shift}` : null].filter(Boolean).join(", ");
+  return `${chapter} · ${EXAMS[src.exam].name} ${src.year}${sitting ? `, ${sitting}` : ""}`;
 }
 
 function SourceLabel({ q }: { q: Question }) {
@@ -223,19 +240,6 @@ function answerText(a: AnswerKey) {
   return answerLabel(a, "Option");
 }
 
-const PROVENANCE: Record<Solution["answerProvenance"], string> = {
-  official_key: "Answer from the official key",
-  derived: "Answer worked out by our solvers, not from an official key",
-  unknown: "Answer source not recorded",
-};
-
-const AUTHOR: Record<Solution["generatedBy"], string> = {
-  human: "Written by a subject expert",
-  ai: "AI-generated explanation",
-  ai_human_edited: "AI-assisted, edited by a person",
-  official: "From the official source",
-};
-
 /**
  * Answer + solution are in the server HTML (useful, crawlable) but collapsed
  * by default so a student is never spoiled before they try.
@@ -251,12 +255,16 @@ function SolutionBlock({ sol }: { sol: Solution | null }) {
   return (
     <details id="solution" className="group mt-10 scroll-mt-20 rounded-lg border border-line bg-surface open:bg-surface/60">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg p-5 font-medium select-none hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
-        <span>Show answer and solution</span>
+        <span>
+          Show answer and solution
+          {sol.verification.status === "disputed" && <span className="ml-2 text-xs font-normal text-review">· under review</span>}
+        </span>
         <span aria-hidden className="font-pixel text-xs text-fg-muted transition-transform group-open:rotate-90">
           ▶
         </span>
       </summary>
       <div className="space-y-6 border-t border-line p-5">
+        <DisputedNote solution={sol} className="rounded-md border border-review/40 px-4 py-3" />
         <div>
           <p className="font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">Answer</p>
           <p className="mt-2 text-2xl font-semibold">{answerText(sol.answer)}</p>
@@ -264,25 +272,7 @@ function SolutionBlock({ sol }: { sol: Solution | null }) {
         </div>
         <div>
           <p className="font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">Solution</p>
-          {sol.extras?.summary && <p className="mt-3 leading-relaxed text-fg-soft"><RichText value={sol.extras.summary} /></p>}
-          {sol.steps.length === 0 && !sol.extras?.summary && (
-            <p className="mt-3 text-sm text-fg-muted">
-              A worked solution for this question isn&rsquo;t written yet. The answer above is the exam body&rsquo;s official final answer key.
-            </p>
-          )}
-          <ol className="mt-3 space-y-4">
-            {sol.steps.map((st, i) => (
-              <li key={i} className="grid grid-cols-[1.75rem_1fr] gap-2">
-                <span className="pt-0.5 font-pixel text-xs text-fg-subtle">{i + 1}.</span>
-                <div className="min-w-0 leading-relaxed">
-                  {st.title && <p className="mb-1 font-medium">{st.title}</p>}
-                  <div className="text-fg-soft">
-                    <Blocks blocks={st.blocks} fallback={st.body} />
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <SolutionSteps solution={sol} />
         </div>
         <p className={cn("flex flex-wrap items-center gap-2 border-t border-line pt-4 text-xs text-fg-muted")}>
           <span>{AUTHOR[sol.generatedBy]}</span>
