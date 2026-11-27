@@ -2,26 +2,31 @@
 
 import { AdSlot } from "@/components/ads/AdSlot";
 import { BillingSection } from "@/components/billing/BillingSection";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { Kitty } from "@/components/brand/Kitty";
 import { Heatmap, TrendBars } from "@/components/charts/Charts";
 import { ThemeChooser } from "@/components/theme/Theme";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { PixelIcon } from "@/components/ui/PixelIcon";
-import { Bar, Card, Dialog, Eyebrow, PixelBar, Segmented } from "@/components/ui/Primitives";
+import { Bar, Card, Dialog, Eyebrow, PageSkeleton, PixelBar, Segmented } from "@/components/ui/Primitives";
 import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
-import { formatDuration } from "@/lib/demo/dates";
+import { formatDuration, relativeDay } from "@/lib/demo/dates";
 import { COSMETICS, LEADERBOARD_ENABLED, STREAK_MIN_QUESTIONS, achievements, chapterStats, challenges, leaderboard, level, streaks, subjectStats, thisWeek, totals, weeklyTrend } from "@/lib/demo/progress";
 import { DATA_SOURCE } from "@/lib/site";
 import { availableExams } from "@/lib/session/exams";
 import { Kitty as KittyMark } from "@/components/brand/Kitty";
-import { completeOnboarding, signOut, updateUser } from "@/lib/demo/store";
+import { XP, attemptsList, completeOnboarding, signOut, updateUser } from "@/lib/demo/store";
+import { scoreAttempt } from "@/lib/demo/scoring";
+import type { Attempt } from "@/lib/demo/types";
+import { xpRuleCopy } from "@/lib/home/xp-copy";
+import { routes } from "@/lib/routes";
 import type { ClassLevel, DemoState } from "@/lib/demo/types";
-import { EXAMS } from "@/lib/exams";
+import { EXAMS, type Track } from "@/lib/exams";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 import { DemoGate } from "./DemoGate";
 
@@ -30,10 +35,51 @@ type S = DemoState & { user: NonNullable<DemoState["user"]> };
 /* ---------------- /progress/ ---------------- */
 
 export function ProgressPage() {
-  return <DemoGate>{(s) => <Progress s={s} />}</DemoGate>;
+  return (
+    <DemoGate>
+      {(s) => (
+        <Suspense fallback={<PageSkeleton />}>
+          <ProgressTabs s={s} />
+        </Suspense>
+      )}
+    </DemoGate>
+  );
 }
 
-function Progress({ s }: { s: S }) {
+const TABS = ["overview", "tests", "achievements"] as const;
+type Tab = (typeof TABS)[number];
+
+function ProgressTabs({ s }: { s: S }) {
+  const q = useSearchParams().get("tab");
+  const tab: Tab = (TABS as readonly string[]).includes(q ?? "") ? (q as Tab) : "overview";
+  return <Progress s={s} tab={tab} />;
+}
+
+function TabNav({ tab }: { tab: Tab }) {
+  const items: { id: Tab | "leaderboard"; label: string; href: string }[] = [
+    { id: "overview", label: "Overview", href: routes.progress },
+    { id: "tests", label: "Tests", href: routes.progressTests },
+    { id: "achievements", label: "Achievements", href: `${routes.progress}?tab=achievements` },
+    ...(LEADERBOARD_ENABLED ? [{ id: "leaderboard" as const, label: "Leaderboard", href: routes.leaderboard }] : []),
+  ];
+  return (
+    <nav aria-label="Progress sections" className="mt-6 flex gap-1 overflow-x-auto border-b border-line">
+      {items.map((x) => (
+        <Link
+          key={x.id}
+          href={x.href}
+          aria-current={x.id === tab ? "page" : undefined}
+          className={cn("inline-flex min-h-11 shrink-0 items-center border-b-2 px-4 text-sm font-medium transition-colors", x.id === tab ? "border-fg text-fg" : "border-transparent text-fg-muted hover:text-fg")}
+        >
+          {x.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function Progress({ s, tab }: { s: S; tab: Tab }) {
+  const track = EXAMS[s.user.exam].track;
   const t = totals(s);
   const st = streaks(s);
   const lv = level(t.xp);
@@ -54,6 +100,12 @@ function Progress({ s }: { s: S }) {
       <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Progress</h1>
       <p className="mt-2 max-w-2xl text-fg-muted">Effort and accuracy over time. These numbers describe your practice — they are not a prediction of your exam rank.</p>
 
+      <TabNav tab={tab} />
+
+      {tab === "tests" && <TestsTab s={s} />}
+      {tab === "achievements" && <AchievementsTab s={s} ach={ach} ch={ch} />}
+      {tab === "overview" && (
+        <>
       <div className="mt-8 grid gap-4 md:grid-cols-[1.3fr_1fr]">
         <Card className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center">
           <Kitty pose="sit" cosmetic={s.user.cosmetic} className="h-28 w-auto shrink-0 self-center text-fg" />
@@ -68,31 +120,39 @@ function Progress({ s }: { s: S }) {
             </p>
             <details className="mt-3 text-xs text-fg-muted">
               <summary className="cursor-pointer select-none hover:text-fg">How XP works</summary>
-              {DATA_SOURCE === "api" ? (
-                <p className="mt-2 leading-relaxed">XP is a display score worked out from your recorded answers: +10 for each correct answer and +2 for each wrong attempt. It is not stored separately and not a rating. Opening the app or clicking around earns nothing.</p>
-              ) : (
-                <p className="mt-2 leading-relaxed">+10 for a correct answer, +5 for a partially correct multi-answer, +2 for a genuine wrong attempt, +15 for clearing a mistake, +50 for finishing a paper. Opening the app or clicking around earns nothing.</p>
-              )}
+              <p className="mt-2 leading-relaxed">
+                {DATA_SOURCE === "api" ? "XP is a display score worked out from your recorded answers, not stored separately and not a rating. " : ""}
+                {xpRuleCopy(XP)} Opening the app or clicking around earns nothing.
+              </p>
             </details>
           </div>
         </Card>
         <Card className="grid grid-cols-2 gap-5 p-6">
           {[
-            ["Current streak", `${st.current} days`, <PixelIcon key="f" name="flame" className="size-4 text-review" />],
-            ["Longest streak", `${st.longest} days`, <PixelIcon key="f2" name="flame2" className="size-4 text-fg-muted" />],
-            ["Questions practised", t.answered.toLocaleString("en-IN"), null],
-            ["Overall accuracy", t.accuracy === null ? "—" : `${Math.round(t.accuracy * 100)}%`, null],
-            ["This week", `${w.answered} questions`, null],
-            ["Time this week", formatDuration(w.seconds), null],
-          ].map(([k, v, icon]) => (
-            <div key={k as string}>
-              <p className="flex items-center gap-1.5 text-xs text-fg-muted">
-                {icon}
-                {k}
-              </p>
-              <p className="mt-1 font-display text-xl font-semibold tabular-nums">{v}</p>
-            </div>
-          ))}
+            ["Current streak", `${st.current} days`, <PixelIcon key="f" name="flame" className="size-4 text-review" />, routes.practice(track)],
+            ["Longest streak", `${st.longest} days`, <PixelIcon key="f2" name="flame2" className="size-4 text-fg-muted" />, null],
+            ["Questions practised", t.answered.toLocaleString("en-IN"), null, routes.practice(track)],
+            ["Overall accuracy", t.accuracy === null ? "—" : `${Math.round(t.accuracy * 100)}%`, null, routes.mistakes],
+            ["This week", `${w.answered} questions`, null, routes.practice(track)],
+            ["Time this week", formatDuration(w.seconds), null, null],
+          ].map(([k, v, icon, href]) => {
+            const body = (
+              <>
+                <p className="flex items-center gap-1.5 text-xs text-fg-muted">
+                  {icon}
+                  {k as string}
+                </p>
+                <p className="mt-1 font-display text-xl font-semibold tabular-nums">{v as string}</p>
+              </>
+            );
+            return href ? (
+              <Link key={k as string} href={href as string} className="-m-2 block rounded-lg p-2 transition-colors hover:bg-surface-2">
+                {body}
+              </Link>
+            ) : (
+              <div key={k as string}>{body}</div>
+            );
+          })}
           <p className="col-span-2 text-xs text-fg-muted">{STREAK_MIN_QUESTIONS === 1 ? "A streak day needs at least one answered question." : `A streak day needs at least ${STREAK_MIN_QUESTIONS} answered questions.`}</p>
         </Card>
       </div>
@@ -114,17 +174,20 @@ function Progress({ s }: { s: S }) {
         <Card className="p-6">
           <h2 className="font-medium">By subject</h2>
           <ul className="mt-5 space-y-5">
-            {subjects.map((x) => (
-              <li key={x.subject}>
-                <div className="flex items-baseline justify-between text-sm">
-                  <span className={cn("font-medium", SUBJECT_STYLE[x.subject].text)}>{catalog.subject(x.subject)!.name}</span>
-                  <span className="tabular-nums text-fg-muted">
-                    {Math.round(x.accuracy * 100)}% · {x.answered} questions
-                  </span>
-                </div>
-                <Bar value={x.accuracy} className="mt-2" colorClass={SUBJECT_STYLE[x.subject].bg} label={`${catalog.subject(x.subject)!.name} accuracy`} />
-              </li>
-            ))}
+            {subjects.map((x) => {
+              const name = catalog.subject(x.subject)!.name;
+              return (
+                <li key={x.subject}>
+                  <Link href={routes.subject(track, x.subject)} className="-m-2 block rounded-lg p-2 transition-colors hover:bg-surface-2">
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span className={cn("font-medium", SUBJECT_STYLE[x.subject].text)}>{name}</span>
+                      <span className="tabular-nums text-fg-muted">{x.accuracy === null ? "Not practised yet" : `${Math.round(x.accuracy * 100)}% · ${x.answered} questions`}</span>
+                    </div>
+                    {x.accuracy !== null && <Bar value={x.accuracy} className="mt-2" colorClass={SUBJECT_STYLE[x.subject].bg} label={`${name} accuracy`} />}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </Card>
         <Card className="p-6">
@@ -134,16 +197,18 @@ function Progress({ s }: { s: S }) {
           ) : (
             <ul className="mt-4 divide-y divide-line">
               {weakest.map((c) => (
-                <li key={`${c.subject}/${c.chapter}`} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                  <span>
-                    <span className={cn("mr-2", SUBJECT_STYLE[c.subject].text)} aria-hidden>
-                      {SUBJECT_STYLE[c.subject].glyph}
+                <li key={`${c.subject}/${c.chapter}`}>
+                  <Link href={routes.chapterPractise(track, c.subject, c.chapter)} className="flex min-h-11 items-center justify-between gap-4 py-2.5 text-sm hover:text-fg">
+                    <span>
+                      <span className={cn("mr-2", SUBJECT_STYLE[c.subject].text)} aria-hidden>
+                        {SUBJECT_STYLE[c.subject].glyph}
+                      </span>
+                      {catalog.chapter(c.subject, c.chapter)?.name ?? c.chapter}
                     </span>
-                    {catalog.chapter(c.subject, c.chapter)?.name}
-                  </span>
-                  <span className="tabular-nums text-fg-muted">
-                    {c.correct}/{c.answered} correct
-                  </span>
+                    <span className="flex items-center gap-2 tabular-nums text-fg-muted">
+                      {c.correct}/{c.answered} correct <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -151,61 +216,9 @@ function Progress({ s }: { s: S }) {
         </Card>
       </div>
 
-      <section aria-labelledby="ch-h" className="mt-12">
-        <h2 id="ch-h" className="text-xl font-semibold">
-          Weekly challenges
-        </h2>
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {ch.map((c) => {
-            const done = c.have >= c.need;
-            return (
-              <li key={c.id}>
-                <Card className={cn("h-full p-5", done && "border-ok/40")}>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium leading-snug">{c.name}</p>
-                    {done ? <PixelIcon name="check" className="size-4 shrink-0 text-ok" /> : <span className="shrink-0 font-pixel text-[0.6rem] text-mathematics">+{c.xp} XP</span>}
-                  </div>
-                  <Bar value={c.have / c.need} className="mt-4" colorClass={done ? "bg-ok" : "bg-fg"} label={c.name} />
-                  <p className="mt-2 text-xs tabular-nums text-fg-muted">
-                    {Math.min(c.have, c.need)} / {c.need}
-                  </p>
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      <section aria-labelledby="ach-h" className="mt-12">
-        <div className="flex items-baseline justify-between">
-          <h2 id="ach-h" className="text-xl font-semibold">
-            Achievements
-          </h2>
-          <p className="text-sm tabular-nums text-fg-muted">
-            {ach.filter((a) => a.done).length} of {ach.length}
-          </p>
-        </div>
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {ach.map((a) => (
-            <li key={a.id}>
-              <Card className={cn("flex h-full flex-col items-center p-5 text-center", !a.done && "bg-transparent")}>
-                <span className={cn("pixel-corners grid size-14 place-items-center", a.done ? "bg-surface-2 text-mathematics" : "bg-surface-2 text-fg-subtle")}>
-                  <PixelIcon name={a.done ? a.icon : "lock"} className="size-7" />
-                </span>
-                <p className={cn("mt-3 font-medium", !a.done && "text-fg-muted")}>{a.name}</p>
-                <p className="mt-1 text-xs text-fg-muted">{a.desc}</p>
-                {!a.done && (
-                  <p className="mt-auto pt-3 text-xs tabular-nums text-fg-subtle">
-                    {a.progress[0]} / {a.progress[1]}
-                  </p>
-                )}
-              </Card>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <Wardrobe s={s} />
+      {LEADERBOARD_ENABLED && <LeaderboardTeaser s={s} />}
+        </>
+      )}
       <AdSlot placement="notebook-bottom" />
     </div>
   );
@@ -486,5 +499,173 @@ function Account({ s }: { s: S }) {
         </div>
       </Dialog>
     </div>
+  );
+}
+
+/* ---------------- Achievements tab ---------------- */
+
+function AchievementsTab({ s, ach, ch }: { s: S; ach: ReturnType<typeof achievements>; ch: ReturnType<typeof challenges> }) {
+  const track = EXAMS[s.user.exam].track;
+  const where: Record<string, string> = { volume: routes.practice(track), paper: routes.pyq(track), mistakes: routes.mistakes };
+  return (
+    <>
+      <section aria-labelledby="ch-h" className="mt-12">
+        <h2 id="ch-h" className="text-xl font-semibold">
+          Weekly challenges
+        </h2>
+        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {ch.map((c) => {
+            const done = c.have >= c.need;
+            return (
+              <li key={c.id}>
+                <Card className={cn("h-full p-5", done && "border-ok/40")}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium leading-snug">{c.name}</p>
+                    {done ? <PixelIcon name="check" className="size-4 shrink-0 text-ok" /> : <span className="shrink-0 font-pixel text-[0.6rem] text-mathematics">+{c.xp} XP</span>}
+                  </div>
+                  <Bar value={c.have / c.need} className="mt-4" colorClass={done ? "bg-ok" : "bg-fg"} label={c.name} />
+                  <p className="mt-2 flex items-center justify-between text-xs tabular-nums text-fg-muted">
+                    <span>
+                      {Math.min(c.have, c.need)} / {c.need}
+                    </span>
+                    {!done && where[c.id] && (
+                      <Link href={where[c.id]!} className="inline-flex min-h-11 items-center text-fg-soft underline underline-offset-4 hover:text-fg">
+                        Go
+                      </Link>
+                    )}
+                  </p>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section aria-labelledby="ach-h" className="mt-12">
+        <div className="flex items-baseline justify-between">
+          <h2 id="ach-h" className="text-xl font-semibold">
+            Achievements
+          </h2>
+          <p className="text-sm tabular-nums text-fg-muted">
+            {ach.filter((a) => a.done).length} of {ach.length}
+          </p>
+        </div>
+        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {ach.map((a) => (
+            <li key={a.id}>
+              <Card className={cn("flex h-full flex-col items-center p-5 text-center", !a.done && "bg-transparent")}>
+                <span className={cn("pixel-corners grid size-14 place-items-center", a.done ? "bg-surface-2 text-mathematics" : "bg-surface-2 text-fg-subtle")}>
+                  <PixelIcon name={a.done ? a.icon : "lock"} className="size-7" />
+                </span>
+                <p className={cn("mt-3 font-medium", !a.done && "text-fg-muted")}>{a.name}</p>
+                <p className="mt-1 text-xs text-fg-muted">{a.desc}</p>
+                {!a.done && (
+                  <p className="mt-auto pt-3 text-xs tabular-nums text-fg-subtle">
+                    {a.progress[0]} / {a.progress[1]}
+                  </p>
+                )}
+              </Card>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <Wardrobe s={s} />
+    </>
+  );
+}
+
+/* ---------------- Leaderboard teaser (only when the board is enabled) ---------------- */
+
+function LeaderboardTeaser({ s }: { s: S }) {
+  const me = leaderboard(s).find((r) => r.you);
+  if (!me) return null;
+  return (
+    <Card className="mt-4 flex flex-wrap items-center justify-between gap-4 p-6">
+      <div>
+        <h2 className="font-medium">This week&rsquo;s board</h2>
+        <p className="mt-1 text-sm text-fg-muted">You are #{me.rank} on practice XP since Monday. Not an exam rank.</p>
+      </div>
+      <Link href={routes.leaderboard} className="inline-flex min-h-11 items-center gap-1 text-sm text-fg-muted hover:text-fg">
+        View leaderboard <Icon name="arrowRight" className="size-3.5" />
+      </Link>
+    </Card>
+  );
+}
+
+/* ---------------- Tests tab ---------------- */
+
+function TestsTab({ s }: { s: S }) {
+  const track = EXAMS[s.user.exam].track;
+  // Full papers and timed tests (test mode / CBT); untimed learning sessions are not "tests".
+  const rows = attemptsList(s).filter((a) => a.kind === "paper" || a.mode === "test" || a.mode === "cbt");
+  if (rows.length === 0) {
+    return (
+      <div className="mt-8 flex flex-col items-center rounded-2xl border border-dashed border-line-strong px-6 py-14 text-center">
+        <Kitty pose="sleep" className="h-16 w-auto text-fg-subtle" />
+        <p className="mt-4 font-medium">No papers or timed tests yet</p>
+        <p className="mt-1 text-sm text-fg-muted">Attempt a previous-year paper and it will be listed here, with your score.</p>
+        <Link href={routes.pyq(track)} className="mt-5 inline-flex min-h-11 items-center gap-1 text-sm underline underline-offset-4 hover:text-fg">
+          Browse PYQs <Icon name="arrowRight" className="size-3.5" />
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <section aria-labelledby="tests-h" className="mt-8">
+      <h2 id="tests-h" className="sr-only">
+        Your papers and timed tests
+      </h2>
+      <ul className="surface divide-y divide-line">
+        {rows.map((a) => (
+          <TestRow key={a.id} a={a} track={track} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function TestRow({ a, track }: { a: Attempt; track: Track }) {
+  const submitted = a.status === "submitted";
+  const r = submitted ? scoreAttempt(a) : null;
+  const when = submitted && a.submittedAt ? a.submittedAt : a.updatedAt;
+  const kind = a.mode === "cbt" ? "CBT" : a.mode === "test" ? "Timed test" : "Untimed";
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4 sm:px-6">
+      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-surface-2 text-fg-muted">
+        <Icon name={a.mode === "cbt" ? "monitor" : "clock"} className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="truncate font-medium">{a.title}</p>
+        <p className="text-sm text-fg-muted">
+          {a.kind === "paper" ? `Paper · ${kind}` : kind} · {submitted ? "Submitted" : "In progress"} · {relativeDay(when)}
+        </p>
+      </div>
+      {r && (
+        <p className="text-right">
+          <span className="numeral block text-lg">
+            {r.score}
+            <span className="text-fg-subtle">/{r.max}</span>
+          </span>
+          <span className="block text-sm tabular-nums text-fg-muted">{r.accuracy === null ? "—" : `${Math.round(r.accuracy * 100)}% accurate`}</span>
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-x-3">
+        {submitted ? (
+          <Link href={routes.results(a.id)} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 hover:text-fg">
+            Results
+          </Link>
+        ) : (
+          <Link href={a.mode === "cbt" ? routes.cbt(a.id) : routes.session(a.id)} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 hover:text-fg">
+            Resume
+          </Link>
+        )}
+        {a.kind === "paper" && a.paperId && (
+          <Link href={routes.pyqPaperFromSlug(track, a.paperId)} className="inline-flex min-h-11 items-center text-sm text-fg-muted underline underline-offset-4 hover:text-fg">
+            Paper page
+          </Link>
+        )}
+      </div>
+    </li>
   );
 }

@@ -109,13 +109,16 @@ export function level(xp: number) {
 
 /* ---------- Subject / chapter breakdown (from real attempt responses) ---------- */
 
-export function subjectStats(s: DemoState) {
+/** Accuracy is null (not 0) for a subject with no answered questions: "not practised yet", never "0%". */
+export type SubjectStat = { subject: SubjectId; answered: number; accuracy: number | null };
+
+export function subjectStats(s: DemoState): SubjectStat[] {
   const exam = s.user?.exam ?? "jee-main";
   if (s.server) {
     // Server truth: GET /users/me/progress. No blending with invented averages.
     return EXAMS[exam].subjects.map((subject) => {
       const row = s.server!.subjects.find((x) => x.subject === subject);
-      return { subject, answered: row?.answered ?? 0, accuracy: row && row.answered ? row.correct / row.answered : 0 };
+      return { subject, answered: row?.answered ?? 0, accuracy: row && row.answered ? row.correct / row.answered : null };
     });
   }
   const out = new Map<SubjectId, { answered: number; correct: number }>();
@@ -142,7 +145,8 @@ export function subjectStats(s: DemoState) {
     }
   }
   const overall = totals(s).accuracy ?? 0.6;
-  return [...out.entries()].map(([subject, v]) => {
+  return [...out.entries()].map(([subject, v]): SubjectStat => {
+    if (v.answered === 0) return { subject, answered: 0, accuracy: null };
     const rr = ratio.get(subject);
     // Blend attempt-level accuracy with the long-run average when the sample is small.
     const acc = rr && rr.a >= 5 ? rr.c / rr.a : rr ? (rr.c + overall * 5) / (rr.a + 5) : overall;
