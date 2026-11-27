@@ -18,9 +18,9 @@ import type { DemoState, DemoUser, MistakeCategory, Attempt } from "./types";
 
 const API = DATA_SOURCE === "api";
 
-export type { StartOpts } from "@/lib/session/store";
+export type { StartOpts, StartListOpts, ListItem } from "@/lib/session/store";
 export { NoQuestionsError } from "@/lib/session/store";
-import type { StartOpts } from "@/lib/session/store";
+import type { StartListOpts, StartOpts } from "@/lib/session/store";
 
 /** `null` until hydrated on the client. */
 export const useDemo: () => DemoState | null = API ? remote.useDemo : local.useDemo;
@@ -52,6 +52,20 @@ export function startPractice(opts: StartOpts): Promise<string> {
   return API ? remote.startPractice(opts) : Promise.resolve(local.startPractice(opts));
 }
 export { rememberPapers } from "@/lib/session/store";
+/**
+ * Practice over an ordered list, starting at one item (Previous/Next walk the list). API mode: a client-side list whose
+ * answers post as standalone attempts. Mock mode: a local practice session over the same questions (problem items must
+ * already be resolved to question ids by the caller).
+ */
+export function startList(opts: StartListOpts): Promise<string> {
+  if (API) return remote.startList(opts);
+  const ids = opts.items.flatMap((it) => ("questionId" in it ? [it.questionId] : []));
+  const startId = ids[opts.startIndex ?? 0];
+  const id = local.startPractice({ exam: opts.exam, mode: "learning", title: opts.title, questionIds: ids, scope: opts.scope });
+  const at = startId ? (local.getDemoState().attempts[id]?.questionIds.indexOf(startId) ?? 0) : 0;
+  if (at > 0) local.setCurrent(id, at);
+  return Promise.resolve(id);
+}
 export function startPaper(paperId: string, mode: "cbt" | "test" | "learning", retryOf?: string): Promise<string> {
   return API ? remote.startPaper(paperId, mode, retryOf) : Promise.resolve(local.startPaper(paperId, mode, retryOf));
 }

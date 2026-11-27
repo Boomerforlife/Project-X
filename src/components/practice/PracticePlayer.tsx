@@ -17,6 +17,8 @@ import { isAnswered, outcomeFor } from "@/lib/demo/scoring";
 import { checkAnswer, ensureAttempt, publicSlugForQuestion, setCurrent, setResponse, singleQuestionId, startSingleBySlug, submitAttempt, toggleBookmark, toggleReview, usePending, useSubmitState, useDemo } from "@/lib/demo/store";
 import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt, DemoState } from "@/lib/demo/types";
+import { EXAMS } from "@/lib/exams";
+import { routes, safeNext } from "@/lib/routes";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 import { QuestionBody } from "./QuestionBody";
 import { ReportDialog } from "./ReportDialog";
@@ -29,7 +31,10 @@ import { AdSlot } from "@/components/ads/AdSlot";
 const API = DATA_SOURCE === "api";
 
 export function PracticeSession() {
-  const id = useSearchParams().get("id");
+  const params = useSearchParams();
+  const id = params.get("id");
+  // Where the session was opened from (chapter page, library with its filters, Notebook…): Back returns there.
+  const from = safeNext(params.get("from"), "");
   const s = useDemo();
   const router = useRouter();
   const a = s && id ? s.attempts[id] : null;
@@ -48,7 +53,7 @@ export function PracticeSession() {
     publicSlugForQuestion(singleQ)
       .then((slug) => {
         if (!live) return;
-        if (slug) router.replace(`/jee/questions/${slug}/`);
+        if (slug) router.replace(routes.question("jee", slug));
         else setShared("members");
       })
       .catch(() => live && setShared("error"));
@@ -89,14 +94,30 @@ export function PracticeSession() {
       <div className="mx-auto max-w-md px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">Session not found</h1>
         <p className="mt-2 text-fg-muted">It may have been discarded, or it was started on another device.</p>
-        <ButtonLink href="/practice/" className="mt-6">
-          Start a new session
-        </ButtonLink>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          {from && (
+            <ButtonLink href={from} variant="secondary">
+              Go back
+            </ButtonLink>
+          )}
+          <ButtonLink href={routes.practice(EXAMS[s.user.exam].track)}>Start a new session</ButtonLink>
+        </div>
       </div>
     );
   }
   if (a.status === "submitted" || a.mode === "cbt") return <SessionLoading />;
-  return <Player key={a.id} attempt={a} state={s} />;
+  return <Player key={a.id} attempt={a} state={s} backHref={from || backFor(a)} />;
+}
+
+/** Default Back target when the session URL doesn't say where it came from. */
+function backFor(a: Attempt): string {
+  const track = EXAMS[a.exam].track;
+  if (a.kind === "paper" && a.paperId) return routes.pyqPaperFromSlug(track, a.paperId);
+  if (a.scope?.source === "mistakes") return routes.mistakes;
+  if (a.scope?.source === "bookmarks") return routes.bookmarks;
+  if (a.scope?.chapter && a.scope.subject) return routes.chapter(track, a.scope.subject, a.scope.chapter);
+  if (a.scope?.subject) return routes.subject(track, a.scope.subject);
+  return routes.practice(track);
 }
 
 /**
@@ -136,7 +157,7 @@ function SessionLoading() {
 
 type Panel = null | "calc" | "pad";
 
-function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }) {
+function Player({ attempt: a, state: s, backHref }: { attempt: Attempt; state: DemoState; backHref: string }) {
   const router = useRouter();
   const qid = a.questionIds[a.current];
   const q = catalog.question(qid);
@@ -225,7 +246,7 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
     return () => document.removeEventListener("keydown", onKey);
   });
 
-  if (!q) return <SessionLoading />;
+  if (!q) return <ItemLoading attempt={a} backHref={backHref} onGo={go} />;
 
   const sol = learning && resp?.checked ? catalog.solution(q.id) : null;
   const hint = learning ? catalog.hint(q.id) : null;
@@ -250,13 +271,13 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
       {/* Focus bar: no site navigation, nothing that competes with the question. */}
       <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
-          <Link href="/practice/" className="-ml-2 grid size-9 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Leave session (progress is saved)">
+          <Link href={backHref} className="-ml-2 grid size-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg sm:size-9" aria-label="Leave session (progress is saved)">
             <Icon name="arrowLeft" className="size-4" />
           </Link>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{a.title}</p>
             <p className="truncate text-xs text-fg-muted">
-              {learning ? "Learning mode · instant feedback" : "Test mode · answers revealed after you submit"}
+              {learning ? "Learning mode · instant feedback" : "Timed test · answers revealed after you submit"}
             </p>
           </div>
           <div
@@ -403,8 +424,9 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
           </Button>
           <MobileNavigator attempt={a} onGo={go} />
           {(!learning || !resp?.checked) && isAnswered(resp?.answer) && (
-            <Button variant="ghost" onClick={() => setResponse(a.id, qid, { answer: null })} className="hidden sm:inline-flex">
-              Clear
+            <Button variant="ghost" onClick={() => setResponse(a.id, qid, { answer: null })} aria-label="Clear answer" className="px-3 max-sm:w-11 max-sm:px-0">
+              <Icon name="eraser" className="size-4 sm:hidden" />
+              <span className="hidden sm:inline">Clear</span>
             </Button>
           )}
           {!learning && (
@@ -413,17 +435,17 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
               <span className="hidden sm:inline">{resp?.markedForReview ? "Marked" : "Mark for review"}</span>
             </Button>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none">
             {learning && !resp?.checked ? (
-              <Button pixel onClick={check} disabled={!isAnswered(resp?.answer) || checking} className="min-w-36">
+              <Button pixel onClick={check} disabled={!isAnswered(resp?.answer) || checking} className="min-w-0 flex-1 sm:min-w-36 sm:flex-none">
                 {checking ? "Checking…" : "Check answer"}
               </Button>
             ) : last ? (
-              <Button pixel onClick={() => (learning ? void finish() : setConfirm(true))} className="min-w-36">
-                {learning ? "Finish session" : "Submit test"}
+              <Button pixel onClick={() => (learning ? void finish() : setConfirm(true))} className="min-w-0 flex-1 sm:min-w-36 sm:flex-none">
+                {learning ? "Finish" : "Submit"}
               </Button>
             ) : (
-              <Button pixel onClick={() => go(a.current + 1)} className="min-w-36">
+              <Button pixel onClick={() => go(a.current + 1)} className="min-w-0 flex-1 sm:min-w-36 sm:flex-none">
                 {learning ? "Next question" : "Save & next"} <Icon name="chevronRight" className="size-4" />
               </Button>
             )}
@@ -473,6 +495,46 @@ function Player({ attempt: a, state: s }: { attempt: Attempt; state: DemoState }
         <ShortcutList learning={learning} />
       </Dialog>
       <ReportDialog open={report} onClose={() => setReport(false)} questionId={q.id} />
+    </div>
+  );
+}
+
+/** A list item that is still being fetched (library lists resolve each problem when the student reaches it). */
+function ItemLoading({ attempt: a, backHref, onGo }: { attempt: Attempt; backHref: string; onGo: (i: number) => void }) {
+  return (
+    <div className="min-h-dvh pb-28">
+      <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
+          <Link href={backHref} className="-ml-2 grid size-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg sm:size-9" aria-label="Leave session (progress is saved)">
+            <Icon name="arrowLeft" className="size-4" />
+          </Link>
+          <p className="min-w-0 flex-1 truncate text-sm font-medium">{a.title}</p>
+        </div>
+      </header>
+      <main id="main" className="mx-auto max-w-3xl px-4 pt-8 sm:px-6" aria-busy>
+        <p className="font-pixel text-xs text-fg-muted">
+          Q{String(a.current + 1).padStart(2, "0")}
+          <span className="text-fg-subtle">/{String(a.questionIds.length).padStart(2, "0")}</span>
+        </p>
+        <div className="mt-6 space-y-3" role="status" aria-label="Loading the question">
+          <div className="skeleton h-5 w-11/12" />
+          <div className="skeleton h-5 w-9/12" />
+          <div className="skeleton mt-6 h-12" />
+          <div className="skeleton h-12" />
+          <div className="skeleton h-12" />
+          <div className="skeleton h-12" />
+        </div>
+      </main>
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur-md">
+        <div className="mx-auto flex h-[4.5rem] max-w-6xl items-center gap-2 px-4 sm:px-6">
+          <Button variant="secondary" onClick={() => onGo(a.current - 1)} disabled={a.current === 0} aria-label="Previous question">
+            <Icon name="chevronLeft" className="size-4" />
+          </Button>
+          <Button pixel className="ml-auto" onClick={() => onGo(a.current + 1)} disabled={a.current === a.questionIds.length - 1}>
+            Skip <Icon name="chevronRight" className="size-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

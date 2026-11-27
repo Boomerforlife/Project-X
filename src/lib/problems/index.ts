@@ -21,7 +21,7 @@ import { toPracticeQuestion } from "@/lib/api/adapters/practice";
 import { examToApi, subjectFromApi, typeFromApi } from "@/lib/api/adapters/ids";
 import { catalog } from "@/lib/data/catalog";
 import { outcomeFor } from "@/lib/demo/scoring";
-import { startPractice } from "@/lib/demo/store";
+import { startList, startPractice } from "@/lib/demo/store";
 import type { DemoState } from "@/lib/demo/types";
 import { registry } from "@/lib/session/registry";
 import { DATA_SOURCE } from "@/lib/site";
@@ -305,6 +305,27 @@ export async function openProblem(number: number, exam: ExamId, s: DemoState | n
   const outcomes = s ? mockOutcomes(s) : new Map();
   const pick = fam.questions.find((q) => !outcomes.has(q.id)) ?? fam.questions.find((q) => outcomes.get(q.id) !== "solved") ?? fam.questions[0]!;
   return startPractice({ exam, mode: "learning", title: `Q-${String(number).padStart(3, "0")}`, questionIds: [pick.id], scope: { source: "single" } });
+}
+
+/**
+ * Open a problem inside the list it was picked from (a chapter's problems or the visible library list), positioned at it,
+ * so Previous/Next walk that list. API mode resolves each problem to a question only when the student reaches it.
+ */
+export async function openProblemList(numbers: number[], start: number, exam: ExamId, s: DemoState | null, title: string): Promise<string> {
+  const startIndex = Math.max(0, numbers.indexOf(start));
+  const scope = { source: "quick" as const };
+  if (API) return startList({ exam, title, items: numbers.map((problem) => ({ problem })), startIndex, scope });
+  const outcomes = s ? mockOutcomes(s) : new Map();
+  const byNumber = new Map(families().map((f) => [f.number, f]));
+  const ids = numbers.flatMap((n) => {
+    const fam = byNumber.get(n);
+    if (!fam) return [];
+    const pick = fam.questions.find((q) => !outcomes.has(q.id)) ?? fam.questions.find((q) => outcomes.get(q.id) !== "solved") ?? fam.questions[0];
+    return pick ? [pick.id] : [];
+  });
+  const startFam = byNumber.get(start);
+  const startId = startFam ? ids.find((id) => startFam.questions.some((q) => q.id === id)) : undefined;
+  return startList({ exam, title, items: ids.map((questionId) => ({ questionId })), startIndex: startId ? ids.indexOf(startId) : 0, scope });
 }
 
 /** Mock-mode hook for the study plan: which problem numbers exist per chapter and difficulty. */
