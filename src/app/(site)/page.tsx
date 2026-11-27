@@ -138,7 +138,7 @@ const MODES = [
     points: ["See whether you were right immediately", "Hints before the full solution", "Solutions with step-by-step working"],
   },
   {
-    name: "Test mode",
+    name: "Timed test",
     tag: "Answers stay hidden until you submit",
     points: ["Timer and mark-for-review", "No hints during the attempt", "Full results and solutions at the end"],
   },
