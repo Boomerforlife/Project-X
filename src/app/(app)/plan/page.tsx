@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { StudyPlanPage } from "@/components/app/StudyPlan";
 import { PageSkeleton } from "@/components/ui/Primitives";
 
-export const metadata = { title: "Your plan" };
+export const metadata = { title: "Study plan" };
 
 export default function PlanPage() {
   return (

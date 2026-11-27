@@ -9,21 +9,27 @@ import { Icon, type IconName } from "./Icon";
  * Announced politely to screen readers; never used for errors that need a
  * decision — those stay inline next to the thing that failed.
  */
-type Toast = { id: number; message: string; icon?: IconName; tone?: "neutral" | "good" | "warn" };
+type ToastAction = { label: string; onClick: () => void };
+type Toast = { id: number; message: string; icon?: IconName; tone?: "neutral" | "good" | "warn"; action?: ToastAction };
 
 let toasts: Toast[] = [];
 let seq = 0;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-export function toast(message: string, opts: { icon?: IconName; tone?: Toast["tone"] } = {}) {
-  const t = { id: ++seq, message, ...opts };
+export function dismissToast(id: number) {
+  toasts = toasts.filter((x) => x.id !== id);
+  emit();
+}
+
+/** Returns the toast id so a caller can dismiss it early. `action` adds one button (e.g. Undo); `duration` is in ms. */
+export function toast(message: string, opts: { icon?: IconName; tone?: Toast["tone"]; action?: ToastAction; duration?: number } = {}): number {
+  const { duration, ...rest } = opts;
+  const t = { id: ++seq, message, ...rest };
   toasts = [...toasts.slice(-2), t];
   emit();
-  window.setTimeout(() => {
-    toasts = toasts.filter((x) => x.id !== t.id);
-    emit();
-  }, 2600);
+  window.setTimeout(() => dismissToast(t.id), duration ?? 2600);
+  return t.id;
 }
 
 const EMPTY: Toast[] = [];
@@ -50,6 +56,18 @@ export function Toaster() {
         >
           {t.icon && <Icon name={t.icon} className={cn("size-4", t.tone === "good" ? "text-ok" : t.tone === "warn" ? "text-review" : "text-fg-muted")} />}
           {t.message}
+          {t.action && (
+            <button
+              type="button"
+              onClick={() => {
+                t.action!.onClick();
+                dismissToast(t.id);
+              }}
+              className="pointer-events-auto -my-2 -mr-2 ml-1 inline-flex min-h-11 items-center rounded-full px-3 font-medium underline underline-offset-2 hover:bg-surface-2"
+            >
+              {t.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

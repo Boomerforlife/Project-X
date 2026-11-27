@@ -3,7 +3,7 @@
 import { AdSlot } from "@/components/ads/AdSlot";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SubjectId } from "@/contracts";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import { RichText } from "@/components/content/RichText";
@@ -16,12 +16,17 @@ import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
 import { relativeDay } from "@/lib/demo/dates";
 import { removeMistake, setMistakeCategory, startPractice, startSingleBySlug, toggleBookmark, toggleReview } from "@/lib/demo/store";
-import { toast } from "@/components/ui/Toast";
+import { dismissToast, toast } from "@/components/ui/Toast";
 import { DATA_SOURCE } from "@/lib/site";
 import { MISTAKE_CATEGORIES, type DemoState, type MistakeCategory } from "@/lib/demo/types";
 import { DemoGate } from "./DemoGate";
 
 type Kind = "mistakes" | "bookmarks" | "review";
+
+/** Most questions one session from the notebook can hold: the learning-session cap in startPractice. Label and request both use it. */
+const SESSION_CAP = 50;
+/** How long "Mark cleared" can be undone before the mistake is actually removed. */
+const UNDO_MS = 5000;
 
 const TABS: { id: Kind; href: string; label: string; blurb: string }[] = [
   { id: "mistakes", href: "/mistakes/", label: "Mistakes", blurb: "Questions you answered incorrectly, captured automatically. Answer one correctly again and it's cleared." },
@@ -38,8 +43,56 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
   const [status, setStatus] = useState<"open" | "resolved" | "all">("open");
   const [subject, setSubject] = useState<SubjectId | "all">("all");
   const tab = TABS.find((t) => t.id === kind)!;
+
+  // "Mark cleared" hides the row at once and removes the mistake after UNDO_MS unless undone. removeMistake hits the API
+  // immediately, so the delay lives here; anything still pending is flushed when the page closes or the tab changes.
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const pending = useRef(new Map<string, { timer: number; toastId: number }>());
+  const commit = useCallback((qid: string) => {
+    const p = pending.current.get(qid);
+    if (!p) return;
+    window.clearTimeout(p.timer);
+    pending.current.delete(qid);
+    dismissToast(p.toastId);
+    void removeMistake(qid);
+  }, []);
+  useEffect(() => {
+    const map = pending.current;
+    const flush = () => [...map.keys()].forEach(commit);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [commit]);
+  const markCleared = (qid: string, message: string) => {
+    if (pending.current.has(qid)) return;
+    setHidden((h) => new Set(h).add(qid));
+    const timer = window.setTimeout(() => commit(qid), UNDO_MS);
+    const toastId = toast(message, {
+      icon: "check",
+      tone: "good",
+      duration: UNDO_MS,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const p = pending.current.get(qid);
+          if (!p) return;
+          window.clearTimeout(p.timer);
+          pending.current.delete(qid);
+          setHidden((h) => {
+            const n = new Set(h);
+            n.delete(qid);
+            return n;
+          });
+        },
+      },
+    });
+    pending.current.set(qid, { timer, toastId });
+  };
+
   const counts = {
-    mistakes: Object.values(s.mistakes).filter((m) => m.status === "open").length,
+    mistakes: Object.values(s.mistakes).filter((m) => m.status === "open" && !hidden.has(m.questionId)).length,
     bookmarks: Object.keys(s.bookmarks).length,
     review: Object.keys(s.review).length,
   };
@@ -47,7 +100,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
   const entries: { qid: string; at: string }[] =
     kind === "mistakes"
       ? Object.values(s.mistakes)
-          .filter((m) => status === "all" || m.status === status)
+          .filter((m) => !hidden.has(m.questionId) && (status === "all" || m.status === status))
           .map((m) => ({ qid: m.questionId, at: m.at }))
       : Object.entries(kind === "bookmarks" ? s.bookmarks : s.review).map(([qid, at]) => ({ qid, at }));
   const items = entries
@@ -69,9 +122,9 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
         id =
           ids.length === 1
             ? await startSingleBySlug(first.slug, exam, { subject: first.subject, chapter: first.chapter })
-            : await startPractice({ exam, mode: "learning", title, questionIds: [], count: Math.min(20, ids.length), scope: { source: kind === "bookmarks" ? "bookmarks" : "mistakes" } });
+            : await startPractice({ exam, mode: "learning", title, questionIds: [], count: Math.min(SESSION_CAP, ids.length), scope: { source: kind === "bookmarks" ? "bookmarks" : "mistakes", ...(subject !== "all" ? { subject } : {}) } });
       } else {
-        id = await startPractice({ exam, mode: "learning", title, questionIds: ids.slice(0, 25), scope: { source: kind === "review" ? "review" : kind } });
+        id = await startPractice({ exam, mode: "learning", title, questionIds: ids.slice(0, SESSION_CAP), scope: { source: kind === "review" ? "review" : kind, ...(subject !== "all" ? { subject } : {}) } });
       }
       router.push(`/practice/session/?id=${id}`);
     } catch {
@@ -79,6 +132,8 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
       toast("Couldn't start that session. Please try again.", { icon: "alert", tone: "warn" });
     }
   };
+  const subjectName = subject !== "all" ? catalog.subject(subject)?.name : undefined;
+  const sessionTitle = (base: string) => (subjectName ? `${base} · ${subjectName}` : base);
   const openIds = items.filter((i) => kind !== "mistakes" || s.mistakes[i.qid]?.status === "open").map((i) => i.qid);
 
   return (
@@ -88,7 +143,8 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
       </Eyebrow>
       <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{tab.label}</h1>
       <p className="mt-2 max-w-2xl text-fg-muted">{tab.blurb}</p>
-      {DATA_SOURCE === "api" && kind === "review" && <p className="mt-2 text-sm text-fg-muted">The review list is saved on this device only for now.</p>}
+      {DATA_SOURCE === "api" && kind === "review" && <p className="mt-2 text-sm text-fg-muted">Saved on this device only for now, so it won&rsquo;t appear on your other devices.</p>}
+      {DATA_SOURCE === "api" && kind === "mistakes" && <p className="mt-2 text-sm text-fg-muted">The reasons you tag are saved on this device only for now.</p>}
 
       <nav aria-label="Notebook" className="mt-8 flex gap-1 border-b border-line">
         {TABS.map((t) => (
@@ -117,8 +173,8 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
           <Segmented label="Subject" value={subject} onChange={setSubject} options={[{ id: "all" as const, label: "All subjects" }, ...subjects.map((id) => ({ id, label: catalog.subject(id)!.name }))]} />
         )}
         {openIds.length > 0 && !(DATA_SOURCE === "api" && kind === "review") && (
-          <Button pixel size="sm" className="ml-auto" disabled={busy} onClick={() => practise(openIds, kind === "mistakes" ? "Mistake revision" : kind === "bookmarks" ? "Bookmarked questions" : "Review list")}>
-            <Icon name="play" className="size-3.5" /> {kind === "mistakes" ? `Reattempt ${Math.min(openIds.length, 25)}` : `Practise ${Math.min(openIds.length, 25)}`}
+          <Button pixel size="sm" className="ml-auto" disabled={busy} onClick={() => practise(openIds, sessionTitle(kind === "mistakes" ? "Mistake revision" : kind === "bookmarks" ? "Bookmarked questions" : "Review list"))}>
+            <Icon name="play" className="size-3.5" /> {kind === "mistakes" ? `Reattempt ${Math.min(openIds.length, SESSION_CAP)}` : `Practise ${Math.min(openIds.length, SESSION_CAP)}`}
           </Button>
         )}
       </div>
@@ -169,7 +225,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
                   {kind === "mistakes" && m && (
                     <label className="flex items-center gap-2 text-sm text-fg-muted">
                       <span className="sr-only">Why did you get this wrong?</span>
-                      {DATA_SOURCE === "api" && <span className="hidden text-xs text-fg-subtle sm:inline">On this device</span>}
+                      {DATA_SOURCE === "api" && <span className="text-xs text-fg-subtle">Saved on this device</span>}
                       <select
                         value={m.category ?? ""}
                         onChange={(e) => setMistakeCategory(qid, (e.target.value || null) as MistakeCategory | null)}
@@ -186,10 +242,10 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
                   )}
                   <button
                     type="button"
-                    onClick={() => void (kind === "mistakes" ? removeMistake(qid) : kind === "bookmarks" ? toggleBookmark(qid) : toggleReview(qid))}
-                    className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg"
+                    onClick={() => (kind === "mistakes" ? markCleared(qid, m?.status === "open" ? "Marked as cleared" : "Removed from your notebook") : void (kind === "bookmarks" ? toggleBookmark(qid) : toggleReview(qid)))}
+                    className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg sm:min-h-9"
                   >
-                    <Icon name="trash" className="size-4" /> Remove
+                    <Icon name={kind === "mistakes" && m?.status === "open" ? "check" : "trash"} className="size-4" /> {kind === "mistakes" && m?.status === "open" ? "Mark cleared" : "Remove"}
                   </button>
                 </div>
               </li>
