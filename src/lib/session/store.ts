@@ -119,7 +119,15 @@ function ensureInit() {
   if (initStarted || typeof window === "undefined") return;
   initStarted = true;
   setTokenProvider(getAccessToken);
-  onAuthChange(() => void refreshAll());
+  onAuthChange(() => {
+    // Signing in or up fires this before the form navigates on. Until the account has loaded, report "loading" rather
+    // than the stale "signed out", or the next page's guard bounces a student who just signed up back to /login/.
+    if (status === "signedOut") {
+      status = "loading";
+      emit();
+    }
+    void refreshAll();
+  });
   void refreshAll();
 }
 
@@ -143,9 +151,20 @@ function signedOut() {
 }
 
 let refreshing: Promise<void> | null = null;
+let refreshAgain = false;
 function refreshAll(): Promise<void> {
-  refreshing ??= doRefresh().finally(() => {
+  // An auth change while a load is running (signing in before the first load finished) needs one more load: the running
+  // one may have read the old token.
+  if (refreshing) {
+    refreshAgain = true;
+    return refreshing;
+  }
+  refreshing = doRefresh().finally(() => {
     refreshing = null;
+    if (refreshAgain) {
+      refreshAgain = false;
+      void refreshAll();
+    }
   });
   return refreshing;
 }
@@ -825,7 +844,7 @@ async function startServerPaper(slug: string, mode: "cbt" | "test" | "learning",
     return attempt.id;
   } catch (e) {
     if (isApiError(e) && e.code === "QUOTA_EXCEEDED") throw new QuotaExceededError(e.details as QuotaDetails);
-    handleError(e, "start");
+    handleError(e, "start", true); // both callers show their own message; a second toast said the same thing
     throw e;
   }
 }

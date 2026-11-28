@@ -10,7 +10,7 @@ import { RichText } from "@/components/content/RichText";
 import { SubjectTag } from "@/components/ui/Badges";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { Eyebrow, Segmented } from "@/components/ui/Primitives";
+import { Eyebrow, ListSkeleton, Segmented } from "@/components/ui/Primitives";
 import { DemoBadge } from "@/components/app/ModeBadge";
 import { cn } from "@/lib/cn";
 import { catalog } from "@/lib/data/catalog";
@@ -18,6 +18,7 @@ import { relativeDay } from "@/lib/demo/dates";
 import { removeMistake, setMistakeCategory, startPractice, startSingleBySlug, toggleBookmark, toggleReview } from "@/lib/demo/store";
 import { dismissToast, toast } from "@/components/ui/Toast";
 import { DATA_SOURCE } from "@/lib/site";
+import { sourceLabel } from "@/lib/source";
 import { MISTAKE_CATEGORIES, type DemoState, type MistakeCategory } from "@/lib/demo/types";
 import { DemoGate } from "./DemoGate";
 
@@ -91,6 +92,9 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
     pending.current.set(qid, { timer, toastId });
   };
 
+  // API mode: bookmarks and mistakes arrive a moment after the account. Until then show a skeleton, not an empty notebook.
+  const serverLoading = DATA_SOURCE === "api" && !s.server;
+  const loading = serverLoading && kind !== "review"; // the review list is kept on this device
   const counts = {
     mistakes: Object.values(s.mistakes).filter((m) => m.status === "open" && !hidden.has(m.questionId)).length,
     bookmarks: Object.keys(s.bookmarks).length,
@@ -150,7 +154,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
         {TABS.map((t) => (
           <Link key={t.id} href={t.href} aria-current={t.id === kind ? "page" : undefined} className={cn("relative flex h-11 items-center gap-2 px-3 text-sm", t.id === kind ? "text-fg" : "text-fg-muted hover:text-fg")}>
             {t.label}
-            <span className="rounded-sm bg-surface-2 px-1.5 text-xs tabular-nums">{counts[t.id]}</span>
+            {!(serverLoading && t.id !== "review") && <span className="rounded-sm bg-surface-2 px-1.5 text-xs tabular-nums">{counts[t.id]}</span>}
             {t.id === kind && <span aria-hidden className="absolute inset-x-2 -bottom-px h-0.5 bg-fg" />}
           </Link>
         ))}
@@ -179,7 +183,9 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
         )}
       </div>
 
-      {items.length === 0 ? (
+      {loading ? (
+        <ListSkeleton rows={3} className="mt-8" />
+      ) : items.length === 0 ? (
         <div className="mt-8 flex flex-col items-center rounded-xl border border-dashed border-line-strong px-6 py-16 text-center">
           <TabbyMascot state={kind === "mistakes" && status === "open" ? "idle" : "curious"} className="h-16 text-fg-subtle" />
           <p className="mt-5 font-medium">
@@ -216,7 +222,7 @@ function Notebook({ kind, s }: { kind: Kind; s: DemoState & { user: NonNullable<
                   {kind === "mistakes" && m && m.reattempts > 0 && m.status === "open" && <span className="text-review">Missed {m.reattempts + 1}×</span>}
                 </div>
                 <p className="mt-3 line-clamp-3 leading-relaxed text-fg-soft">
-                  <RichText value={q!.stem} inline />
+                  {q!.stem.trim() ? <RichText value={q!.stem} inline /> : <span className="text-fg-muted">{sourceLabel(q!.source)} · question shown as an image</span>}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="secondary" disabled={busy} onClick={() => practise([qid], "Single question")}>
