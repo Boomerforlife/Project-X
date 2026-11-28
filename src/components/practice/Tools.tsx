@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { IconButton } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 
@@ -272,9 +273,7 @@ function ToolPanel({ title, onClose, className, children }: { title: string; onC
     >
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-medium">{title}</h2>
-        <button type="button" onClick={onClose} aria-label={`Close ${title.toLowerCase()}`} className="grid size-8 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg max-sm:size-11">
-          <Icon name="x" className="size-4" />
-        </button>
+        <IconButton icon="x" label={`Close ${title.toLowerCase()}`} onClick={onClose} className="size-8" />
       </div>
       {children}
     </section>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Kitty } from "@/components/brand/Kitty";
-import { Button } from "@/components/ui/Button";
+import { Button, inputClass } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import {  } from "@/components/ui/Primitives";
 import { DemoBadge } from "@/components/app/ModeBadge";
@@ -46,7 +46,7 @@ function withNext(path: string, next: string): string {
   return next && next !== "/dashboard/" ? `${path}?next=${encodeURIComponent(next)}` : path;
 }
 
-const inputCls = "mt-1.5 h-11 w-full rounded-lg border border-line-strong bg-bg px-3 outline-none focus:border-fg";
+const inputCls = inputClass("mt-1.5");
 
 function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();

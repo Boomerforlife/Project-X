@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { AnswerKey } from "@/contracts";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button, ButtonLink, inputClass } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { recordStandaloneAttempt, useDemo, type AnswerResponseInput } from "@/lib/demo/store";
 import { acceptedOptionIds, answerLabel, isCorrect } from "@/lib/practice/check";
@@ -187,7 +187,7 @@ export function PublicTry({
             onKeyDown={(e) => {
               if (e.key === "Enter") check();
             }}
-            className="mt-1.5 h-11 w-full rounded-md border border-line bg-surface px-3 tabular-nums focus:border-fg focus:outline-none"
+            className={inputClass("mt-1.5 tabular-nums")}
             placeholder="Enter a number"
           />
         </div>

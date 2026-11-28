@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { toast } from "@/components/ui/Toast";
 import type { Track } from "@/lib/exams";
@@ -45,9 +45,9 @@ export function PracticeStrip({ track, chapterNames }: { track: Track; chapterNa
     <section aria-label="Your practice" className="border-b border-line bg-surface/40">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
         {resume && (
-          <Button variant="secondary" className="min-h-11" onClick={() => router.push(resume.mode === "cbt" ? routes.cbt(resume.id) : routes.session(resume.id))}>
+          <ButtonLink variant="secondary" className="min-h-11" href={resume.mode === "cbt" ? routes.cbt(resume.id) : routes.session(resume.id)}>
             <Icon name="play" className="size-4" /> Continue: <span className="max-w-[16ch] truncate sm:max-w-[28ch]">{resume.title}</span>
-          </Button>
+          </ButtonLink>
         )}
         <Button pixel className="min-h-11" disabled={starting} onClick={quick}>
           <Icon name="zap" className="size-4" /> {starting ? "Starting…" : "Quick 10"}

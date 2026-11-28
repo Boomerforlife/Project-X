@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
+import { Icon, type IconName } from "./Icon";
 
 type Variant = "primary" | "secondary" | "ghost" | "plus";
 type Size = "sm" | "md" | "lg";
@@ -43,4 +44,27 @@ export function Button({ variant, size, pixel, className, ...rest }: ComponentPr
 
 export function ButtonLink({ variant, size, pixel, className, ...rest }: ComponentProps<typeof Link> & Common) {
   return <Link className={buttonClass({ variant, size, pixel, className })} {...rest} />;
+}
+
+/**
+ * Icon-only button: always has an accessible label (also its tooltip), a 36px target on larger screens and 44px on
+ * phones. Use it instead of one-off `grid size-9 place-items-center` buttons.
+ */
+export function IconButton({ icon, label, className, iconClassName, ...rest }: Omit<ComponentProps<"button">, "children" | "aria-label"> & { icon: IconName; label: string; iconClassName?: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={cn("grid size-9 shrink-0 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:pointer-events-none disabled:opacity-40 max-sm:size-11", className)}
+      {...rest}
+    >
+      <Icon name={icon} className={cn("size-4", iconClassName)} />
+    </button>
+  );
+}
+
+/** The one text-field style (sign-in forms, numerical answers, search). */
+export function inputClass(className?: string) {
+  return cn("h-11 w-full rounded-lg border border-line-strong bg-bg px-3 outline-none transition-colors focus:border-fg disabled:opacity-60", className);
 }

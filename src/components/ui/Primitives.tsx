@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
-import { Icon } from "./Icon";
+import { IconButton } from "./Button";
 
 export function Card({ className, children, as: As = "div", ...rest }: { className?: string; children: React.ReactNode; as?: "div" | "section" | "article" | "li" } & React.HTMLAttributes<HTMLElement>) {
   return (
@@ -124,9 +124,7 @@ export function Dialog({
             <h2 id="dlg-title" className="text-lg font-semibold">
               {title}
             </h2>
-            <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 -mt-1 grid size-9 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg">
-              <Icon name="x" className="size-4" />
-            </button>
+            <IconButton icon="x" label="Close" onClick={onClose} className="-mr-2 -mt-1" />
           </div>
           <div className="mt-4">{children}</div>
         </div>

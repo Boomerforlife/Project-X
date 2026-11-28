@@ -196,12 +196,12 @@ function Hub({ s }: { s: S }) {
                 <Ring value={done / a.questionIds.length} size={40} stroke={4} label={`${done} of ${a.questionIds.length}`}>
                   <Icon name="play" className="size-3.5" />
                 </Ring>
-                <button type="button" onClick={() => router.push(a.mode === "cbt" ? `/cbt/?id=${a.id}` : `/practice/session/?id=${a.id}`)} className="min-w-0 flex-1 text-left">
+                <Link href={a.mode === "cbt" ? routes.cbt(a.id) : routes.session(a.id)} className="min-w-0 flex-1 text-left">
                   <span className="block truncate font-medium hover:underline">Continue {a.title}</span>
                   <span className="block text-sm text-fg-muted">
                     {done}/{a.questionIds.length} · {relativeDay(a.updatedAt)}
                   </span>
-                </button>
+                </Link>
                 <button
                   type="button"
                   onClick={async () => {
