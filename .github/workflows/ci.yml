@@ -1,0 +1,40 @@
+# Checks every pull request to main (and pushes to main): typecheck, lint and all TypeScript tests.
+# Read-only: no secrets, no deploys. Database tests run against PGlite in the runner, never against Supabase.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck (packages and API)
+        run: npm run typecheck
+      - name: Typecheck (web)
+        run: npm run typecheck:web
+      - name: Lint (web)
+        run: npm run lint:web
+      - name: Tests (packages and API)
+        run: npm test
+      - name: Tests (web)
+        run: npm run test:web

@@ -5,6 +5,7 @@ import type { AppEnv } from './lib/http';
 import { corsMiddleware, errorResponse, onError, onNotFound, requestContext } from './middleware/core';
 import { createRoleResolver } from './middleware/guards';
 import { createSqlStore } from './repositories/sql/store';
+import { registerAdminMetrics } from './admin-metrics/routes';
 import { registerAnalytics } from './analytics/routes';
 import { registerBilling } from './billing/routes';
 import { registerClassify } from './classify/routes';
@@ -61,6 +62,7 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   registerAdminRoutes(v1, guards);
   registerBilling(v1, guards);
   registerAnalytics(v1, guards);
+  registerAdminMetrics(v1, guards);
   registerProblems(v1, guards);
   registerPlans(v1, guards);
   registerEntitlements(v1, guards);
