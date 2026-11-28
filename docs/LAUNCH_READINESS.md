@@ -50,7 +50,6 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 | Item | Blocked by |
 |---|---|
-| Starting full PYQ papers (CBT) | `practice_sessions_question_ids_check` limits a practice session to 50 questions, but a JEE Main paper has 75 |
 | JEE Advanced PYQs (302 keyed) | JEE Advanced has no subjects/chapters in the taxonomy yet |
 | 3,347 PYQs without an official key | Link NTA final keys (`keys nta-final` via `pxw-ingest`): 2025 is on NTA's site, 2019–2020 via the Internet Archive |
 | Worked solutions for PYQs | Written by people (admin solutions editor), or an AI step if one is approved later |
