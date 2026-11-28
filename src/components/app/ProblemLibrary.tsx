@@ -80,7 +80,8 @@ export function ProblemLibrary({ s }: { s: DemoState & { user: NonNullable<DemoS
   const [opening, setOpening] = useState<number | null>(null);
   const [search, setSearch] = useState(f.q);
 
-  // Status changes after every attempt, so re-read when the local state object changes.
+  // Status changes after an answer is checked: re-read then, not on every store update (bookmark, palette move…).
+  const sKey = statusKey(s);
   useEffect(() => {
     let live = true;
     problemSummary(exam, s).then((x) => live && setSummary(x), () => live && setSummary(null));
@@ -88,7 +89,9 @@ export function ProblemLibrary({ s }: { s: DemoState & { user: NonNullable<DemoS
     return () => {
       live = false;
     };
-  }, [exam, s]);
+    // s is read at run time; sKey decides when to run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exam, sKey]);
 
   // Debounce search into the URL.
   useEffect(() => {
@@ -331,11 +334,19 @@ function listTitle(p: LibProblem, list: LibProblem[]): string {
 /** Upper bound for "load everything" (chapter view): 30 pages of 100. */
 const MAX_ALL_PAGES = 30;
 
+/** Changes only when solved/attempted status can have changed (an answer was checked), not on every store update. */
+function statusKey(s: DemoState): string {
+  let checked = 0;
+  for (const a of Object.values(s.attempts)) for (const r of Object.values(a.responses)) if (r.checked) checked++;
+  return `${checked}:${s.server?.streak?.todayAttempts ?? 0}:${Object.keys(s.mistakes).length}`;
+}
+
 function usePaged(filters: Omit<LibFilters, "offset" | "limit">, s: DemoState, limit = 50, all = false) {
   const key = JSON.stringify(filters);
   const [page, setPage] = useState<{ items: LibProblem[] | null; total: number; error: boolean }>({ items: null, total: 0, error: false });
   const [more, setMore] = useState(false);
   const [nonce, setNonce] = useState(0);
+  const sKey = statusKey(s);
   useEffect(() => {
     let live = true;
     (async () => {
@@ -355,7 +366,9 @@ function usePaged(filters: Omit<LibFilters, "offset" | "limit">, s: DemoState, l
     return () => {
       live = false;
     };
-  }, [key, s, limit, all, nonce]);
+    // s is read at run time; sKey decides when to re-read (after an answer is checked).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, sKey, limit, all, nonce]);
   const loadMore = () => {
     const offset = page.items?.length ?? 0;
     setMore(true);
