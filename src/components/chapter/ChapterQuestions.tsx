@@ -14,6 +14,7 @@ import { routes } from "@/lib/routes";
 import { QUESTION_TYPE_LABEL } from "@/lib/subjects";
 import { applyFilters, filterOptions, type ChapterRow } from "@/lib/chapter-filter";
 import { useQueryState } from "./useQueryState";
+import { useWhenLoaded } from "@/lib/useWhenLoaded";
 
 export type { ChapterRow } from "@/lib/chapter-filter";
 
@@ -87,6 +88,8 @@ export function ChapterQuestions({
       toast("Couldn't start that practice. Please try again.", { icon: "alert", tone: "warn" });
     }
   };
+  // A click while the account is still loading waits for it instead of being sent to sign-in.
+  const practiseWhenLoaded = useWhenLoaded(s !== null, practise);
   const firstPublic = filtered.find((r) => r.publicPage);
 
   return (
@@ -122,7 +125,7 @@ export function ChapterQuestions({
         </p>
         {filtered.length > 0 &&
           (signedIn || !firstPublic ? (
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void practise(0)} className="max-sm:min-h-11">
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => practiseWhenLoaded(0)} className="max-sm:min-h-11">
               <Icon name="play" className="size-3.5" /> {busy ? "Starting…" : `Practise ${any ? "these" : "all"} ${filtered.length}`}
             </Button>
           ) : (
@@ -165,7 +168,7 @@ export function ChapterQuestions({
                   </Link>
                 ) : (
                   // No free public page (answer AI-checked, not official): practised inside the app, inside this list.
-                  <button type="button" disabled={busy} onClick={() => void practise(i)} className="group flex w-full gap-4 p-4 text-left transition-colors hover:bg-surface sm:p-5">
+                  <button type="button" disabled={busy} onClick={() => practiseWhenLoaded(i)} className="group flex w-full gap-4 p-4 text-left transition-colors hover:bg-surface sm:p-5">
                     {inner}
                   </button>
                 )}

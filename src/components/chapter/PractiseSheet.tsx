@@ -13,6 +13,7 @@ import { demoLogin, useDemo } from "@/lib/demo/store";
 import { routes } from "@/lib/routes";
 import { DATA_SOURCE } from "@/lib/site";
 import { useQueryState } from "./useQueryState";
+import { useWhenLoaded } from "@/lib/useWhenLoaded";
 
 type Mode = "learning" | "test";
 type Diff = "any" | "easy" | "medium" | "hard";
@@ -125,6 +126,9 @@ export function PractiseSheet({
     }
   };
 
+  // A click while the account is still loading waits for it instead of being sent to sign-in.
+  const startWhenLoaded = useWhenLoaded(s !== null, start);
+
   const timeLimit = Math.max(5, Math.min(Number(count), total) * 2);
 
   return (
@@ -234,7 +238,7 @@ export function PractiseSheet({
               <Button variant="secondary" onClick={close}>
                 Cancel
               </Button>
-              <Button pixel onClick={() => void start()} disabled={busy}>
+              <Button pixel onClick={() => startWhenLoaded()} disabled={busy}>
                 <Icon name="play" className="size-4" /> {busy ? "Starting…" : mode === "learning" ? "Start practising" : "Start the timed test"}
               </Button>
             </div>

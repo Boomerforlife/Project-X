@@ -15,6 +15,7 @@ import { demoLogin, rememberPapers, startPaper, useDemo } from "@/lib/demo/store
 import type { Attempt, DemoState } from "@/lib/demo/types";
 import { routes } from "@/lib/routes";
 import { DATA_SOURCE } from "@/lib/site";
+import { useWhenLoaded } from "@/lib/useWhenLoaded";
 
 /** What a client island needs to start a paper (the API store remembers it before creating the session). */
 export type PaperRef = { slug: string; title: string; exam: ExamId; durationMin: number };
@@ -66,7 +67,9 @@ function useStartPaper(paper: PaperRef) {
       toast("Couldn't start that paper. Please try again.", { icon: "alert", tone: "warn" });
     }
   };
-  return { start, busy, signedIn: Boolean(s?.user), ready: s !== null };
+  // A click while the account is still loading waits for it instead of being sent to sign-in.
+  const startWhenLoaded = useWhenLoaded(s !== null, start);
+  return { start: startWhenLoaded, busy, signedIn: Boolean(s?.user), ready: s !== null };
 }
 
 /** The three ways to attempt a paper, shown on the paper page. */
