@@ -373,7 +373,7 @@ app_private.is_published_question(p_question uuid) returns boolean stable   -- g
 practice_sessions(id, user_id uuid not null references auth.users on delete cascade, client_request_id uuid not null,
   mode practice_mode not null, exam_id uuid not null references exams, subject_id uuid references subjects, chapter_id uuid references chapters,
   topic_id uuid references topics, paper_id uuid references exam_papers, filters jsonb not null default '{}',
-  question_ids uuid[] not null check (cardinality(question_ids) between 1 and 50),
+  question_ids uuid[] not null check (cardinality(question_ids) between 1 and 200), -- 0031: a full paper (75-90) fits; was 50
   status session_status not null default 'ACTIVE', attempted_count int not null default 0, correct_count int not null default 0,
   score numeric(7,2) not null default 0, started_at timestamptz not null default now(), completed_at timestamptz,
   last_activity_at timestamptz not null default now(), created_at, updated_at, unique (user_id, client_request_id))
