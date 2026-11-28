@@ -27,6 +27,7 @@ import { DATA_SOURCE } from "@/lib/site";
 import type { Attempt } from "@/lib/demo/types";
 import { EXAMS } from "@/lib/exams";
 import { routes } from "@/lib/routes";
+import { sourceLabel } from "@/lib/source";
 import { chapterSummary, chaptersToWorkOn } from "@/lib/results/chapters";
 import { isDiagnosticAttempt } from "@/lib/plans";
 import { SUBJECT_STYLE } from "@/lib/subjects";
@@ -282,7 +283,7 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
                     <p className={cn("text-sm font-medium", SUBJECT_STYLE[w.subject as keyof typeof SUBJECT_STYLE]?.text)}>{chapterName(w.subject, w.chapter)}</p>
                     <p className="text-xs tabular-nums text-fg-muted">{chapterSummary(w)}</p>
                   </div>
-                  <Link href={routes.chapterPractise(track, w.subject, w.chapter)} className="inline-flex min-h-11 items-center text-sm font-medium hover:underline">
+                  <Link href={routes.chapterPractise(track, w.subject, w.chapter)} className="inline-flex min-h-11 items-center gap-1 text-sm font-medium hover:underline">
                     Practise <span className="sr-only">{chapterName(w.subject, w.chapter)}</span> &rarr;
                   </Link>
                 </li>
@@ -377,7 +378,14 @@ function Results({ attempt: a, bookmarks, allAttempts }: { attempt: Attempt; boo
                     <span className="w-8 shrink-0 pt-0.5 font-pixel text-[0.65rem] tabular-nums text-fg-subtle">{String(i + 1).padStart(2, "0")}</span>
                     <span className="min-w-0 flex-1">
                       <span className="line-clamp-2 text-sm leading-relaxed text-fg-soft">
-                        <RichText value={q.stem} inline />
+                        {q.stem.trim() ? (
+                          <RichText value={q.stem} inline />
+                        ) : (
+                          // Scanned paper questions have no text, only an image: name the question so the row is not blank.
+                          <span className="text-fg-muted">
+                            {sourceLabel(q.source)} · {chapterName(q.subject, q.chapter)} · question shown as an image, open to view
+                          </span>
+                        )}
                       </span>
                       <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                         <span className={cn("inline-flex items-center gap-1 font-medium", meta.cls)}>
