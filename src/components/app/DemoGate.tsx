@@ -37,7 +37,10 @@ export function DemoGate({
   const needsOnboarding = Boolean(s?.user && !s.user.onboarded);
   const signedOut = API && auth.status === "signedOut";
   useEffect(() => {
-    if (needsOnboarding) router.replace("/onboarding/");
+    if (needsOnboarding) {
+      const here = path + window.location.search;
+      router.replace(here.startsWith("/dashboard/") ? "/onboarding/" : `/onboarding/?next=${encodeURIComponent(here)}`);
+    }
     // Keep the query string (e.g. /practice/new/?slug=…) so the student lands back on the question they picked.
     else if (signedOut) router.replace(loginHref(path + window.location.search));
   }, [needsOnboarding, signedOut, router, path]);
@@ -73,7 +76,7 @@ export function DemoRequired() {
           <ButtonLink href={loginHref(path)} size="lg">
             Log in
           </ButtonLink>
-          <ButtonLink href="/signup/" size="lg" variant="secondary">
+          <ButtonLink href={`/signup/?next=${encodeURIComponent(path)}`} size="lg" variant="secondary">
             Create an account
           </ButtonLink>
         </div>

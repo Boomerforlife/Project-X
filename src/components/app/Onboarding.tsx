@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { safeNext } from "@/lib/auth/next";
 import { useEffect, useState } from "react";
 import type { ExamId } from "@/contracts";
 import { Kitty } from "@/components/brand/Kitty";
@@ -30,6 +31,8 @@ export function Onboarding() {
   const s = useDemo();
   const auth = useAuthStatus();
   const router = useRouter();
+  // Where the student was going before sign-up (a question, a paper…): they land there once onboarding is done.
+  const next = safeNext(useSearchParams().get("next"));
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -42,15 +45,15 @@ export function Onboarding() {
   const signedOut = API && auth.status === "signedOut";
   useEffect(() => {
     if (s && !s.user) {
-      if (API) router.replace("/login/?next=%2Fonboarding%2F");
+      if (API) router.replace(`/login/?next=${encodeURIComponent(next !== "/dashboard/" ? `/onboarding/?next=${encodeURIComponent(next)}` : "/onboarding/")}`);
       else demoLogin();
     }
-  }, [s, router]);
+  }, [s, router, next]);
   // Already onboarded (e.g. a bookmark of this page): nothing to do here.
   const already = API && Boolean(s?.user?.onboarded) && !busy;
   useEffect(() => {
-    if (already) router.replace("/dashboard/");
-  }, [already, router]);
+    if (already) router.replace(next);
+  }, [already, router, next]);
 
   if (API && auth.status === "error") return <LoadError message={auth.message} />;
   if (!s?.user || signedOut || already) return <PageSkeleton />;
@@ -63,7 +66,7 @@ export function Onboarding() {
     setFailed(false);
     try {
       await completeOnboarding(patch);
-      router.push("/dashboard/");
+      router.push(next);
     } catch {
       setBusy(false);
       setFailed(true);
