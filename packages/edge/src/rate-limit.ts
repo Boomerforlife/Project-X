@@ -17,18 +17,6 @@ export function createNoopRateLimiter(): RateLimiter {
   return { limit: async () => ({ success: true, retryAfterSec: 0 }) };
 }
 
-export function createCloudflareRateLimiter(
-  bindings: Record<RateLimitClass, { limit(o: { key: string }): Promise<{ success: boolean }> }>,
-): RateLimiter {
-  return {
-    async limit(cls, key) {
-      const { success } = await bindings[cls].limit({ key: `${cls}:${key}` });
-      // The binding does not report the remaining window; report the full period as a safe Retry-After.
-      return { success, retryAfterSec: success ? 0 : rateLimitDefaults[cls].periodSec };
-    },
-  };
-}
-
 /** Fixed-window in-memory limiter (dev/tests). */
 export function createMemoryRateLimiter(
   limits?: Partial<Record<RateLimitClass, { limit: number; periodSec: 10 | 60 }>>,

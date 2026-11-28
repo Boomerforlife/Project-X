@@ -1,8 +1,7 @@
 # Deploy the web app to Cloud Run (handover for Owner B)
 
 Decision (2026-11-16): the website runs on **Google Cloud Run**, next to the API, to stay on the free tier.
-Vercel Hobby forbids commercial use and Pro is about $20/month; the Cloudflare free plan's limits (10 ms CPU, 3 MB bundle) are
-too tight for server-rendered Next 16. Cloud Run's free tier (2M requests/month) covers early traffic, and commercial use is allowed.
+Cloud Run's free tier (2M requests/month) covers early traffic, and commercial use is allowed.
 
 Files (all new; the API's `Dockerfile`, `.dockerignore` and `.gcloudignore` are untouched):
 
@@ -57,7 +56,7 @@ Authentication → URL configuration: Site URL = the web URL, and add `https://<
 ```bash
 W=https://<web url>
 curl -s -o /dev/null -w '%{http_code}\n' $W/                   # 200
-curl -s $W/jee/ | grep -o '[0-9]* questions' | head -1          # live counts (433 questions loaded on 2026-11-16; 1,956 published on 2026-11-20)
+curl -s $W/jee/ | grep -o '[0-9]* questions' | head -1          # live question counts
 curl -s $W/robots.txt; curl -s $W/sitemap.xml | head            # sitemap stays empty until NEXT_PUBLIC_ALLOW_INDEXING=true
 ```
 Then sign up in the browser, start a chapter practice, answer, finish, and check Mistakes / Bookmarks / Progress.

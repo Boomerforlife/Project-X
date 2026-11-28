@@ -20,7 +20,7 @@ function isNotFound(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: number }).code === 404;
 }
 
-/** Google Cloud Storage adapter implementing the same ObjectStorage contract as R2/local/memory. */
+/** Google Cloud Storage adapter implementing the same ObjectStorage contract as local/memory. */
 export function createGcsStorage(bucket: GcsBucketLike): ObjectStorage {
   return {
     async put(key, body, opts) {

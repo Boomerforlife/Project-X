@@ -23,12 +23,6 @@ class Settings(BaseModel):
     ocr_engines: list[str] = Field(default_factory=lambda: ["rapidocr", "paddle", "tesseract"])
     ocr_min_confidence: float = 0.6
     database_url: str | None = None
-    r2_account_id: str | None = None
-    r2_access_key_id: str | None = None
-    r2_secret_access_key: str | None = None
-    r2_bucket_source_docs: str = "projectx-source-docs"
-    r2_bucket_public_assets: str = "projectx-public-assets"
-    r2_bucket_user_uploads: str = "projectx-user-uploads"
     gcs_project: str | None = None
     gcs_bucket_source_docs: str | None = None
     gcs_bucket_public_assets: str | None = None
@@ -56,12 +50,6 @@ class Settings(BaseModel):
             ocr_engines=[x.strip() for x in engines.split(",") if x.strip()],
             ocr_min_confidence=min_conf,
             database_url=g("DATABASE_URL"),
-            r2_account_id=g("R2_ACCOUNT_ID"),
-            r2_access_key_id=g("R2_ACCESS_KEY_ID"),
-            r2_secret_access_key=g("R2_SECRET_ACCESS_KEY"),
-            r2_bucket_source_docs=g("R2_BUCKET_SOURCE_DOCS", "projectx-source-docs") or "projectx-source-docs",
-            r2_bucket_public_assets=g("R2_BUCKET_PUBLIC_ASSETS", "projectx-public-assets") or "projectx-public-assets",
-            r2_bucket_user_uploads=g("R2_BUCKET_USER_UPLOADS", "projectx-user-uploads") or "projectx-user-uploads",
             gcs_project=g("GCS_PROJECT"),
             gcs_bucket_source_docs=g("GCS_BUCKET_SOURCE_DOCS"),
             gcs_bucket_public_assets=g("GCS_BUCKET_PUBLIC_ASSETS"),

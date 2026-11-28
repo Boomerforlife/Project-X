@@ -201,8 +201,7 @@ the Cloud Run Job `pyq-official` (`apps/api/src/jobs/pyq-official.ts`, same imag
    same requirement check and DB guard as the admin publish; writes `audit_log` (`question.publish_official_answer_only`).
    Only `verification_status = PENDING` drafts qualify, so dropped / multi-answer keys (held in
    `HUMAN_REVIEW_REQUIRED`) are never published.
-3. **Difficulty** stays null ("not rated yet"; migration 0027 allows this only for OFFICIAL_KEY_MATCHED PYQs). Rate it
-   from attempts by the `rate-difficulty` job (`difficulty_source = 'STATS'`, first attempt per student, smoothed toward the chapter average, rated after 20 students: ≥ 70 % Easy, 40–70 % Medium, < 40 % Hard, with hysteresis).
+3. **Difficulty** is an AI estimate, labelled "Estimated" (2026-11-28). The `rate-difficulty` job also rates it from attempts (`difficulty_source = 'STATS'`, first attempt per student, smoothed toward the chapter average, rated after 20 students: ≥ 70 % Easy, 40–70 % Medium, < 40 % Hard, with hysteresis).
 4. PYQs do not join problem families (migration 0027): their OCR text makes poor library titles. They appear in chapter
    pages, chapter / subject practice, mistakes, bookmarks and their own public question pages (NOINDEX for now).
 

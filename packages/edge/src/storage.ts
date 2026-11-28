@@ -1,5 +1,3 @@
-import type { R2Bucket } from '@cloudflare/workers-types';
-
 export type BucketName = 'SOURCE_DOCS' | 'PUBLIC_ASSETS' | 'USER_UPLOADS';
 
 export interface StoredObject {
@@ -73,31 +71,6 @@ export function createMemoryStorage(): ObjectStorage {
     },
     async delete(key) {
       map.delete(key);
-    },
-  };
-}
-
-export function createR2Storage(bucket: R2Bucket): ObjectStorage {
-  return {
-    async put(key, body, opts) {
-      const bytes = await toBytes(body); // R2 needs a known length; buffer streams
-      const httpMetadata: { contentType: string; cacheControl?: string } = { contentType: opts.contentType };
-      if (opts.cacheControl !== undefined) httpMetadata.cacheControl = opts.cacheControl;
-      await bucket.put(key, bytes, { httpMetadata });
-    },
-    async get(key) {
-      const o = await bucket.get(key);
-      if (!o) return null;
-      // reason: workers-types ReadableStream differs nominally from the DOM/Node ReadableStream type
-      const body = o.body as unknown as ReadableStream<Uint8Array>;
-      return { body, size: o.size, contentType: o.httpMetadata?.contentType ?? 'application/octet-stream', etag: o.httpEtag };
-    },
-    async head(key) {
-      const o = await bucket.head(key);
-      return o ? { size: o.size, contentType: o.httpMetadata?.contentType ?? 'application/octet-stream' } : null;
-    },
-    async delete(key) {
-      await bucket.delete(key);
     },
   };
 }

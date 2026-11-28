@@ -1,4 +1,4 @@
-"""R2 key builders. Must equal @projectx/edge r2Keys."""
+"""Object key builders. Must equal @projectx/edge r2Keys."""
 
 from __future__ import annotations
 

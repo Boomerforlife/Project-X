@@ -76,7 +76,7 @@ What Autocomplete shows students type (verbatim suggestions):
 | Weightage | `/jee/chapter-weightage/` (#subject anchors) | jee main chapter wise weightage (+ subject) |
 | Single question | `/jee/questions/<slug>/` | the question's own words (long-tail match on question text) |
 | Mock tests | **[REC]** `/jee/mock-tests/` | free jee mock test (online, without login) |
-| Papers by year | `/jee/pyq/`, `/jee/pyq/<year>/` (hidden in prod by the papers flag) | jee main 2026 pyq, jee main question paper 2025 |
+| Papers by year | `/jee/pyq/`, `/jee/pyq/<year>/` (live) | jee main 2026 pyq, jee main question paper 2025 |
 | JEE Advanced | **none until content exists** | |
 | Self-study guide | **[REC]** `/resources/<slug>/` | jee preparation without coaching |
 
@@ -130,7 +130,7 @@ What Autocomplete shows students type (verbatim suggestions):
 3. **[REC][Person 2] Strip paper-template OCR noise** ("Orientation : Vertical Correct Marks : 4 Wrong Marks : 1") from stems.
 4. **[REC][Person 2] Topic tagging** (0 today). Unlocks "most-asked topics" per chapter like PrepWiser, and topic pages later.
 5. **[REC] Repeat-question detection** (`question_families` has 94 rows): "came back in a later paper" is a strong, unique fact per chapter.
-6. **[REC] Year pages** (`/jee/pyq/2026/`) once the papers flag is public.
+6. **Year pages** (`/jee/pyq/2026/`) are live with the `/jee/pyq/` hub (2026-11-28 UX overhaul).
 
 ## 6. Content authority: editorial calendar (30)
 

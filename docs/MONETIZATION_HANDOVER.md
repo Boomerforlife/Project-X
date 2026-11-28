@@ -2,6 +2,8 @@
 
 Merged to `main` on 2026-11-19 (built on `feat/monetization-ads-difficulty`). Domain: `tabbyprep.in`. Deploy steps: `docs/DEPLOYMENT_GCP.md`.
 
+> **Current (2026-11-28).** Razorpay is **Live**. The AdSense ad code is site-wide; check the AdSense console for approval status (this doc does not confirm approval). The status notes and checklists below are dated logs.
+
 > **Status 2026-11-19 (evening).** Razorpay is **Live** (real payments) on the API that is already deployed (revision `projectx-api-00014-lz5`, `BILLING_ALLOW_LIVE=true`, live webhook). **Deployed 2026-11-20:** migration 0026 applied (counts unchanged), API `staging-9` (revision `projectx-api-00015-njg`) and web `web-staging-8` from `main`, so `/entitlements`, `/rewards`, `/admin/classify`, checkout verify and the ad placements are live; ads stay off until AdSense approves and unit ids are set; rewarded credits stay off. AdSense site review was requested 2026-11-19; the verification tag and legal pages are live. Section 0 below is the audit as found before this work.
 
 ## 0. What I found first (audit)

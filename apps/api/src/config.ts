@@ -20,21 +20,17 @@ const EnvSchema = z.object({
   ENABLE_API_DOCS: bool.default(false),
   PUBLIC_ASSETS_BASE_URL: z.string().default('http://localhost:8787/__local/public'),
   FILES_BASE_URL: z.string().default('http://localhost:8787/api/v1/files'),
-  STORAGE_DRIVER: z.enum(['local', 'r2', 'gcs']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 'gcs']).default('local'),
   GCS_BUCKET_SOURCE_DOCS: z.string().optional(),
   GCS_BUCKET_PUBLIC_ASSETS: z.string().optional(),
   GCS_BUCKET_USER_UPLOADS: z.string().optional(),
   LOCAL_STORAGE_DIR: z.string().default('.local/storage'),
   SIGNING_SECRET: z.string().default(''),
   IP_HASH_SECRET: z.string().default(''),
-  CACHE_PURGE_DRIVER: z.enum(['noop', 'workers', 'zone_api', 'both']).default('noop'),
-  CACHE_MODE: z.enum(['workers', 'cache_api', 'none']).default('none'),
-  CF_ZONE_ID: z.string().optional(),
-  CF_API_TOKEN_PURGE: z.string().optional(),
   WEB_REVALIDATE_URL: z.string().url().optional(),
   // Trimmed: a secret saved with a trailing CR/LF (Windows) can never be sent in a header (2026-11-20 incident).
   WEB_REVALIDATE_SECRET: z.string().trim().optional(),
-  RATE_LIMIT_DRIVER: z.enum(['memory', 'cloudflare', 'noop']).default('memory'),
+  RATE_LIMIT_DRIVER: z.enum(['memory', 'noop']).default('memory'),
   API_VERSION: z.string().default('0.1.0'),
   // ---- billing (Tabby Plus, Razorpay one-time Orders). Disabled unless all three Razorpay values are set.
   RAZORPAY_KEY_ID: z.string().optional(),
@@ -75,7 +71,7 @@ export function parseConfig(env: Record<string, unknown>): AppConfig {
   if (c.AUTH_MODE === 'test' && !devLike) throw new Error('AUTH_MODE=test is only allowed when APP_ENV is development or test');
   if (c.STORAGE_DRIVER !== 'local' || !devLike) {
     for (const k of ['SIGNING_SECRET', 'IP_HASH_SECRET'] as const) {
-      if (c[k].length < 32) throw new Error(`${k} (>= 32 chars) is required when STORAGE_DRIVER is r2/gcs or APP_ENV is staging/production`);
+      if (c[k].length < 32) throw new Error(`${k} (>= 32 chars) is required when STORAGE_DRIVER is gcs or APP_ENV is staging/production`);
     }
   }
   if (c.STORAGE_DRIVER === 'gcs') {

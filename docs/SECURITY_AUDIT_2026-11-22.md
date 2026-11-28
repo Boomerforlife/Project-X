@@ -1,7 +1,7 @@
 # Security audit — 2026-11-22
 
 Scope: live production (tabbyprep.in, projectx-api on Cloud Run, Supabase project `gardheietftxyforposh`, GCS buckets),
-plus API/web code on `main` @ 70702b2, with focus on everything added since the 2026-11-20 audit (docs/AUDIT_2026-11-20.md).
+plus API/web code on `main` @ 70702b2, with focus on everything added since the 2026-11-20 audit.
 All database checks were read-only (session `default_transaction_read_only=on`). No production changes were made.
 
 ## Summary
@@ -12,13 +12,13 @@ confirmation). The rest are low/informational hardening items.
 | # | Severity | Finding | Action owner |
 |---|---|---|---|
 | 1 | Medium | Email signups are auto-confirmed (`mailer_autoconfirm: true`) while Google sign-in is on | Owner (Supabase dashboard + SMTP) |
-| 2 | Low | Expired Vercel OIDC token in public git history (c7e2759, 2026-11-15) | Owner (confirm Vercel project removed) |
+| 2 | Low | Expired Vercel OIDC token in public git history (c7e2759, 2026-11-15) | Closed 2026-11-28: Cloudflare and Vercel removed from the codebase |
 | 3 | Low | 8 moderate transitive npm advisories, none reachable in our usage | Person 2 (dependency bumps) |
 | 4 | Low | Web HSTS has no `includeSubDomains` (API has it) | Owner (check subdomains first) |
 | 5 | Info | Script CSP is report-only (documented trade-off for PPR static shells) | — |
 | 6 | Info | Rate limiter is in-memory per instance (max 3 instances, so effective limits are up to 3x) | — |
 | 7 | Info | `/api/v1/openapi.json` is public (lists admin routes; they are all role-guarded) | — |
-| 8 | Info | Unused Cloudflare/Vercel deploy config still in repo (wrangler.jsonc, open-next config, vercel.json, `deploy:web*` scripts, `@opennextjs/cloudflare`) | T5 / Person 2 |
+| 8 | Info | Unused Cloudflare/Vercel deploy config still in repo (wrangler.jsonc, open-next config, vercel.json, `deploy:web*` scripts, `@opennextjs/cloudflare`) | Closed 2026-11-28: Cloudflare and Vercel removed from the codebase |
 
 ## 1. Medium — auto-confirmed email signups
 
@@ -40,16 +40,14 @@ the unconfirmed case (`emailSignUp` returns `needsEmailConfirmation`, AuthForms 
 
 ## 2. Low — Vercel OIDC token in history
 
-Commit c7e2759 (Owner B, 2026-11-15) added `.env.local` with `VERCEL_OIDC_TOKEN`, plus `.vercel/project.json`. The repo is
-public. Vercel OIDC tokens are short-lived (hours), so it is expired, and the web no longer runs on Vercel. Action: make
-sure the Vercel project is deleted or disconnected. History rewriting is not worth the disruption.
+Closed 2026-11-28: Cloudflare and Vercel removed from the codebase.
 
 ## 3. Low — npm advisories (production deps)
 
 `npm audit --omit=dev`: 0 critical, 0 high, 8 moderate:
 - `uuid <11.1.1` (missing buffer bounds check when a `buf` argument is passed) via `@google-cloud/storage` → teeny-request /
   retry-request / gaxios. We never pass `buf`. Fix: `@google-cloud/storage@9` (major bump, API code).
-- `glob` / `minimatch` via `@opennextjs/cloudflare`, a build-time adapter we no longer deploy with. Fix: remove the dependency (item 8).
+- `glob` / `minimatch` via `@opennextjs/cloudflare`: Closed 2026-11-28: Cloudflare and Vercel removed from the codebase (item 8).
 
 ## Verified OK (no action)
 

@@ -22,13 +22,7 @@
     "start:web": "next start",
     "lint:web": "eslint",
     "typecheck:web": "next typegen && tsc --noEmit",
-    "test:web": "vitest run",
-    "preview:web": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "upload:web": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
-    "deploy:web": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "deploy:web:staging": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --env staging",
-    "deploy:web:production": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --env production",
-    "cf-typegen:web": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "test:web": "vitest run"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
@@ -41,11 +35,9 @@
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "vitest": "4.1.12",
-    "wrangler": "4.156.0"
+    "vitest": "4.1.12"
   },
   "dependencies": {
-    "@opennextjs/cloudflare": "1.20.17",
     "@projectx/contracts": "*",
     "@projectx/plans": "*",
     "@supabase/supabase-js": "2.118.0",

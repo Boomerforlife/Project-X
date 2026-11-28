@@ -17,7 +17,6 @@ const eslintConfig = defineConfig([
     "apps/**",
     "packages/**",
     "workers/**",
-    ".open-next/**",
   ]),
 ]);
 
