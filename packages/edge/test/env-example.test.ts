@@ -8,7 +8,8 @@ const root = resolve(__dirname, '../../..');
 function archVarNames(): string[] {
   const md = readFileSync(resolve(root, 'docs/ARCHITECTURE.md'), 'utf8');
   const start = md.indexOf('## 9. Environment variables');
-  const end = md.indexOf('Worker bindings (wrangler', start);
+  const next = md.indexOf('\n## ', start + 1);
+  const end = next === -1 ? md.length : next;
   expect(start).toBeGreaterThan(-1);
   const names: string[] = [];
   for (const line of md.slice(start, end).split('\n')) {
@@ -32,16 +33,9 @@ describe('.env.example', () => {
     expect(names.filter((n) => !defined.has(n))).toEqual([]);
   });
   it('leaves secrets blank (or dev-only placeholders)', () => {
-    for (const k of ['SUPABASE_JWT_SECRET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'CF_API_TOKEN_PURGE', 'GEMINI_API_KEY']) {
+    for (const k of ['SUPABASE_JWT_SECRET', 'GEMINI_API_KEY']) {
       expect(defined.get(k), k).toBe('');
     }
     for (const k of ['SIGNING_SECRET', 'IP_HASH_SECRET', 'TEST_JWT_SECRET']) expect(defined.get(k), k).toMatch(/^dev-only/);
-  });
-  it('wrangler.toml declares every binding from section 9', () => {
-    const toml = readFileSync(resolve(root, 'apps/api/wrangler.toml'), 'utf8');
-    for (const b of ['SOURCE_DOCS', 'PUBLIC_ASSETS', 'USER_UPLOADS', 'RL_PUBLIC', 'RL_SEARCH', 'RL_WRITE', 'RL_ATTEMPTS', 'RL_DOUBTS', 'RL_ADMIN']) {
-      expect(toml).toContain(`"${b}"`);
-    }
-    expect(toml).not.toMatch(/^\s*routes?\s*=/m);
   });
 });

@@ -7,7 +7,7 @@ name = "pxw"
 version = "0.0.0"
 requires-python = ">=3.11"
 dependencies = [
-  "pymupdf>=1.26,<3", "pydantic>=2.11,<3", "psycopg[binary]>=3.2,<4", "boto3>=1.40,<2",
+  "pymupdf>=1.26,<3", "pydantic>=2.11,<3", "psycopg[binary]>=3.2,<4",
   "rapidfuzz>=3.13,<4", "rapidocr>=3.4,<4", "onnxruntime>=1.22", "sympy==1.14.0", "numpy>=2", "pillow>=11",
 ]
 

@@ -10,8 +10,6 @@ dist/
 /.next/
 .next/
 /out/
-.open-next/
-.wrangler/
 *.tsbuildinfo
 next-env.d.ts
 coverage/
@@ -38,7 +36,6 @@ supabase/.temp/
 # misc
 *.log
 .DS_Store
-.vercel
 .playwright-mcp/
 .env*
 supabase/.temp/
@@ -50,8 +47,6 @@ supabase/.temp/
 !.env.example
 .dev.vars
 .dev.vars.*
-.vercel/
-.wrangler/
 supabase/.temp/
 supabase/.branches/
 *.pem

@@ -18,7 +18,7 @@ Status: binding for Milestone 1+. Source of requirements: `docs/BRIEF.md`. If an
    packages/ai CLI (Node)  ── claims AI_* jobs ──▶ Postgres;  calls Gemini (server-side key); SymPy via Python
    workers/ pxw CLI (Python) ── claims PROCESS_DOCUMENT/PARSE_ANSWER_KEY jobs ──▶ Postgres; Cloud Storage
 ```
-Deploy steps and current URLs: `DEPLOYMENT_GCP.md`. The Cloudflare Worker entry (`apps/api/src/worker.ts`, `wrangler.toml`) is still in the repo but is not deployed.
+Deploy steps and current URLs: `DEPLOYMENT_GCP.md`.
 
 * **One API deployable** (the Cloud Run service `projectx-api`), plus the web app. No microservices, no always-on workers, no Redis/ES/vector DB.
 * **Job queue = Postgres table** `pipeline_jobs` claimed with `FOR UPDATE SKIP LOCKED`. AI and ingestion
@@ -32,44 +32,40 @@ Deploy steps and current URLs: `DEPLOYMENT_GCP.md`. The Cloudflare Worker entry 
 package.json              npm workspaces ["apps/*","packages/*"]; no build step (TS source exports)
 tsconfig.base.json        strict, ES2022, module ESNext, moduleResolution Bundler, noUncheckedIndexedAccess
 .env.example  README.md
-apps/api/                 @projectx/api   Hono app, routes, middleware, services, repositories; worker.ts + node.ts
-  wrangler.toml           legacy Cloudflare Worker config (not deployed)
+apps/api/                 @projectx/api   Hono app, routes, middleware, services, repositories; node.ts server entry
 packages/contracts/       @projectx/contracts  Zod schemas: enums, domain (ContentBlock, AnswerKey...), DTOs, errors
   openapi/openapi.json    generated from apps/api routes (committed)
 packages/shared/          @projectx/shared  pure logic: grading, decimal compare, slugify, cursor codec, Result
 packages/db/              @projectx/db  SQL executor abstraction (+ /postgres, /pglite, /testing entrypoints), migrator
 packages/database-types/  @projectx/database-types  generated TS types of the schema (Supabase-compatible shape)
 packages/ai/              @projectx/ai  Gemini client + mock, prompts, modules, verification engine, CLI
-packages/edge/           @projectx/edge  storage adapters (local, gcs, r2), signed URLs, cache policy/tags/invalidation, rate limiter
+packages/edge/           @projectx/edge  storage adapters (local, gcs), signed URLs, cache policy/tags/invalidation, rate limiter
 supabase/                 config.toml, migrations/NNNN_*.sql, seed/*.sql, fixtures/ (dev-only), shim/, tests/
 workers/                  Python project "pxw" (pyproject.toml, src/pxw/..., tests/)
 infra/gcp/               deploy scripts for Cloud Run, Firebase Hosting, ingest job (see DEPLOYMENT_GCP.md)
-infra/cloudflare/        legacy R2/WAF/cache notes (not used)
 docs/
 ```
 
-Every TS package: `"type":"module"`, `exports` point at `./src/*.ts` (consumed as source by vitest/tsx/wrangler's
-esbuild), scripts `typecheck` (`tsc --noEmit -p .`) and `test` (`vitest run`).
+Every TS package: `"type":"module"`, `exports` point at `./src/*.ts` (consumed as source by vitest/tsx), scripts `typecheck` (`tsc --noEmit -p .`) and `test` (`vitest run`).
 
 ## 3. Tech decisions (versions pinned exactly; all ≥2 weeks old at 2026‑11‑14)
 
 | Concern | Choice | Version | Rationale |
 |---|---|---|---|
-| Runtime | Node 22.18 (API on Cloud Run, dev, CLIs) | — | the Worker entry still exists but is not deployed |
+| Runtime | Node 22.18 (API on Cloud Run, dev, CLIs) | — | API runs as a Cloud Run service |
 | Language | TypeScript | 5.9.3 | TS 7 (native) is newer; 5.9 is safest for zod-openapi type inference + tooling |
 | HTTP | hono | 4.13.14 | |
 | OpenAPI | @hono/zod-openapi | 1.6.3 | peer `zod ^4`, `hono >=4.10`; `OpenAPIHono`, `createRoute`, `app.doc31`, `defaultHook`, `openAPIRegistry.registerComponent('securitySchemes',…)`; import `z` from `@hono/zod-openapi` in route files |
 | Schemas | zod | 4.6.7 | `z.toJSONSchema()` feeds Gemini `responseJsonSchema` and Python JSON Schema |
 | Node server | @hono/node-server | 2.1.5 | local dev |
 | Docs UI | @hono/swagger-ui | 0.6.2 | non-prod only (`ENABLE_API_DOCS`) |
-| Postgres driver | postgres (postgres.js) | 3.4.9 | works in Workers (TCP sockets) and Node; use `prepare:false` (Supavisor txn mode). v4 is <3 weeks old |
+| Postgres driver | postgres (postgres.js) | 3.4.9 | works in Node; use `prepare:false` (Supavisor txn mode). v4 is <3 weeks old |
 | Embedded PG | @electric-sql/pglite | 0.5.13 | PG 18 in WASM, in-process; verified: roles, `SET LOCAL ROLE`, RLS, column grants, plpgsql triggers, FTS `english`, `websearch_to_tsquery`, pg_trgm (contrib) |
 | PG wire server | @electric-sql/pglite-socket | 0.2.16 (peer of pglite 0.5.13) | `pglite-server` → local Postgres URL; verified with postgres.js and psycopg 3 |
 | Tests | vitest | 4.1.12 | |
 | Script runner | tsx | 4.23.15 | |
 | JWT | jose | 6.2.14 | `createRemoteJWKSet(${SUPABASE_URL}/auth/v1/.well-known/jwks.json)` + `jwtVerify`; HS256 fallback |
 | Gemini | @google/genai | 2.32.0 | `ai.models.generateContent({model, contents, config:{responseMimeType:'application/json', responseJsonSchema}})` (field verified in typings) |
-| Workers tooling | wrangler 4.156.0, @cloudflare/workers-types 5.20261030.1 | | ratelimit binding needs ≥4.36 |
 | Node types | @types/node 26.6.6 | | |
 | Python | 3.13; pymupdf, rapidocr(+onnxruntime) default OCR, paddleocr optional extra, sympy 1.14.0, pydantic 2, psycopg[binary] 3, boto3, rapidfuzz, pytest, ruff | ranges in `workers/pyproject.toml` | rapidocr is pip-only & Windows friendly; Paddle optional |
 
@@ -124,8 +120,6 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
   dir, auto-migrate+seed+fixtures) or `DB_DRIVER=postgres`. `AUTH_MODE=test` accepts HS256 tokens signed with
   `TEST_JWT_SECRET`; `npm run token -w @projectx/api -- --user <uuid> [--admin]` prints one. Storage = local FS,
   cache purge = noop, rate limit = memory, AI not involved.
-* **Legacy Worker runtime check (not the deployed path):** `npx wrangler dev -c apps/api/wrangler.toml` with `DB_DRIVER=postgres` against
-  the pglite-server URL; `wrangler deploy --dry-run` in CI-like acceptance (no account needed).
 * **Optional real-Supabase check (when Docker/CLI available):** `supabase start && supabase db reset` applies the
   same migrations + seed; `npm run test:rls -w @projectx/db -- --url $DATABASE_URL` reruns the RLS suite against it.
 
@@ -135,9 +129,9 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
   jose), `hs256` (legacy `SUPABASE_JWT_SECRET`), `test`. Checks: signature, `exp`, `iss = SUPABASE_JWT_ISSUER`,
   `aud = 'authenticated'`, `role = 'authenticated'`. Anonymous Supabase users (`is_anonymous=true`) are treated as
   guests for writes that need an account (attempts/bookmarks/sessions) → 403 `ACCOUNT_REQUIRED`.
-* Admin/reviewer: `user_roles` table lookup per request (service), cached per isolate ≤60 s. Roles: `ADMIN`
+* Admin/reviewer: `user_roles` table lookup per request (service), cached in memory ≤60 s. Roles: `ADMIN`
   (everything), `REVIEWER` (verification + approve/reject, not publish/indexability/sources). Never trust JWT
-  custom claims for roles. Optional Cloudflare Access on `/api/v1/admin/*` as an extra layer (documented, not required).
+  custom claims for roles.
 
 ## 7. Security / RLS strategy (summary; exact policies in DATABASE_SCHEMA.md §RLS)
 
@@ -153,11 +147,11 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
    what it needs (`DATABASE_URL`, `IP_HASH_SECRET`, `SIGNING_SECRET`, web revalidate secret). The Gemini key lives only on the operator machine.
 5. Public DTOs are built by explicit allow-list mappers in `apps/api`; contract tests assert practice DTOs never
    contain `answer_key|correct|is_correct|solution|final_answer|explanation` keys before submission.
-6. Uploads: single-step `POST /uploads` through the Worker: size cap 5 MiB, MIME allow-list (png/jpeg/webp), magic
+6. Uploads: single-step `POST /uploads` through the API: size cap 5 MiB, MIME allow-list (png/jpeg/webp), magic
    byte sniff, random key under `u/{user_id}/…`, private bucket; read via HMAC-signed, expiring URL (≤15 min).
    SVG is never accepted anywhere.
-7. Rate limiting via Workers Rate Limiting bindings (per route class, keyed by user id or hashed IP) + 1 WAF rule
-   as backstop. CORS allow-list from env; no cookies (Bearer only) → `Access-Control-Allow-Credentials` not set.
+7. Rate limiting via the Postgres-backed shared limiter in the API (per route class, keyed by user id or hashed IP).
+   CORS allow-list from env; no cookies (Bearer only) → `Access-Control-Allow-Credentials` not set.
 8. Security headers on API: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
    `Strict-Transport-Security`. Audit log for every admin mutation (`audit_log`) + `review_events` for editorial decisions.
 9. Backups: a Supabase plan setting (daily backups on Pro).
@@ -200,18 +194,13 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
 | `ENABLE_API_DOCS` | api | `true` in dev |
 | `PUBLIC_ASSETS_BASE_URL` | api | base URL of the public-assets bucket; dev `http://localhost:8787/__local/public` |
 | `FILES_BASE_URL` | api | base for signed private URLs, e.g. `<API URL>/api/v1/files` |
-| `STORAGE_DRIVER` | api, pxw | `local` \| `gcs` (`r2` is a legacy option) |
+| `STORAGE_DRIVER` | api, pxw | `local` \| `gcs` |
 | `LOCAL_STORAGE_DIR` | api, pxw, ai | default `.local/storage` |
 | `SIGNING_SECRET` | api | secret, HMAC for signed file URLs |
 | `IP_HASH_SECRET` | api | secret, HMAC for ip hashing |
 | `GCS_BUCKET_SOURCE_DOCS`, `GCS_BUCKET_PUBLIC_ASSETS`, `GCS_BUCKET_USER_UPLOADS` | api, pxw | required when `STORAGE_DRIVER=gcs`; auth via Application Default Credentials |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | pxw, ops scripts | legacy R2 option, not used |
-| `R2_BUCKET_SOURCE_DOCS`, `R2_BUCKET_PUBLIC_ASSETS`, `R2_BUCKET_USER_UPLOADS` | pxw, wrangler | `projectx-source-docs`, `projectx-public-assets`, `projectx-user-uploads` |
-| `CACHE_PURGE_DRIVER` | api | `noop` \| `workers` \| `zone_api` \| `both` |
-| `CACHE_MODE` | api | `workers` (Workers Caching via wrangler `[cache]`) \| `cache_api` (API mounts `edgeCacheMiddleware`) \| `none` (dev) |
-| `CF_ZONE_ID`, `CF_API_TOKEN_PURGE` | api | token scoped to Cache Purge only |
 | `WEB_REVALIDATE_URL`, `WEB_REVALIDATE_SECRET` | api | optional; web `POST /api/revalidate/` URL and shared bearer secret (>= 32 chars, secret). When both are set the API calls it with `{"tags":[...]}` on every cache purge |
-| `RATE_LIMIT_DRIVER` | api | `memory` \| `cloudflare` \| `noop` |
+| `RATE_LIMIT_DRIVER` | api | `memory` \| `noop` |
 | `AI_PROVIDER` | ai | `mock` \| `gemini` (auto-`mock` + warning if no key) |
 | `GEMINI_API_KEY` | ai | secret |
 | `GEMINI_MODEL_FAST`, `GEMINI_MODEL_STRONG` | ai | defaults `gemini-3.5-flash-lite`, `gemini-3.8-flash` (re-verify ids at deploy) |
@@ -219,17 +208,13 @@ Worker is created per request and ended in `ctx.waitUntil(sql.end())`.
 | `PYTHON_BIN`, `SYMPY_TIMEOUT_MS` | ai | default `python`, `5000` |
 | `PXW_WORK_DIR`, `PXW_JOB_STORE`, `OCR_ENGINES`, `OCR_MIN_CONFIDENCE` | pxw | `.local/work`, `file`\|`postgres`, `rapidocr,paddle,tesseract`, `0.6` |
 
-Legacy Cloudflare Worker bindings (wrangler, not deployed): R2 `SOURCE_DOCS`, `PUBLIC_ASSETS`, `USER_UPLOADS`; ratelimits `RL_PUBLIC`,
-`RL_SEARCH`, `RL_WRITE`, `RL_ATTEMPTS`, `RL_DOUBTS`, `RL_ADMIN`; optional `HYPERDRIVE`.
-
 ## 10. Cross-package interfaces (stable names)
 
-* `@projectx/edge` exports (also `createGcsStorage`): `ObjectStorage` (`put/get/head/delete/copy`), `createR2Storage(binding)`,
+* `@projectx/edge` exports (also `createGcsStorage`): `ObjectStorage` (`put/get/head/delete/copy`),
   `createLocalStorage(dir)`, `createMemoryStorage()`, `BucketName = 'SOURCE_DOCS'|'PUBLIC_ASSETS'|'USER_UPLOADS'`,
   `StorageSet = Record<BucketName, ObjectStorage>`, `signFileUrl/verifyFileUrl`, `CachePolicy` + `cachePolicies`
-  (route class → headers), `cacheTags` builders, `CacheInvalidator` (`purgeTags(tags)`), `createWorkersCacheInvalidator`,
-  `createZoneApiInvalidator`, `createCompositeInvalidator`, `createNoopInvalidator`, `createRecordingInvalidator`,
-  `RateLimiter` (`limit(key, cls) → {success}`), `createCloudflareRateLimiter(env)`, `createMemoryRateLimiter(cfg)`,
+  (route class → headers), `cacheTags` builders, `CacheInvalidator` (`purgeTags(tags)`), `createNoopInvalidator`, `createRecordingInvalidator`,
+  `RateLimiter` (`limit(key, cls) → {success}`), `createMemoryRateLimiter(cfg)`,
   `edgeCacheMiddleware` (Cache API fallback), `sniffImageMime(bytes)`. Exact signatures in the source.
 * `@projectx/shared` (W2): `gradeAttempt`, `compareDecimal`, `answerKeysEqual`, `slugify`, `encodeCursor/decodeCursor`, `sha256Hex`, `canonicalJson`.
 * `@projectx/contracts` (W2): everything in API_CONTRACTS.md §2–§3 plus `IngestionBundle`/`NormalizedQuestion` (INGESTION_PIPELINE.md) and JSON Schemas emitted to `packages/contracts/json-schema/*.json`.

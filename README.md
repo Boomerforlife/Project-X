@@ -49,8 +49,7 @@ workers\.venv\Scripts\pxw --help
 
 ## Layout
 `src/` (Next.js web app) · `apps/api` (Hono API) · `packages/{contracts,shared,db,database-types,edge,ai,plans}` ·
-`supabase/` (migrations, seed, tests) · `workers/` (Python `pxw`) · `infra/gcp/` (deploy and secret scripts) ·
-`infra/cloudflare/` (legacy, unused) · `docs/`.
+`supabase/` (migrations, seed, tests) · `workers/` (Python `pxw`) · `infra/gcp/` (deploy and secret scripts) · `docs/`.
 
 ## Deployment
 Nothing deploys automatically. Web and API run on Cloud Run (`asia-south1`, project `projectx-staging-a7k2`); the site is
@@ -63,7 +62,7 @@ payment keys go into Secret Manager with `infra/gcp/set-razorpay-secrets.ps1`.
 Next.js 16 (App Router, Cache Components) · TypeScript strict · Tailwind CSS v4 · KaTeX · Zod · Vitest.
 
 Main student surfaces: `/practice/` (quick start + the problem library on `/problems`), `/plan/` (diagnostic and study plan on
-`/plans`; free basic plan, longer plans with Plus), `/tests/` + `/cbt/` (papers), `/pricing/` (Plus passes),
+`/plans`; free basic plan, longer plans with Plus), `/jee/pyq/` (PYQ years and full papers) + `/cbt/` (CBT papers), `/pricing/` (Plus passes),
 `/admin/questions/` (difficulty classification, reviewers and admins). Contracts: `docs/API_CONTRACTS.md`.
 
 Run the whole stack locally (API with an in-process database and sample questions, web against it, dev sign-in):

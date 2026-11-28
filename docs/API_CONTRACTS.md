@@ -258,7 +258,7 @@ one. Signed-out responses are publicly cacheable; anything with a viewer is PRIV
 Web: `/practice/` (problem library) reads these; answers go through `POST /practice/attempts` as usual.
 
 ### 3.9 Diagnostic + study plans (Owner A, migration 0024; contracts `dto/plans.ts`; algorithm `packages/plans`)
-Design: `docs/superpowers/specs/2026-11-17-problem-library-and-study-plans-design.md`. All routes are `user`, PRIVATE.
+All routes are `user`, PRIVATE.
 The algorithm is pure and deterministic; the server gathers evidence only from attempts it graded itself.
 
 | Method & path | Access | Request | Response `data` |

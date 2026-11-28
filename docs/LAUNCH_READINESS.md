@@ -1,6 +1,6 @@
 # Launch readiness
 
-Snapshot **2026-11-20 (night)**, branch `main`. This is the one status page; each item sits in exactly one bucket.
+Snapshot **2026-11-28**, branch `main`. This is the one status page; each item sits in exactly one bucket.
 Details live elsewhere: deploy and operations `docs/DEPLOYMENT_GCP.md`, per-service setup `docs/PRODUCTION_SETUP.md`,
 billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LAUNCH_CHECKLIST.md`, content policy
 `docs/CONTENT_SOURCES.md`.
@@ -9,14 +9,14 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 | Piece | Where | State |
 |---|---|---|
-| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `projectx-web-00015-mpg`, image `web-staging-14`; each question image drawn once, PR #35) | Live from `main` (PRs #24–#29): question links open the exact question, Free/Plus pricing, security headers, past-year questions with official keys, NTA/JAB credits and takedown terms. Rollback: `projectx-web-00010-rqb` (pre-PYQ) |
-| API | Cloud Run `projectx-api`, revision `projectx-api-00022-2pp` (image `api:staging-15`: keyset fix, all 1,956 published questions reachable by paging; publish checks image fingerprints, PR #35; rollback `projectx-api-00021-wbc`) | Everything on `main` incl. `public_page`, premium filter, 1 MiB body cap, worker publish paths. Jobs `pyq-official`, `rate-difficulty` (live mode; nightly schedule needs one IAM grant, see Needs you) and `publish-official` (dry run). Rewarded credits off |
+| Website | https://tabbyprep.in (Firebase Hosting → Cloud Run `projectx-web`, revision `projectx-web-00037-tcr`, image tag `web-w1-20261128-uxia`) | Live from `main`. 2026-11-28 UX overhaul (PR #64): `/tests/` merged into `/jee/pyq/` with year and paper pages, chapter Practise sheet replaces `/practice/new/`, phone bottom tab bar. Also live: 10 guides under `/resources/`, public question pages, study plans, question links open the exact question, Free/Plus pricing, security headers, past-year questions with official keys, NTA/JAB credits and takedown terms |
+| API | Cloud Run `projectx-api`, revision `projectx-api-00031-kiz` (image `api:staging-23`) | Everything on `main` incl. `public_page`, premium filter, 1 MiB body cap, worker publish paths. Jobs `pyq-official`, `rate-difficulty` (live mode; nightly schedule needs one IAM grant, see Needs you) and `publish-official` (dry run). Rewarded credits off |
 | Database | Supabase (Mumbai) | Migrations 0001–0027 applied (0026 and 0027 on 2026-11-20; 0027: publish guard allows null difficulty for official-key PYQs, PYQs stay out of problem families, `difficulty_source` accepts STATS) |
 | Payments | Razorpay, **Live mode** since 2026-11-19 | Account activated, tabbyprep.in approved, live keys in Secret Manager, `BILLING_ALLOW_LIVE=true`, live webhook (4 events) |
-| Ads | AdSense publisher `ca-pub-2970121715798701` | Site submitted for review 2026-11-19; verification tag live. Ads are not switched on in any build yet |
+| Ads | AdSense publisher `ca-pub-2970121715798701` | AdSense ad code site-wide. Approval status: check the AdSense console |
 | Sign-in | Supabase Auth | Email and Google |
 | Legal | `/terms/`, `/privacy/`, `/refund-policy/`, `/contact/` | Live. Terms add NTA/JAB credit, official-key accuracy and a copyright takedown procedure (2026-11-20); footer credit; PYQ pages credit their paper. Business facts in `src/lib/legal.ts` |
-| Content | Live DB | **1,956 published**: 433 AI-checked practice questions + **1,523 JEE Main previous-year questions** (2021, 2024, 2026) with the official NTA answer key, answer-only, chapter from keyword rules, difficulty not rated yet (Physics 749, Chemistry 489, Maths 718 in total). Drafts left: 2,185 keyed JEE Main without a confident chapter, 302 keyed JEE Advanced (no JEE Advanced chapters in the taxonomy), 3,347 without an official key |
+| Content | Live DB | About **4,800 official-key JEE Main PYQs** are published (answers from NTA's official keys). Difficulty is an AI estimate and is labelled "Estimated". **56 full JEE Main papers** (2020–2026) are listed at `/jee/pyq/` |
 
 **Image repair, 2026-11-20.** 692 published past-year questions showed a wrong image (953: a later re-processing run had overwritten the derived crop before publish) or a blank option (232: an identical image was already public, so the asset stayed private and the API dropped it). All 1,185 were re-cut from the source papers (every re-cut matched its recorded sha256 exactly) and moved to fresh public names (`assets/xx/<sha>-<asset id prefix>.png`, so the one-year cache on the old names does not matter). Re-audit: 5,687 of 5,687 published images match their fingerprint. Publish now refuses a changed crop and gives shared images their own key.
 
@@ -50,8 +50,7 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 | Item | Blocked by |
 |---|---|
-| Showing ads | AdSense site approval (review takes days to weeks), then ad unit ids and `NEXT_PUBLIC_ADS=live` in the web build |
-| Remaining 2,185 keyed JEE Main PYQs | A person sets their chapter in `/admin/questions/` (filter chapter = none, bulk set), then re-run `pyq-official` with `PYQ_STEP=publish` |
+| Starting full PYQ papers (CBT) | `practice_sessions_question_ids_check` limits a practice session to 50 questions, but a JEE Main paper has 75 |
 | JEE Advanced PYQs (302 keyed) | JEE Advanced has no subjects/chapters in the taxonomy yet |
 | 3,347 PYQs without an official key | Link NTA final keys (`keys nta-final` via `pxw-ingest`): 2025 is on NTA's site, 2019–2020 via the Internet Archive |
 | Worked solutions for PYQs | Written by people (admin solutions editor), or an AI step if one is approved later |
@@ -82,6 +81,5 @@ billing / ads / classification `docs/MONETIZATION_HANDOVER.md`, SEO `docs/SEO_LA
 
 1. Done 2026-11-20 (by Owner A): migration 0026 applied, API (`staging-9`) and web (`web-staging-8`) deployed from `main`.
 2. Add the ad build args from `MONETIZATION_HANDOVER.md` §5 to `Dockerfile.web` / `cloudbuild.web.yaml` before AdSense units can be switched on (the publisher id defaults in `src/lib/ads/config.ts`, so verification and `ads.txt` already work). `deploy-api-staging.sh` now keeps `BILLING_ALLOW_LIVE=true` while live keys are stored.
-3. The removed `.env.local` is still in public git history; confirm the Vercel OIDC token in it has expired.
-4. Open known issues: two source questions with byte-identical images share one `question_assets` row (needs a join table); problem excerpts lose LaTeX for some auto titles (contract item C1); per-chapter totals on `/problems/summary` (C4).
-5. Done 2026-11-19: `www.tabbyprep.in` points at Firebase Hosting and redirects to the apex.
+3. Open known issues: two source questions with byte-identical images share one `question_assets` row (needs a join table); problem excerpts lose LaTeX for some auto titles (contract item C1); per-chapter totals on `/problems/summary` (C4).
+4. Done 2026-11-19: `www.tabbyprep.in` points at Firebase Hosting and redirects to the apex.

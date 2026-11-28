@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Hono } from 'hono';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   applyCacheHeaders,
@@ -9,16 +8,12 @@ import {
   cacheTags,
   copyObject,
   createCompositeInvalidator,
-  createCloudflareRateLimiter,
   createMemoryRateLimiter,
   createMemoryStorage,
   createNoopInvalidator,
   createNoopRateLimiter,
   createRecordingInvalidator,
   createWebhookInvalidator,
-  createWorkersCacheInvalidator,
-  createZoneApiInvalidator,
-  edgeCacheMiddleware,
   hashIp,
   r2Keys,
   signFileUrl,
@@ -129,60 +124,13 @@ describe('rate limiters', () => {
     for (let i = 0; i < 30; i++) expect((await rl.limit('RL_SEARCH', 'ip')).success).toBe(true);
     expect((await rl.limit('RL_SEARCH', 'ip')).success).toBe(false);
   });
-  it('cloudflare adapter and noop', async () => {
-    const seen: string[] = [];
-    const mk = (ok: boolean) => ({ limit: async (o: { key: string }) => (seen.push(o.key), { success: ok }) });
-    const rl = createCloudflareRateLimiter({
-      RL_PUBLIC: mk(true), RL_SEARCH: mk(false), RL_WRITE: mk(true), RL_ATTEMPTS: mk(true), RL_DOUBTS: mk(true), RL_ADMIN: mk(true),
-    });
-    expect(await rl.limit('RL_PUBLIC', 'k')).toEqual({ success: true, retryAfterSec: 0 });
-    expect(await rl.limit('RL_SEARCH', 'k')).toEqual({ success: false, retryAfterSec: 60 });
-    expect(seen).toEqual(['RL_PUBLIC:k', 'RL_SEARCH:k']);
+  it('noop limiter always allows', async () => {
     expect((await createNoopRateLimiter().limit('RL_ADMIN', 'x')).success).toBe(true);
   });
 });
 
 describe('invalidators', () => {
   const mkTags = (n: number): string[] => Array.from({ length: n }, (_, i) => `t${i}`);
-  it('zone api chunks at 30', async () => {
-    const bodies: string[][] = [];
-    const f = (async (url: string, init: RequestInit) => {
-      expect(url).toBe('https://api.cloudflare.com/client/v4/zones/z1/purge_cache');
-      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
-      bodies.push((JSON.parse(init.body as string) as { tags: string[] }).tags);
-      return new Response('{}', { status: 200 });
-    }) as unknown as typeof fetch;
-    const r = await createZoneApiInvalidator({ zoneId: 'z1', apiToken: 'tok', fetch: f }).purgeTags(mkTags(65));
-    expect(bodies.map((b) => b.length)).toEqual([30, 30, 5]);
-    expect(r.ok).toBe(true);
-    expect(r.purged).toHaveLength(65);
-  });
-  it('zone api retries 5xx then succeeds; gives up after 3', async () => {
-    let n = 0;
-    const flaky = (async () => (++n < 3 ? new Response('', { status: 503 }) : new Response('{}', { status: 200 }))) as unknown as typeof fetch;
-    const sleeps: number[] = [];
-    const sleep = async (ms: number): Promise<void> => void sleeps.push(ms);
-    expect((await createZoneApiInvalidator({ zoneId: 'z', apiToken: 't', fetch: flaky, sleep }).purgeTags(['a'])).ok).toBe(true);
-    expect(n).toBe(3);
-    expect(sleeps).toHaveLength(2);
-
-    let m = 0;
-    const down = (async () => (++m, new Response('', { status: 500 }))) as unknown as typeof fetch;
-    const r = await createZoneApiInvalidator({ zoneId: 'z', apiToken: 't', fetch: down, sleep }).purgeTags(['a']);
-    expect(m).toBe(3);
-    expect(r.ok).toBe(false);
-    expect(r.purged).toEqual([]);
-    expect(r.error).toContain('500');
-  });
-  it('zone api does not retry 403 and survives thrown fetch', async () => {
-    let n = 0;
-    const forbidden = (async () => (++n, new Response('', { status: 403 }))) as unknown as typeof fetch;
-    expect((await createZoneApiInvalidator({ zoneId: 'z', apiToken: 't', fetch: forbidden }).purgeTags(['a'])).ok).toBe(false);
-    expect(n).toBe(1);
-    const boom = (async () => { throw new Error('net'); }) as unknown as typeof fetch;
-    const r = await createZoneApiInvalidator({ zoneId: 'z', apiToken: 't', fetch: boom, sleep: async () => {} }).purgeTags(['a']);
-    expect(r).toMatchObject({ ok: false, error: 'net' });
-  });
   it('web webhook posts bearer + {tags}, chunks at 200, and never throws', async () => {
     const seen: { url: string; auth: string; tags: string[] }[] = [];
     const f = (async (url: string, init: RequestInit) => {
@@ -210,86 +158,16 @@ describe('invalidators', () => {
     const r = await createWebhookInvalidator({ url: 'http://x', secret: 's', fetch: slow, timeoutMs: 20, log: () => {} }).purgeTags(['a']);
     expect(r).toMatchObject({ ok: false, error: 'aborted' });
   });
-  it('workers, composite, noop, recording', async () => {
-    const calls: string[][] = [];
-    const w = createWorkersCacheInvalidator({ purge: async (o) => (calls.push(o.tags), { success: true, errors: [] }) });
+  it('composite, noop, recording', async () => {
     const rec = createRecordingInvalidator();
-    const c = createCompositeInvalidator([w, rec, createNoopInvalidator()]);
-    const r = await c.purgeTags(['a', 'b']);
+    const r = await createCompositeInvalidator([rec, createNoopInvalidator()]).purgeTags(['a', 'b']);
     expect(r).toEqual({ ok: true, purged: ['a', 'b'] });
-    expect(calls).toEqual([['a', 'b']]);
     expect(rec.calls).toEqual([['a', 'b']]);
-    const bad = createWorkersCacheInvalidator({ purge: async () => { throw new Error('nope'); } });
+    const bad = { purgeTags: async () => { throw new Error('nope'); } };
     const r2 = await createCompositeInvalidator([bad, rec]).purgeTags(['x']);
     expect(r2.ok).toBe(false);
     expect(r2.error).toBe('nope');
     expect(r2.purged).toEqual(['x']);
-  });
-
-  describe('workers cache result handling', () => {
-    const sleeps: number[] = [];
-    const sleep = async (ms: number) => void sleeps.push(ms);
-    const tags = (n: number) => Array.from({ length: n }, (_, i) => `t${i}`);
-
-    it('treats resolved success:false as failure', async () => {
-      const inv = createWorkersCacheInvalidator({ purge: async () => ({ success: false, errors: [{ code: 1000, message: 'bad zone' }] }) }, { sleep });
-      const r = await inv.purgeTags(['a']);
-      expect(r).toEqual({ ok: false, purged: [], error: '1000 bad zone' });
-    });
-    it('treats missing success flag as failure', async () => {
-      const r = await createWorkersCacheInvalidator({ purge: async () => undefined }, { sleep }).purgeTags(['a']);
-      expect(r.ok).toBe(false);
-      expect(r.purged).toEqual([]);
-    });
-    it('chunks to <=100 tags per call', async () => {
-      const calls: string[][] = [];
-      const inv = createWorkersCacheInvalidator({ purge: async (o) => (calls.push(o.tags), { success: true }) });
-      const r = await inv.purgeTags(tags(250));
-      expect(calls.map((c) => c.length)).toEqual([100, 100, 50]);
-      expect(r.ok).toBe(true);
-      expect(r.purged).toHaveLength(250);
-    });
-    it('reports partial failure with only succeeded tags purged', async () => {
-      let n = 0;
-      const inv = createWorkersCacheInvalidator({ purge: async () => (++n === 2 ? { success: false, errors: [{ message: 'denied' }] } : { success: true }) }, { sleep });
-      const r = await inv.purgeTags(tags(250));
-      expect(r.ok).toBe(false);
-      expect(r.purged).toHaveLength(150);
-      expect(r.purged).not.toContain('t100');
-      expect(r.error).toBe('denied');
-    });
-    it('retries rate-limit failures with backoff then succeeds', async () => {
-      sleeps.length = 0;
-      let n = 0;
-      const inv = createWorkersCacheInvalidator(
-        { purge: async () => (++n < 3 ? { success: false, errors: [{ code: 971, message: 'rate limit exceeded' }] } : { success: true }) },
-        { sleep, baseDelayMs: 10 },
-      );
-      const r = await inv.purgeTags(['a']);
-      expect(r).toEqual({ ok: true, purged: ['a'] });
-      expect(n).toBe(3);
-      expect(sleeps).toEqual([10, 20]);
-    });
-    it('gives up after bounded attempts on persistent rate limiting', async () => {
-      sleeps.length = 0;
-      let n = 0;
-      const inv = createWorkersCacheInvalidator({ purge: async () => (n++, { success: false, errors: [{ message: 'Too many requests' }] }) }, { sleep, attempts: 3, baseDelayMs: 1 });
-      const r = await inv.purgeTags(['a']);
-      expect(r.ok).toBe(false);
-      expect(n).toBe(3);
-    });
-    it('does not retry non-rate-limit failures', async () => {
-      let n = 0;
-      const inv = createWorkersCacheInvalidator({ purge: async () => (n++, { success: false, errors: [{ message: 'forbidden' }] }) }, { sleep });
-      await inv.purgeTags(['a']);
-      expect(n).toBe(1);
-    });
-    it('composite is not ok when workers purge resolves success:false', async () => {
-      const bad = createWorkersCacheInvalidator({ purge: async () => ({ success: false, errors: [{ message: 'nope2' }] }) }, { sleep });
-      const r = await createCompositeInvalidator([bad, createRecordingInvalidator()]).purgeTags(['x']);
-      expect(r.ok).toBe(false);
-      expect(r.error).toBe('nope2');
-    });
   });
 });
 
@@ -343,49 +221,5 @@ describe('sniffing and hashing', () => {
     expect(await hashIp('1.2.3.4', 'k2')).not.toBe(a);
     expect(await hashIp('1.2.3.5', 'k')).not.toBe(a);
     expect(a).not.toContain('1.2.3.4');
-  });
-});
-
-describe('edgeCacheMiddleware', () => {
-  function fakeCaches(): { store: Map<string, Response>; install(): () => void } {
-    const store = new Map<string, Response>();
-    const def = {
-      match: async (r: Request) => store.get(r.url)?.clone(),
-      put: async (r: Request, res: Response) => void store.set(r.url, res),
-    };
-    return {
-      store,
-      install() {
-        (globalThis as unknown as { caches: unknown }).caches = { default: def };
-        return () => { delete (globalThis as unknown as { caches?: unknown }).caches; };
-      },
-    };
-  }
-  it('caches public GET without Authorization, skips authed and private', async () => {
-    const fc = fakeCaches();
-    const restore = fc.install();
-    try {
-      let hits = 0;
-      const app = new Hono();
-      app.use('*', edgeCacheMiddleware());
-      app.get('/pub', (c) => { hits++; const h = new Headers(); applyCacheHeaders(h, 'PUBLIC_CONTENT'); return new Response('x', { headers: h }); });
-      app.get('/priv', (c) => { hits++; const h = new Headers(); applyCacheHeaders(h, 'PRIVATE'); return new Response('x', { headers: h }); });
-      expect((await app.request('/pub')).headers.get('X-Edge-Cache')).toBe('MISS');
-      const second = await app.request('/pub');
-      expect(second.headers.get('X-Edge-Cache')).toBe('HIT');
-      expect(await second.text()).toBe('x');
-      expect(hits).toBe(1);
-      await app.request('/pub', { headers: { Authorization: 'Bearer t' } });
-      expect(hits).toBe(2);
-      await app.request('/priv'); await app.request('/priv');
-      expect(hits).toBe(4);
-      expect(fc.store.size).toBe(1);
-    } finally { restore(); }
-  });
-  it('is a passthrough without caches', async () => {
-    const app = new Hono();
-    app.use('*', edgeCacheMiddleware());
-    app.get('/a', (c) => c.text('ok'));
-    expect(await (await app.request('/a')).text()).toBe('ok');
   });
 });

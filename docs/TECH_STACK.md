@@ -58,16 +58,14 @@ ProjectX/
       demo/             Local-only demo store used in mock mode
       site.ts, indexing.ts, seo.ts, exams.ts, subjects.ts   Config, SEO flags, exam metadata
   apps/api/             The API (Hono + zod-openapi), deployed on Cloud Run
-    src/                app.ts, server.ts (Cloud Run entry, built to dist/server.mjs), node.ts (local dev entry), worker.ts
-                        (legacy Cloudflare entry, not deployed), routes/, services/, repositories/{sql,memory}, middleware/, auth/
-    wrangler.toml       Legacy Cloudflare Worker config (not used for deployment)
+    src/                app.ts, server.ts (Cloud Run entry, built to dist/server.mjs), node.ts (local dev entry), routes/, services/, repositories/{sql,memory}, middleware/, auth/
     test/               API tests (in-memory store and real SQL on PGlite)
   packages/
     contracts/          THE shared contract: zod schemas for every request/response, error codes, generated OpenAPI
     shared/             Pure helpers: canonical JSON, answer comparison, decimals, slugs, cursors
     db/                 Migration runner, PGlite (in-process Postgres for tests), postgres.js executor
     database-types/     Generated TypeScript types of the DB schema
-    edge/               Cache classes + tags, purge drivers, rate limiter, signed URLs, storage adapters (local, gcs, legacy r2)
+    edge/               Cache classes + tags, purge drivers, rate limiter, signed URLs, storage adapters (local, gcs)
     ai/                 Gemini client + mock, prompts, verification rules, SymPy bridge, job runner CLI
   supabase/
     migrations/         0001 ... 0027 SQL migrations (the schema; live DB is at 0027)
@@ -77,7 +75,6 @@ ProjectX/
     tests/              Database tests (RLS, triggers, publication guard, pipeline)
   workers/              Python ingestion package "pxw" (PyMuPDF, OCR, SymPy check)
   infra/gcp/            Deploy scripts for Cloud Run, Firebase Hosting and the ingest job (see DEPLOYMENT_GCP.md)
-  infra/cloudflare/     Legacy runbooks and config snippets (not used)
   docs/                 Design docs (ARCHITECTURE, DATABASE_SCHEMA, API_CONTRACTS, AI_PIPELINE, INGESTION_PIPELINE, ...)
 ```
 
@@ -232,7 +229,7 @@ Envelope on every API response: `{ data, meta? }` on success, `{ error: { code, 
 - Layers: `routes/` (HTTP) -> `services/` (business rules) -> `repositories/` (SQL, in `sql/`, or an in-memory fake in
   `memory/` for fast tests). `mappers/` turn DB rows into API DTOs.
 - Entry points: `server.ts` (Cloud Run, precompiled to `dist/server.mjs`), `node.ts` (local dev server using PGlite or
-  Postgres, local file storage, in-memory rate limiter) and `worker.ts` (legacy Cloudflare Workers entry, not deployed).
+  Postgres, local file storage, in-memory rate limiter).
 - Docs: `/api/v1/openapi.json` and `/api/v1/docs` exist; `ENABLE_API_DOCS` controls the docs page (false in production vars).
 
 ### 5.2 Middleware and request lifecycle
@@ -245,9 +242,8 @@ Order in `app.ts` / `middleware/core.ts`:
    `private, no-store`; any non-GET/HEAD is forced to that.
 2. `corsMiddleware`: only origins in `CORS_ALLOWED_ORIGINS` (exact match, no wildcard) are allowed; `credentials: false`
    (the token travels in a header, not a cookie).
-3. Optionally `edgeCacheMiddleware` when `CACHE_MODE=cache_api` (fallback cache, section 11).
-4. Per route: `authGuard(access)` then `rateLimit(class)`.
-5. `onError` converts anything thrown into the error envelope; database errors are mapped to API error codes
+3. Per route: `authGuard(access)` then `rateLimit(class)`.
+4. `onError` converts anything thrown into the error envelope; database errors are mapped to API error codes
    (e.g. a failed publish rule becomes `PUBLISH_REQUIREMENTS_NOT_MET`); unknown errors become a generic `INTERNAL` 500
    with a log line, never a stack trace to the client.
 
@@ -318,8 +314,7 @@ Six classes, keyed by user id when logged in, else by hashed IP. `RL_WRITE`, `RL
 | `RL_DOUBTS` | 5 | posting doubts |
 | `RL_ADMIN` | 120 | defined in config and in the type; **[unverified]** which admin routes apply it (I did not trace every admin route) |
 
-Over the limit: HTTP 429 `RATE_LIMITED` with `Retry-After`. Drivers: `memory` (default), `cloudflare` (legacy bindings),
-`noop`. No WAF or Cloud Armor is in place; `DEPLOYMENT_GCP.md` says to add Cloud Armor only if abuse appears.
+Over the limit: HTTP 429 `RATE_LIMITED` with `Retry-After`. Drivers: `memory` (default) and `noop`. The write, attempt, doubt and admin limits are counted in Postgres across all instances. No Cloud Armor is in place; `DEPLOYMENT_GCP.md` says to add it only if abuse appears.
 
 ### 5.7 Attempt submission and idempotency (`services/practice.ts`)
 
@@ -492,8 +487,7 @@ AI_CLASSIFY -> (quality check) -> AI_SOLVE -> AI_VERIFY -> (if PASSED) AI_SEO
 
 ## 9. Files and storage (Google Cloud Storage)
 
-Three buckets in the GCP project: `projectx-staging-a7k2-source-docs`, `-public-assets`, `-user-uploads` (`STORAGE_DRIVER=gcs`, bucket names in `GCS_BUCKET_*`). Setup: `DEPLOYMENT_GCP.md`, `PRODUCTION_SETUP.md`. Private by default; opening `public-assets` for approved images is a separate, deliberate step. The key patterns below are unchanged from the earlier R2 design.
-
+Three buckets in the GCP project: `projectx-staging-a7k2-source-docs`, `-public-assets`, `-user-uploads` (`STORAGE_DRIVER=gcs`, bucket names in `GCS_BUCKET_*`). Setup: `DEPLOYMENT_GCP.md`, `PRODUCTION_SETUP.md`. Private by default; opening `public-assets` for approved images is a separate, deliberate step.
 | Bucket | Visibility | Contents | Key pattern (`edge/keys.ts`) |
 |---|---|---|---|
 | source-docs | private | Original PDFs and derived crops | `sources/{code}/{year}/{sha}.{ext}`, `derived/...` |
@@ -509,8 +503,7 @@ Three buckets in the GCP project: `projectx-staging-a7k2-source-docs`, `-public-
 
 ## 10. Hosting summary (Google Cloud)
 
-Runbook and current state: `DEPLOYMENT_GCP.md`. The earlier plan (Cloudflare Workers, R2, WAF, OpenNext) was dropped.
-
+Runbook and current state: `DEPLOYMENT_GCP.md`.
 | Piece | Status in repo |
 |---|---|
 | **API** | Cloud Run service `projectx-api` (asia-south1, project `projectx-staging-a7k2`), https://projectx-api-989800061583.asia-south1.run.app/api/v1; precompiled `dist/server.mjs` |
@@ -521,7 +514,6 @@ Runbook and current state: `DEPLOYMENT_GCP.md`. The earlier plan (Cloudflare Wor
 | **Builds** | Cloud Build, running as the `projectx-build` service account |
 | **Database / auth** | Supabase project in Mumbai (Postgres + Auth; email and Google sign-in on) |
 | **Billing alert** | About USD 5 / INR 450 on the GCP project (alerts only) |
-| **Cloudflare files in the repo** | `worker.ts`, `wrangler.toml`, `infra/cloudflare/`: legacy, not deployed |
 
 The API opens its database connection through the Supabase transaction pooler (port 6543, `prepare: false` because
 transaction mode does not support prepared statements). Secrets (`DATABASE_URL`, `signing-secret`, `ip-hash-secret`,
@@ -534,17 +526,12 @@ transaction mode does not support prepared statements). Secrets (`DATABASE_URL`,
 Three layers, each with a purpose:
 
 1. **Firebase Hosting CDN** in front of the web app, honouring Next's `s-maxage`; a new Hosting release clears it. The API
-   is called directly on its run.app URL and sets the `Cache-Control` classes and tags above for its callers. (The Cloudflare
-   modes `CACHE_MODE=workers` / `cache_api` remain in the code but are not used.)
-2. **Next.js cache** in the web app (`"use cache"` + `cacheLife` + `cacheTag`). The tags are copied from the API's
+   is called directly on its run.app URL and sets the `Cache-Control` classes and tags above for its callers.2. **Next.js cache** in the web app (`"use cache"` + `cacheLife` + `cacheTag`). The tags are copied from the API's
    `X-Cache-Tags`.
 3. **Browser** (`max-age` 60 s on content; nothing on private data).
 
-Purge drivers (`CACHE_PURGE_DRIVER`: `noop | workers | zone_api | both`; the Cloudflare ones are legacy), composed by
-`buildInvalidator` in `worker.ts`:
+Cache purge calls the web app:
 
-- `workers`: the runtime's `cache.purge({tags})` (feature-detected; throws if unavailable), chunks of 100, retries on rate limits.
-- `zone_api`: Cloudflare zone purge `POST /zones/{id}/purge_cache {tags}`, chunks of 30, 3 attempts, needs a token scoped to Cache Purge only.
 - **web webhook** (if `WEB_REVALIDATE_URL` and secret are set): POSTs the tags to the web app (section 12).
 
 ---
@@ -620,7 +607,7 @@ has never been called live (section 17).
 ### 12.4 Publish -> cache purge -> page refresh
 
 ```
-Admin           API (admin service)                     Edge cache (legacy)       Web app (Next)
+Admin           API (admin service)                     Edge cache                Web app (Next)
   | POST /admin/questions/{id}/publish                                                  |
   |------------->| DB transaction: set PUBLISHED, review_event, audit_log               |
   |<-------------| 200 (response returns immediately)                                   |
@@ -671,9 +658,9 @@ in the repo **[unverified that none exists elsewhere]**.
 
 Config files: `.env.example` (all variables, with comments); deploy settings are in `infra/gcp/*.sh` and `cloudbuild.*.yaml`. `SUPABASE_URL`, CORS origins, asset base URLs and zone id are
 empty placeholders until real resources exist. Production refuses weak secrets (>= 32 chars required for signing/hash
-secrets when `STORAGE_DRIVER` is r2/gcs or `APP_ENV` is staging/production, `config.ts`).
+secrets when `STORAGE_DRIVER` is gcs or `APP_ENV` is staging/production, `config.ts`).
 
-Migrations: see `docs/DEPLOY_FACTS.md` (Supabase CLI v3 syntax; `supabase db push` needs `--remote`) and `docs/DEPLOYMENT_GCP.md`. Do not apply `supabase/shim/` or `supabase/fixtures/` to a hosted project.
+Migrations: see `docs/DEPLOYMENT_GCP.md`. Do not apply `supabase/shim/` or `supabase/fixtures/` to a hosted project.
 
 ---
 
@@ -714,7 +701,7 @@ Goal (`docs/COST_STRATEGY.md`): run at roughly zero cost until there is real tra
 | Cloud Storage | check current pricing | PDFs, crops, images | immutable content-addressed public assets |
 | Billing alert | about USD 5 / INR 450 | overspend | alerts only; does not stop spending |
 | Gemini | free tier is rate limited and may use prompts for training | AI batch | batch only, budget caps, public content only; move to a paid key before licensed content |
-| Supabase default email | 2 messages/hour (per `DEPLOY_FACTS.md`) | signup confirmations | configure custom SMTP before launch |
+| Supabase default email | rate-limited (per `PRODUCTION_SETUP.md`) | signup confirmations | configure custom SMTP before launch |
 
 Upgrade triggers (sustained 7 days): DB > 350 MB or need backups/PITR -> Supabase Pro (~$25/mo); sustained cold starts or
 request volume -> minimum instances on Cloud Run or paid usage; Gemini limits -> paid key; growing buckets -> trim derived files.
@@ -742,7 +729,6 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 **Still unverified or open:**
 - **Gemini** status: I did not verify whether a live key is in use; model ids and prices in the repo are placeholders to re-check.
 - Migrations 0026 and 0027 are applied to the live database (2026-11-20).
-- The old Cloudflare-specific paths (Workers Caching purge, Hyperdrive, OpenNext) were never run and are no longer planned.
 - The syllabus seed (20/20/14 chapters) needs checking against the current NTA bulletin.
 - Known limitation: two source questions with byte-identical images share one `question_assets` row (needs a join table).
 
@@ -769,7 +755,7 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 | Change how long the API's responses are cached | `cachePolicies` in `packages/edge/src/cache.ts` |
 | Add an API endpoint | zod schemas in `packages/contracts/src/`, route in `apps/api/src/routes/`, logic in `services/`, SQL in `repositories/sql/store.ts` (and the memory repo), then `npm run openapi` |
 | Change an API response shape the UI sees | `packages/contracts` + `src/lib/api/schemas.ts` + adapters in `src/lib/api/adapters/` |
-| Change rate limits | `rateLimitDefaults` in `packages/edge/src/rate-limit.ts` (and the legacy `[[ratelimits]]` blocks in `apps/api/wrangler.toml`) |
+| Change rate limits | `rateLimitDefaults` in `packages/edge/src/rate-limit.ts` |
 | Change who can do what | `access:` on each route; role logic in `apps/api/src/middleware/guards.ts` |
 | Change grading / marking | `packages/shared/src/answers.ts` and `services/practice.ts` (`gradeAttempt`) |
 | Change publish requirements | DB: a new migration replacing the guard function (never edit an old migration after it is applied); API: `publishUnmet` in `services/admin.ts` |
@@ -782,7 +768,7 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 | Change OCR engines / confidence | `OCR_ENGINES`, `OCR_MIN_CONFIDENCE` in `.env`; `workers/src/pxw/ocr/` |
 | Add a storage bucket or key pattern | `GCS_BUCKET_*` settings (`apps/api/src/config.ts`), `packages/edge/src/keys.ts`, `workers/src/pxw/storage/keys.py` (keep identical) |
 | Change CORS | `CORS_ALLOWED_ORIGINS` on the API service (exact origins; set by `infra/gcp/deploy-api-staging.sh`) |
-| Make the first admin | SQL insert into `user_roles` (see `docs/DEPLOY_FACTS.md` section 1.5) |
+| Make the first admin | SQL insert into `user_roles` (see `docs/PRODUCTION_SETUP.md` section 1) |
 | Deploy | `docs/DEPLOYMENT_GCP.md` (runbook), `docs/PRODUCTION_SETUP.md` (every remote step needs your approval) |
 
 ---
@@ -819,7 +805,6 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 - **SymPy**: Python maths library used to check solution formulas symbolically/numerically.
 - **Tag (cache)**: see Cache tag.
 - **Verification status**: how trustworthy a question's answer/solution is (section 8); `HUMAN_VERIFIED` requires a person.
-- **Worker (Cloudflare)**: legacy deployment target, not used. Not to be confused with the Python `workers/` folder (the ingestion tools).
 - **zod**: TypeScript schema library for validating data at runtime.
 
 ---
@@ -829,7 +814,7 @@ Budget controls on AI: $1/day default cap, 200 calls per run, cache by input has
 - That `RL_ADMIN` is attached to every admin route (class exists; routes not individually traced).
 - Which database user the production `DATABASE_URL` will log in as, and whether `set local role` + `request.jwt.claims` behave through Supavisor (was listed as untested).
 - Whether a new hosted Supabase project signs JWTs with asymmetric keys by default (`DEPLOYMENT_GCP.md` says the current project does, so `AUTH_MODE=jwks`).
-- Current vendor free-tier numbers in section 16 (Supabase figures copied from `docs/COST_STRATEGY.md` and `DEPLOY_FACTS.md`, not re-checked).
+- Current vendor free-tier numbers in section 16 (Supabase figures copied from `docs/COST_STRATEGY.md`, not re-checked).
 - The current test pass counts (quoted from the removed status doc; nothing was executed for this document).
 - Whether any CI pipeline exists outside the repo; none is in the repo.
 - Web-app behaviour at runtime (this document is from reading code and config; I did not run the app).

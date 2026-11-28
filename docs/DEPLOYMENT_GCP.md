@@ -1,20 +1,20 @@
-# Deployment on Google Cloud (replaces the Cloudflare Workers/R2 plan for the API)
+# Deployment on Google Cloud
 Project `projectx-staging-a7k2` (region `asia-south1`). Billing alert ≈ USD 5 (INR 450; alerts only, it does not stop spending).
-Live (2026-11-20): API `projectx-api-00023-c4q` (image `api:staging-16`; rollback `projectx-api-00022-2pp`), web `projectx-web-00023-7t5` (image `web-ownera-20261120-3e73fd0` = `main` 3e73fd0, build with `_FEATURE_PAPERS=on _ADS=live _ADSENSE_SLOT_DISPLAY=5382495553 _ADSENSE_SLOT_INFEED=4910441008 _ADSENSE_INFEED_LAYOUT_KEY=-fb+5w+4e-db+86 _ADSENSE_SLOT_MULTIPLEX=6312433849`; previous `projectx-web-00022-kmd`; rollback `projectx-web-00014-rtc`; older: rollback `projectx-web-00010-rqb`), served at https://tabbyprep.in through Firebase Hosting.
-* **API** = Cloud Run service `projectx-api`, image built by Cloud Build from the root `Dockerfile` (entry `apps/api/src/server.ts`).
+Live (2026-11-28): web `projectx-web-00037-tcr` (image tag `web-w1-20261128-uxia`); API `projectx-api-00031-kiz` (image `api:staging-23`). The web is served at https://tabbyprep.in through Firebase Hosting.
+* **API** = Cloud Run service `projectx-api`, image built by Cloud Build (`cloudbuild.api.yaml`) from the root `Dockerfile` (entry `apps/api/src/server.ts`).
 * **Storage** = 3 Cloud Storage buckets (`…-source-docs`, `…-public-assets`, `…-user-uploads`). `source-docs` and `user-uploads` are private
   (public access prevention enforced). `public-assets` was opened on 2026-11-20, when the first image questions were published:
   public access prevention off and `allUsers` has `roles/storage.legacyObjectReader` (read a known object; listing the bucket is
   still refused). Only the publish path copies images there. To close it again: remove that binding and run
   `gcloud storage buckets update gs://projectx-staging-a7k2-public-assets --public-access-prevention` (image questions then break).
-* **Jobs** (Cloud Run Jobs, API image, same env and secrets as the service, no Razorpay keys): `pyq-official` (publish official-key
+* **Jobs** (Cloud Run Jobs; `pxw-ingest` runs the Python ingestion, see below; the others use the API image, same env and secrets as the service, no Razorpay keys): `pyq-official` (publish official-key
   PYQs without AI, `docs/CONTENT_SOURCES.md` §7.1), `rate-difficulty` (difficulty from students' first attempts, live mode; Cloud Scheduler `rate-difficulty-nightly` at 03:00 IST runs it; `projectx-api@…` has `roles/run.invoker` on the job) and `publish-official` (AI route, unused). `pyq-official` and `publish-official` default to dry run.
   After changing the API image, point the jobs at it: `gcloud run jobs update <job> --image=<api image>`.
   PowerShell: quote env lists (`--update-env-vars 'A=1,B=2'`); unquoted, gcloud receives one variable `A="1 B=2"`.
 * **Secrets** = Secret Manager: `database-url` (you set it with `infra/gcp/set-database-url.ps1`), `signing-secret`, `ip-hash-secret`, `web-revalidate-secret` (version 2 is the clean one: version 1 ended in a carriage return, so cache purges failed until it was replaced on 2026-11-20; the code now trims it).
 * **Identity** = service account `projectx-api@…` (bucket objectAdmin on the 3 buckets, secretAccessor on its secrets).
 * **Caching**: Next caches pages and is told to refresh via the revalidate webhook; the API sets Cache-Control; Firebase Hosting's CDN (in front of the web) is cleared by a new Hosting release (`infra/gcp/firebase-hosting.sh deploy`).
-* **Rate limit** is per instance (in memory). Add Cloud Armor only if abuse appears.
+* **Rate limits** use a Postgres-backed shared limiter in the API. Add Cloud Armor only if abuse appears.
 Build: `gcloud builds submit . --config cloudbuild.api.yaml --substitutions _TAG=<tag> --project projectx-staging-a7k2 --region asia-south1`
 (add `CLOUDSDK_API_ENDPOINT_OVERRIDES_CLOUDBUILD=https://asia-south1-cloudbuild.googleapis.com/` and `--async` if the global endpoint drops).
 Deploy: `infra/gcp/deploy-api-staging.sh <tag> <comma-separated web origins>`.
@@ -43,7 +43,7 @@ Database URL = Supabase transaction pooler (port 6543) held in Secret Manager `d
   (optional extra `pip install -e "workers[gcs]"`). Auth = Application Default Credentials. Verified with a real put/get/delete.
 
 ## Website on Cloud Run + API from `main` (2026-11-16)
-Hosting decision: commercial use (Razorpay) rules out Vercel Hobby, so the website runs on Cloud Run next to the API.
+Hosting decision: the website runs on Cloud Run next to the API.
 * **Web** `projectx-web` -> https://projectx-web-989800061583.asia-south1.run.app (image `web:web-staging-1`, service account
   `projectx-web@…` with access to `web-revalidate-secret` only). Build: `cloudbuild.web.yaml`; deploy: `infra/gcp/deploy-web-staging.sh`.
 * **API** `projectx-api` revision from `main` (`api:staging-5`): billing and analytics endpoints live; `WEB_BASE_URL`,
@@ -134,9 +134,10 @@ accepts the emailed invite. The earlier deploy-only grants below are still in pl
 Revoke in IAM & Admin -> IAM.
 All builds run as `projectx-build@` (push to the `projectx` registry, write logs, read uploaded source); the default
 compute account has Editor, so builds must not run as it (the `cloudbuild.*.yaml` files set `serviceAccount`).
-Web builds must pass every current substitution (as on the live line above) (check the last web build's `_ADS`, `_FEATURE_PAPERS`, ad slots) and use a new `_TAG`: reusing a tag or dropping a substitution silently turns a feature off.
+Web builds must pass every current substitution (check the last web build's `_ADS`, `_FEATURE_PAPERS`, ad slots) and use a new `_TAG`: reusing a tag or dropping a substitution silently turns a feature off.
 Redeploy:
-* Web: `gcloud builds submit . --config cloudbuild.web.yaml --ignore-file .gcloudignore.web --substitutions _TAG=web-staging-N,_SITE_URL=https://tabbyprep.in,_AUTH_GOOGLE=on,_SUPABASE_PUBLISHABLE_KEY=<publishable key>`
+* Web: `gcloud builds submit . --config cloudbuild.web.yaml --ignore-file .gcloudignore.web --substitutions _TAG=web-staging-N,_SITE_URL=https://tabbyprep.in,_AUTH_GOOGLE=on,_ALLOW_INDEXING=true,_FEATURE_PAPERS=on,_ADS=live,_ADSENSE_SLOT_DISPLAY=5382495553,_ADSENSE_SLOT_INFEED=4910441008,_ADSENSE_SLOT_MULTIPLEX=6312433849,_SUPABASE_PUBLISHABLE_KEY=<publishable key>`
+  (the full set the live build `web-w1-20261128-uxia` used; leaving one out silently switches that feature off.)
   then `infra/gcp/deploy-web-staging.sh web-staging-N`, then `infra/gcp/firebase-hosting.sh deploy` (clears the CDN).
 * API: `gcloud builds submit . --config cloudbuild.api.yaml --substitutions _TAG=staging-N`, then `infra/gcp/deploy-api-staging.sh staging-N`.
   Deploy the API before the web build (the web build prerenders against the live API).

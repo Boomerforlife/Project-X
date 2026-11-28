@@ -94,11 +94,11 @@ describe('review-finding fixes (memory)', () => {
     expect((await req(`/files/${other.split('/files/')[1]}`)).status).toBe(403);
   });
 
-  it('H3: secrets required for r2 storage and staging/production; M4: AUTH_MODE=test only dev/test', () => {
+  it('H3: secrets required for gcs storage and staging/production; M4: AUTH_MODE=test only dev/test', () => {
     const base = { APP_ENV: 'test', AUTH_MODE: 'test', TEST_JWT_SECRET: 'x'.repeat(32) };
-    expect(() => parseConfig({ ...base, STORAGE_DRIVER: 'r2' })).toThrow(/SIGNING_SECRET/);
-    expect(() => parseConfig({ ...base, STORAGE_DRIVER: 'r2', SIGNING_SECRET: 's'.repeat(32), IP_HASH_SECRET: 'short' })).toThrow(/IP_HASH_SECRET/);
-    expect(() => parseConfig({ ...base, STORAGE_DRIVER: 'r2', SIGNING_SECRET: 's'.repeat(32), IP_HASH_SECRET: 'y'.repeat(32) })).not.toThrow();
+    expect(() => parseConfig({ ...base, STORAGE_DRIVER: 'gcs' })).toThrow(/SIGNING_SECRET/);
+    expect(() => parseConfig({ ...base, STORAGE_DRIVER: 'gcs', SIGNING_SECRET: 's'.repeat(32), IP_HASH_SECRET: 'short' })).toThrow(/IP_HASH_SECRET/);
+    expect(() => parseConfig({ ...base, STORAGE_DRIVER: 'gcs', SIGNING_SECRET: 's'.repeat(32), IP_HASH_SECRET: 'y'.repeat(32), GCS_BUCKET_SOURCE_DOCS: 'a', GCS_BUCKET_PUBLIC_ASSETS: 'b', GCS_BUCKET_USER_UPLOADS: 'c' })).not.toThrow();
     const hs = { APP_ENV: 'staging', AUTH_MODE: 'hs256', SUPABASE_JWT_SECRET: 'x' };
     expect(() => parseConfig(hs)).toThrow(/SIGNING_SECRET/);
     expect(() => parseConfig({ ...hs, SIGNING_SECRET: 's'.repeat(32), IP_HASH_SECRET: 'y'.repeat(32) })).not.toThrow();

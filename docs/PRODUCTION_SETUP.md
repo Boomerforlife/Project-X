@@ -64,13 +64,13 @@ Project `projectx-staging-a7k2`, service `projectx-api`. Runbook: `docs/DEPLOYME
 
 ## 3. Web app on Cloud Run (owner: Owner B)
 
-Hosting decision (2026-11-16): Cloud Run, not Vercel (Vercel Hobby forbids commercial use; Pro is about $20/month).
+Hosting decision (2026-11-16): Cloud Run, served through Firebase Hosting.
 Full runbook: **`docs/DEPLOY_WEB_CLOUD_RUN.md`** (`Dockerfile.web`, `cloudbuild.web.yaml`, build-time `NEXT_PUBLIC_*` substitutions,
 `REVALIDATE_SECRET` from Secret Manager). Build-time values: `NEXT_PUBLIC_DATA_SOURCE=api`, `NEXT_PUBLIC_API_BASE_URL`,
 `NEXT_PUBLIC_AUTH_MODE=supabase`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SITE_URL`,
 `NEXT_PUBLIC_ALLOW_INDEXING=false` (true only at launch), `NEXT_PUBLIC_AUTH_GOOGLE=on`, ad settings in `docs/MONETIZATION_HANDOVER.md` §5.
 Never set `DEV_TEST_JWT_SECRET` or `NEXT_PUBLIC_AUTH_MODE=dev` in a deployed build. After each web deploy, release Firebase Hosting
-(`infra/gcp/firebase-hosting.sh deploy`) to clear its CDN. `vercel.json` and the Cloudflare `deploy:web*` scripts remain from earlier plans and are unused.
+(`infra/gcp/firebase-hosting.sh deploy`) to clear its CDN.
 
 ## 4. Razorpay (owner: the user, **Live** since 2026-11-19)
 

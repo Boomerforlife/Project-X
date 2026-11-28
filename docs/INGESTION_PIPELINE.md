@@ -1,7 +1,7 @@
 # ProjectX — Ingestion Pipeline (binding; Python project `workers/`, owner W4)
 
 Scope: approved sources only (`sources.reuse_permitted and approved_at is not null`, enforced in DB trigger and again in the CLI).
-No crawling/scraping. Originals preserved byte-for-byte in the `SOURCE_DOCS` bucket (Google Cloud Storage `projectx-staging-a7k2-source-docs` on GCP, `--storage gcs`; R2 is still supported). Output = `source_questions` (staging) + private crops;
+No crawling/scraping. Originals preserved byte-for-byte in the `SOURCE_DOCS` bucket (Google Cloud Storage `projectx-staging-a7k2-source-docs`, `--storage gcs`). Output = `source_questions` (staging) + private crops;
 promotion creates DRAFT `questions` and enqueues `AI_CLASSIFY`. Never run inside API requests.
 
 ## 1. Project layout (Python 3.13)
@@ -12,7 +12,7 @@ workers/
     cli.py                  argparse entry (subcommands §5)
     config.py               env → Settings (pydantic)
     common/{logging.py, hashing.py, jsonio.py, models.py}   # models.py = Pydantic mirrors of contracts (§3)
-    storage/{base.py, factory.py, keys.py, local.py, r2.py, gcs.py}  # ObjectStore protocol; local FS, boto3 S3 (R2), Google Cloud Storage
+    storage/{base.py, factory.py, keys.py, local.py, gcs.py}  # ObjectStore protocol; local FS, Google Cloud Storage
     jobs/{base.py, file_store.py, pg_store.py, runner.py}    # JobStore protocol; idempotent runner
     db/{repo.py, pg_repo.py, file_repo.py}                   # IngestionRepo protocol (writes source docs/questions/keys/assets)
     extraction/{pdf.py, layout_profiles/{nta_cbt_v1.py, generic_numbered.py}, segment.py, figures.py, math_text.py}
@@ -37,8 +37,7 @@ class ObjectStore(Protocol):
     def exists(self, bucket: BucketName, key: str) -> bool: ...
 # BucketName = Literal["SOURCE_DOCS","PUBLIC_ASSETS","USER_UPLOADS"]; LocalObjectStore(root=LOCAL_STORAGE_DIR) maps to root/<bucket>/<key> plus
 # sidecar root/<bucket>/<key>.meta.json = {"contentType": "..."} (identical to TS createLocalStorage → API dev server can stream them);
-# R2ObjectStore(account_id, key_id, secret, bucket_names) via boto3 S3 endpoint https://<account_id>.r2.cloudflarestorage.com.
-# Key builders in pxw/storage/keys.py must equal @projectx/edge r2Keys (sources/{code}/{year}/{sha}.{ext}, derived/{docId}/crops/q{num}-{n}.png, ...).
+# Key builders in pxw/storage/keys.py must equal the @projectx/edge key builders (sources/{code}/{year}/{sha}.{ext}, derived/{docId}/crops/q{num}-{n}.png, ...).
 
 class OcrEngine(Protocol):
     name: str
@@ -114,7 +113,7 @@ On promotion, `promote_source_question` replaces each `asset_ref` block with `{"
 * Heartbeat after each stage; `fail(retryable=False)` for SourceNotApproved, checksum mismatch, unsupported layout; retryable for IO/DB errors.
 * Every stage logs `{stage, duration_ms, counts}` via `JobStore.log`. Re-running the same job never duplicates rows (natural keys above) or objects (deterministic keys).
 
-## 5. CLI (`python -m pxw` or `pxw`; global flags `--job-store file|postgres`, `--storage local|r2|gcs`, `--work-dir`, `--log-level`)
+## 5. CLI (`python -m pxw` or `pxw`; global flags `--job-store file|postgres`, `--storage local|gcs`, `--work-dir`, `--log-level`)
 ```
 pxw ingest register --source NTA --file paper.pdf --kind QUESTION_PAPER|ANSWER_KEY --paper-slug jee-main-2024-jan-27-shift-1
                     --paper-title "…" --year 2024 [--exam-date 2024-01-27 --shift 1 --session January --paper-code …]

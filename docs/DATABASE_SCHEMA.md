@@ -45,7 +45,7 @@ Target: Supabase Postgres 15+ and PGlite (PG 18) — PG ≤15 SQL only. All tabl
 Seeds (`supabase/seed/`, idempotent `insert … on conflict (slug) do update`): `0001_exams.sql`, `0002_subjects.sql`,
 `0003_chapters_jee_main.sql`, `0004_topics_jee_main.sql`, `0005_sources.sql`. Dev-only fixtures (never prod):
 `supabase/fixtures/0001_dev_demo_content.sql`. Test-only shim: `supabase/shim/00_supabase_shim.sql`.
-`supabase/config.toml`: `[db.seed] enabled = true, sql_paths = ["./seed/*.sql"]`. The 4-digit file names are accepted by the Supabase CLI (see DEPLOY_FACTS.md §1.2).
+`supabase/config.toml`: `[db.seed] enabled = true, sql_paths = ["./seed/*.sql"]`. The 4-digit file names are accepted by the Supabase CLI.
 
 ### 0a. Tables added after 0013
 

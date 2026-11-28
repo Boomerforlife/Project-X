@@ -15,8 +15,8 @@ function originOf(value: string | undefined): string | null {
  *
  * Why script-src is Report-Only: Next injects inline bootstrap scripts whose hashes change every build, plus our theme
  * script and JSON-LD. Enforcing `script-src 'self'` needs a per-request nonce, which needs dynamic rendering (a proxy or
- * middleware setting the nonce). That would defeat cacheComponents/PPR static shells, and Node.js middleware is not
- * supported on OpenNext/Workers. So the strict script policy ships as Content-Security-Policy-Report-Only (it logs
+ * middleware setting the nonce). That would defeat cacheComponents/PPR static shells on Cloud Run.
+ * So the strict script policy ships as Content-Security-Policy-Report-Only (it logs
  * violations in the browser console without blocking anything), while the directives that do not depend on scripts are
  * ENFORCED in a separate header. Promote script-src to enforcement only after a nonce/hash strategy is tested on staging.
  * Only emitted for production builds (`next dev` needs eval and websockets for HMR).
@@ -68,7 +68,7 @@ const nextConfig: NextConfig = {
   // Public URLs use trailing slashes (CLAUDE.md §5); the other form 308-redirects.
   trailingSlash: true,
   poweredByHeader: false,
-  // Self-contained server for the Cloud Run container (Dockerfile.web); ignored by Vercel.
+  // Self-contained server for the Cloud Run container (Dockerfile.web).
   output: "standalone",
   transpilePackages: ["@projectx/contracts", "@projectx/plans"],
   turbopack: {

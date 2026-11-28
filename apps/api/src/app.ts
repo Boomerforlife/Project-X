@@ -1,6 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { bodyLimit } from 'hono/body-limit';
-import { edgeCacheMiddleware } from '@projectx/edge';
 import type { AppDeps } from './deps';
 import type { AppEnv } from './lib/http';
 import { corsMiddleware, errorResponse, onError, onNotFound, requestContext } from './middleware/core';
@@ -29,7 +28,6 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   // 5 MiB check and the Razorpay webhook caps itself at 256 KB, both below or outside this limit.
   const capped = bodyLimit({ maxSize: JSON_BODY_LIMIT, onError: (c) => errorResponse(c as never, 'PAYLOAD_TOO_LARGE', 413, 'Request body too large') });
   root.use('/api/v1/*', (c, next) => (c.req.path === '/api/v1/uploads' ? next() : capped(c, next)));
-  if (deps.config.CACHE_MODE === 'cache_api') root.use('/api/v1/*', edgeCacheMiddleware());
 
   const v1 = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
