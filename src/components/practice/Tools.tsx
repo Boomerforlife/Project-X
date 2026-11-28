@@ -151,7 +151,7 @@ export function Calculator({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={() => press(k)}
             className={cn(
-              "h-9 rounded-md text-sm transition-colors",
+              "h-9 rounded-md text-sm transition-colors max-sm:h-11",
               k === "=" ? "bg-fg text-bg hover:bg-fg-soft" : /^[\d.]$/.test(k) ? "bg-surface-3 hover:bg-line-strong" : "bg-surface-2 text-fg-soft hover:bg-surface-3",
             )}
           >
@@ -202,7 +202,7 @@ export function Scratchpad({ padKey, onClose }: { padKey: string; onClose: () =>
     <ToolPanel title="Scratchpad" onClose={onClose} className="w-[min(32rem,calc(100vw-2rem))]">
       <div className="mb-2 flex items-center gap-1">
         {(["pen", "eraser"] as const).map((t) => (
-          <button key={t} type="button" aria-pressed={tool === t} onClick={() => setTool(t)} className={cn("flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm", tool === t ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}>
+          <button key={t} type="button" aria-pressed={tool === t} onClick={() => setTool(t)} className={cn("flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm max-sm:h-11", tool === t ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}>
             <Icon name={t === "pen" ? "pencil" : "eraser"} className="size-4" /> {t === "pen" ? "Pen" : "Eraser"}
           </button>
         ))}
@@ -213,7 +213,7 @@ export function Scratchpad({ padKey, onClose }: { padKey: string; onClose: () =>
             c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
             pads.delete(padKey);
           }}
-          className="ml-auto flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm text-fg-muted hover:text-fg"
+          className="ml-auto flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm text-fg-muted hover:text-fg max-sm:h-11"
         >
           <Icon name="trash" className="size-4" /> Clear
         </button>
@@ -221,7 +221,7 @@ export function Scratchpad({ padKey, onClose }: { padKey: string; onClose: () =>
       <canvas
         ref={ref}
         aria-label="Scratchpad drawing area. Your rough work for this question is kept until you leave the session."
-        className="h-64 w-full touch-none rounded-md border border-line bg-bg [background-image:radial-gradient(var(--dot)_1px,transparent_1px)] [background-size:16px_16px]"
+        className="h-64 w-full touch-none rounded-md max-sm:h-[38vh] border border-line bg-bg [background-image:radial-gradient(var(--dot)_1px,transparent_1px)] [background-size:16px_16px]"
         onPointerDown={(e) => {
           drawing.current = true;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -261,10 +261,18 @@ function ToolPanel({ title, onClose, className, children }: { title: string; onC
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <section aria-label={title} className={cn("rise fixed bottom-24 right-4 z-40 rounded-xl border border-line-strong bg-surface p-3 shadow-[var(--shadow-pop)] sm:right-6", className)}>
+    // Phones: a bottom sheet just above the action bar, full width, so it never floats over the middle of the question.
+    <section
+      aria-label={title}
+      className={cn(
+        "rise fixed bottom-24 right-4 z-40 rounded-xl border border-line-strong bg-surface p-3 shadow-[var(--shadow-pop)] sm:right-6",
+        className,
+        "max-sm:inset-x-0 max-sm:bottom-[4.5rem] max-sm:max-h-[60vh] max-sm:w-auto max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:border-x-0 max-sm:px-4 max-sm:pb-4",
+      )}
+    >
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-medium">{title}</h2>
-        <button type="button" onClick={onClose} aria-label={`Close ${title.toLowerCase()}`} className="grid size-8 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg">
+        <button type="button" onClick={onClose} aria-label={`Close ${title.toLowerCase()}`} className="grid size-8 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg max-sm:size-11">
           <Icon name="x" className="size-4" />
         </button>
       </div>

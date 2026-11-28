@@ -546,7 +546,7 @@ function ToolButton({ icon, label, active, onClick, shortcut, className }: { ico
       onClick={onClick}
       aria-pressed={active}
       title={shortcut ? `${label} (${shortcut})` : label}
-      className={cn("inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors", active ? "bg-surface-2 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg", className)}
+      className={cn("inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors max-sm:h-11", active ? "bg-surface-2 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg", className)}
     >
       <Icon name={icon} className={cn("size-4", active && icon === "bookmark" && "fill-current")} />
       {label}
