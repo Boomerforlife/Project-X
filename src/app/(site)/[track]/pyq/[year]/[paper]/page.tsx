@@ -25,6 +25,11 @@ export async function generateStaticParams() {
   return out.length ? out : [{ track: "jee", year: "none", paper: "none" }];
 }
 
+/** Who sets the paper and its answer key: NTA for JEE Main and NEET, the IITs (JAB) for JEE Advanced. */
+function keyBody(exam: string): { key: string; body: string } {
+  return exam === "jee-advanced" ? { key: "the official answer key published by the IITs", body: "the exam body" } : { key: "NTA’s official final answer key", body: "NTA" };
+}
+
 async function load(track: string, year: string, slug: string) {
   if (!isTrack(track) || !/^\d{4}$/.test(year)) return null;
   const paper = (await getPyqPapers(track)).find((p) => p.slug === slug && String(p.year) === year);
@@ -39,7 +44,7 @@ export async function generateMetadata({ params }: PageProps<"/[track]/pyq/[year
     const p = d.paper;
     return pageMetadata({
       title: `${p.title} paper with official answer key`,
-      description: `${p.title}: ${p.questionCount} questions, ${p.durationMin} minutes. Attempt it in an exam-style CBT, as a timed test or untimed, scored against NTA's official final answer key, then review every answer.`,
+      description: `${p.title}: ${p.questionCount} questions, ${p.durationMin} minutes. Attempt it in an exam-style CBT, as a timed test or untimed, scored against ${keyBody(p.exam).key}, then review every answer.`,
       path: routes.pyqPaper(d.track, p.year, p.slug),
       noindex: p.isDemo,
     });
@@ -67,7 +72,7 @@ export default async function PyqPaperPage({ params }: PageProps<"/[track]/pyq/[
         ]}
         eyebrow={`${exam.name} · Previous-year paper`}
         title={p.title}
-        lede={`${p.questionCount} questions · ${p.durationMin} minutes · ${p.sections.length} section${p.sections.length === 1 ? "" : "s"}. ${p.isDemo ? "Demo paper." : "Scored against NTA's official final answer key."}`}
+        lede={`${p.questionCount} questions · ${p.durationMin} minutes · ${p.sections.length} section${p.sections.length === 1 ? "" : "s"}. ${p.isDemo ? "Demo paper." : `Scored against ${keyBody(p.exam).key}.`}`}
       >
         <div className="mt-8">
           <PaperActions paper={{ slug: p.slug, title: p.title, exam: p.exam, durationMin: p.durationMin }} />
@@ -115,9 +120,9 @@ export default async function PyqPaperPage({ params }: PageProps<"/[track]/pyq/[
             </div>
             <h3 className="mt-6 text-sm font-medium">How it&rsquo;s scored</h3>
             <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-fg-muted">
-              <li>Answers are checked against NTA&rsquo;s official final answer key when you submit, with this paper&rsquo;s own marking scheme.</li>
+              <li>Answers are checked against {keyBody(p.exam).key} when you submit, with this paper&rsquo;s own marking scheme.</li>
               {p.numericalCounted ? <li>Each subject has more numerical questions than count: only your best {p.numericalCounted} numerical answers per subject are added to your score.</li> : null}
-              <li>Questions NTA dropped (no official answer) are left out, so a paper can have slightly fewer questions than the exam pattern.</li>
+              <li>Questions {keyBody(p.exam).body} dropped (no official answer) are left out, so a paper can have slightly fewer questions than the exam pattern.</li>
               <li>The timer is the real paper&rsquo;s {p.durationMin} minutes in CBT and timed modes; untimed has no clock.</li>
             </ul>
           </Card>
