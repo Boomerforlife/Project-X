@@ -13,3 +13,19 @@ export function safeNext(v: string | null): string {
     return fallback;
   }
 }
+
+/** Why sign-in is needed, from where the student was going (shown under the login/sign-up heading). Null when generic. */
+export function signInReason(next: string): string | null {
+  const p = next.split("?")[0] ?? "";
+  if (p.startsWith("/cbt/")) return "Sign in to open your exam.";
+  if (/^\/(jee|neet)\/pyq\//.test(p)) return "Sign in to attempt this paper and keep your score.";
+  if (/^\/(jee|neet)\/questions\//.test(p)) return "Sign in to save your answers to your progress and mistake notebook.";
+  if (/^\/(jee|neet)\/[^/]+\/[^/]+\//.test(p)) return "Sign in to start a session in this chapter.";
+  if (p.startsWith("/pricing/") || p.startsWith("/billing/") || p.startsWith("/pay/")) return "Sign in to get Tabby Plus on your account.";
+  if (p.startsWith("/plan/") || p.startsWith("/study-plans/")) return "Sign in to see your study plan.";
+  if (p.startsWith("/mistakes/") || p.startsWith("/bookmarks/") || p.startsWith("/review/")) return "Sign in to see your Notebook.";
+  if (p.startsWith("/progress/") || p.startsWith("/results/")) return "Sign in to see your progress.";
+  if (p.startsWith("/practice/")) return "Sign in to continue your practice.";
+  if (p.startsWith("/dashboard/")) return "Sign in to see your Home.";
+  return null;
+}

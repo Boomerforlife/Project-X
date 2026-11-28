@@ -1,13 +1,7 @@
-import { Suspense } from "react";
-import { PapersHub } from "@/components/app/Papers";
-import { PageSkeleton } from "@/components/ui/Primitives";
+import { permanentRedirect } from "next/navigation";
+import { routes } from "@/lib/routes";
 
-export const metadata = { title: "Papers & mock tests" };
-
+/** Papers now live under PYQs (UX audit 2026-11-28): the paper list is /jee/pyq/, attempt history is Progress → Tests. */
 export default function TestsPage() {
-  return (
-    <Suspense fallback={<PageSkeleton />}>
-      <PapersHub />
-    </Suspense>
-  );
+  permanentRedirect(routes.pyq("jee"));
 }

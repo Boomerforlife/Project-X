@@ -7,15 +7,17 @@
  * delay it, and never claim a reward that was not earned.
  */
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { RewardOffer } from "@projectx/contracts";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Primitives";
 import { rewardedUnit } from "@/lib/ads/config";
 import { showRewarded, type RewardedOutcome } from "@/lib/ads/loaders";
-import { rewardedBlock } from "@/lib/ads/policy";
+import { pathAllowsRewarded, rewardedBlock } from "@/lib/ads/policy";
 import { claimReward, rewardOffers, startReward } from "@/lib/api/monetization";
 import { useAuthStatus } from "@/lib/session/store";
+import { pricingHref } from "@/components/billing/pricingNext";
 import { useAds } from "./AdsProvider";
 
 type Phase = "idle" | "starting" | "loading" | "playing" | "claiming" | "done" | "dismissed";
@@ -34,6 +36,7 @@ const RESULT: Record<string, string> = {
 
 export function RewardedOffer({ code = "extra_full_paper", onGranted }: { code?: string; onGranted?: () => void }) {
   const ads = useAds();
+  const path = usePathname() ?? "/";
   const { status } = useAuthStatus();
   const [offer, setOffer] = useState<RewardOffer | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -41,7 +44,7 @@ export function RewardedOffer({ code = "extra_full_paper", onGranted }: { code?:
   const [paced, setPaced] = useState<ReturnType<typeof rewardedBlock>>(null);
   const cancelled = useRef(false);
   const unit = rewardedUnit();
-  const enabled = ads.ready && !!ads.entitlements?.ads.rewarded_enabled && !!unit && status === "ready";
+  const enabled = ads.ready && !!ads.entitlements?.ads.rewarded_enabled && !!unit && status === "ready" && pathAllowsRewarded(path);
 
   useEffect(() => {
     if (!enabled) return;
@@ -98,7 +101,7 @@ export function RewardedOffer({ code = "extra_full_paper", onGranted }: { code?:
       setOffer(r.offer);
       setMessage(r.status === "GRANTED" ? RESULT.GRANTED! : RESULT[r.reason ?? outcome] ?? RESULT.ERROR!);
       if (r.status === "GRANTED") {
-        ads.refresh();
+        void ads.refresh();
         onGranted?.();
       }
     } catch {
@@ -139,7 +142,7 @@ export function RewardedOffer({ code = "extra_full_paper", onGranted }: { code?:
           </Button>
         )}
         {ads.entitlements?.payments_enabled && (
-          <Link href="/pricing/" className="text-sm text-fg-muted underline-offset-2 hover:underline">
+          <Link href={pricingHref(path)} className="text-sm text-fg-muted underline-offset-2 hover:underline">
             Go ad-free with Plus
           </Link>
         )}

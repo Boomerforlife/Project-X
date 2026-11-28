@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { OnwardLinks } from "@/components/site/OnwardLinks";
 import { LEGAL, LEGAL_COMPLETE, type LegalKey } from "@/lib/legal";
 
 /** Obvious placeholder for a company fact we cannot know. Never invent these. */
@@ -30,7 +31,7 @@ export function DraftNotice() {
   );
 }
 
-export function LegalBody({ children }: { children: ReactNode }) {
+export function LegalBody({ children, onward }: { children: ReactNode; onward?: Parameters<typeof OnwardLinks>[0]["keys"] }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
       <DraftNotice />
@@ -38,6 +39,7 @@ export function LegalBody({ children }: { children: ReactNode }) {
         Effective date: <Fact k="effectiveDate" label="Effective date" />
       </p>
       <div className="space-y-10">{children}</div>
+      <OnwardLinks keys={onward} />
     </div>
   );
 }

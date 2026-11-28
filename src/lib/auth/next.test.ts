@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeNext } from "./next";
+import { safeNext, signInReason } from "./next";
 
 describe("safeNext (post-login redirect)", () => {
   it("keeps same-origin paths with their query string", () => {
@@ -19,5 +19,16 @@ describe("safeNext (post-login redirect)", () => {
     expect(safeNext("/\\evil.example/")).toBe("/dashboard/");
     expect(safeNext("/\\/evil.example/")).toBe("/dashboard/");
     expect(safeNext("/\t/evil.example/")).toBe("/dashboard/");
+  });
+});
+
+describe("signInReason", () => {
+  it("explains why sign-in is needed", () => {
+    expect(signInReason("/cbt/?id=1")).toMatch(/exam/);
+    expect(signInReason("/jee/pyq/2024/jee-main-2024-01-27-shift-1/")).toMatch(/paper/);
+    expect(signInReason("/jee/questions/some-slug/")).toMatch(/answers/);
+    expect(signInReason("/jee/physics/electrostatics/?practise=1")).toMatch(/chapter/);
+    expect(signInReason("/dashboard/")).toMatch(/Home/);
+    expect(signInReason("/about/")).toBeNull();
   });
 });

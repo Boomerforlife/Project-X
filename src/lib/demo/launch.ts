@@ -12,7 +12,7 @@ import { NoQuestionsError, pickQuestions, startPractice } from "./store";
  */
 export async function quickPractice(
   exam: ExamId,
-  opts: { subject?: SubjectId; chapter?: string; count?: number; mode?: "learning" | "test"; difficulty?: "easy" | "medium" | "hard"; includeSolved?: boolean } = {},
+  opts: { subject?: SubjectId; chapter?: string; count?: number; mode?: "learning" | "test"; difficulty?: "easy" | "medium" | "hard"; includeSolved?: boolean; year?: number; title?: string } = {},
 ): Promise<string | null> {
   const count = opts.count ?? 10;
   const api = DATA_SOURCE === "api";
@@ -20,7 +20,7 @@ export async function quickPractice(
   if (!api && !ids.length) return null;
   const chapter = opts.subject && opts.chapter ? catalog.chapter(opts.subject, opts.chapter) : null;
   const subject = opts.subject ? catalog.subject(opts.subject) : null;
-  const title = chapter ? chapter.name : subject ? `${subject.name} · quick practice` : "Quick practice · mixed";
+  const title = opts.title ?? (chapter ? chapter.name : subject ? `${subject.name} · quick practice` : "Quick practice · mixed");
   const mode = opts.mode ?? "learning";
   const n = api ? count : ids.length;
   try {
@@ -34,6 +34,7 @@ export async function quickPractice(
       count,
       difficulty: opts.difficulty,
       includeSolved: opts.includeSolved,
+      ...(opts.year ? { yearFrom: opts.year, yearTo: opts.year } : {}),
     });
   } catch (e) {
     if (e instanceof NoQuestionsError) return null;

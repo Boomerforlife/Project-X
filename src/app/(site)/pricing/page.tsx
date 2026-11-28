@@ -48,7 +48,7 @@ export default async function PricingPage() {
     },
     { q: "Does it renew automatically?", a: "No. Every pass is a single payment. When it ends you go back to Free; your history, bookmarks, plans and results stay." },
     { q: "I already have Plus. Can I buy more?", a: "Yes. A new pass starts when your current one ends, so you never lose days." },
-    { q: "Can a parent pay?", a: "Yes. From Account → Billing you can create a payment link and share it. Whoever opens it can pay; Plus is added to your account." },
+    { q: "Can a parent pay?", a: "Yes. From Account & billing you can create a payment link and share it. Whoever opens it can pay; Plus is added to your account." },
     { q: "Refunds", a: "See the refund policy. A fully refunded pass is removed from your account." },
   ];
 

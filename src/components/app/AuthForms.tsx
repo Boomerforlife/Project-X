@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Kitty } from "@/components/brand/Kitty";
-import { Button } from "@/components/ui/Button";
+import { Button, inputClass } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import {  } from "@/components/ui/Primitives";
 import { DemoBadge } from "@/components/app/ModeBadge";
@@ -14,7 +14,7 @@ import { AUTH_GOOGLE, AUTH_MODE, DEV_USERS } from "@/lib/auth/config";
 import { devSignIn, emailSignIn, emailSignUp, googleSignIn, providerDisplayName } from "@/lib/auth/session";
 import * as studentApi from "@/lib/api/student";
 import { DATA_SOURCE } from "@/lib/site";
-import { safeNext } from "@/lib/auth/next";
+import { safeNext, signInReason } from "@/lib/auth/next";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -41,7 +41,12 @@ function Shell({ title, sub, children }: { title: string; sub: string; children:
   );
 }
 
-const inputCls = "mt-1.5 h-11 w-full rounded-lg border border-line-strong bg-bg px-3 outline-none focus:border-fg";
+/** Carry the return path between login, sign-up and onboarding (Home is the default, so it is left off). */
+function withNext(path: string, next: string): string {
+  return next && next !== "/dashboard/" ? `${path}?next=${encodeURIComponent(next)}` : path;
+}
+
+const inputCls = inputClass("mt-1.5");
 
 function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
@@ -83,7 +88,8 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
     if (!r.ok) return setError(r.message);
     if (mode === "signup") track("signup_completed");
     if (r.needsEmailConfirmation) return setConfirm(true);
-    router.push(next);
+    // A new account finishes the short onboarding first, then lands where the student was going.
+    router.push(mode === "signup" ? withNext("/onboarding/", next) : next);
   };
   const dev = async (id: (typeof DEV_USERS)[number]["id"]) => {
     setBusy(true);
@@ -102,12 +108,12 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <Shell title={mode === "login" ? "Welcome back" : "Start practising"} sub={mode === "login" ? "Pick up where you left off." : "A focused place to practise previous-year exam questions."}>
+    <Shell title={mode === "login" ? "Welcome back" : "Start practising"} sub={signInReason(next) ?? (mode === "login" ? "Pick up where you left off." : "A focused place to practise previous-year exam questions.")}>
       {signedIn && (
         <div className="mt-6 rounded-xl border border-line bg-surface p-4 text-sm">
           You&rsquo;re signed in as <span className="font-medium">{s!.user!.name}</span>.{" "}
-          <Link href="/dashboard/" className="underline underline-offset-4">
-            Go to your dashboard
+          <Link href={next} className="underline underline-offset-4">
+            Continue
           </Link>
         </div>
       )}
@@ -198,14 +204,14 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
         {mode === "login" ? (
           <>
             New here?{" "}
-            <Link href="/signup/" className="text-fg underline underline-offset-4">
+            <Link href={withNext("/signup/", next)} className="text-fg underline underline-offset-4">
               Create an account
             </Link>
           </>
         ) : (
           <>
             Already have an account?{" "}
-            <Link href="/login/" className="text-fg underline underline-offset-4">
+            <Link href={withNext("/login/", next)} className="text-fg underline underline-offset-4">
               Log in
             </Link>
           </>

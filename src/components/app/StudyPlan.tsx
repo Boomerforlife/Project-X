@@ -28,6 +28,7 @@ import {
   BAND_COPY,
   createPlan,
   currentDiagnostic,
+  DiagnosticMissingError,
   getPlan,
   getReport,
   PlusRequiredError,
@@ -40,6 +41,9 @@ import {
   type ReportView,
   type Setup,
 } from "@/lib/plans";
+import { DATA_SOURCE } from "@/lib/site";
+import { routes } from "@/lib/routes";
+import { trackOf } from "@/lib/exams";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 type S = DemoState & { user: NonNullable<DemoState["user"]> };
@@ -66,9 +70,6 @@ function PlanRoot({ s }: { s: S }) {
   useEffect(() => {
     let live = true;
     (async (): Promise<Phase> => {
-      // Sessions hydrate in a burst after sign-in; wait for it to settle so one load serves them all.
-      await new Promise((r) => setTimeout(r, 400));
-      if (!live) return { kind: "loading" };
       const plan = await getPlan(s);
       if (plan) return { kind: "plan", plan, report: await getReport(s).catch(() => null) };
       const diag = currentDiagnostic();
@@ -87,7 +88,7 @@ function PlanRoot({ s }: { s: S }) {
         live &&
         setPhase({
           kind: "error",
-          message: isApiError(e) && e.status === 404 ? "Study plans aren't switched on for this server yet." : "We couldn't load your plan.",
+          message: isApiError(e) && e.status === 404 ? "Study plans aren't switched on for this server yet." : "We couldn't load your study plan.",
         }),
     );
     return () => {
@@ -142,7 +143,7 @@ function SetupView({ s }: { s: S }) {
   const exam = s.user.exam;
   const groups = useMemo(() => availableChapters(exam).filter((g) => g.chapters.length > 0), [exam]);
   const [subjects, setSubjects] = useState<SubjectId[]>(groups.map((g) => g.subject));
-  const [chapters, setChapters] = useState<Set<string>>(() => new Set(groups.flatMap((g) => g.chapters.map((c) => c.key))));
+  const [chapters, setChapters] = useState<Set<string>>(() => new Set());
   const [length, setLength] = useState<"15" | "30" | "45">("30");
   const [open, setOpen] = useState<SubjectId | null>(null);
   const [busy, setBusy] = useState(false);
@@ -210,7 +211,19 @@ function SetupView({ s }: { s: S }) {
 
         <div>
           <p className="text-sm font-medium">Chapters you have studied</p>
-          <p className="mt-1 text-sm text-fg-muted">Untick anything you haven&rsquo;t covered yet, so the test doesn&rsquo;t mark it as weak.</p>
+          <p className="mt-1 text-sm text-fg-muted">Tick the chapters you have covered, so the test doesn&rsquo;t mark chapters you haven&rsquo;t reached as weak.</p>
+          <div className="mt-2 flex gap-3 text-sm">
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center text-fg-muted underline-offset-2 hover:text-fg hover:underline sm:min-h-0"
+              onClick={() => setChapters(new Set(groups.filter((g) => subjects.includes(g.subject)).flatMap((g) => g.chapters.map((c) => c.key))))}
+            >
+              Select all chapters
+            </button>
+            <button type="button" className="inline-flex min-h-11 items-center text-fg-muted underline-offset-2 hover:text-fg hover:underline sm:min-h-0" onClick={() => setChapters(new Set())}>
+              Clear all
+            </button>
+          </div>
           <div className="mt-3 divide-y divide-line rounded-xl border border-line">
             {groups
               .filter((g) => subjects.includes(g.subject))
@@ -292,7 +305,10 @@ function SetupView({ s }: { s: S }) {
         <Button size="lg" pixel onClick={start} disabled={busy || chosen.length === 0} className="w-full sm:w-auto">
           <Icon name="play" className="size-4" /> {busy ? "Preparing…" : "Start the diagnostic"}
         </Button>
-        {chosen.length === 0 && <p className="text-sm text-review">Pick at least one chapter.</p>}
+        {chosen.length === 0 && <p className="text-sm text-review">Tick at least one chapter you have covered to start.</p>}
+        {DATA_SOURCE === "api" && (
+          <p className="text-sm text-fg-muted">Took a diagnostic on another device or browser? It can&rsquo;t be linked here yet, so take a short new one to build a plan.</p>
+        )}
       </Card>
     </>
   );
@@ -410,7 +426,7 @@ function LockedCard({ title, body }: { title: string; body: string }) {
         <p className="text-sm text-fg-muted">{body}</p>
       </div>
       <ButtonLink href="/pricing/" size="sm">
-        See plans
+        See pricing
       </ButtonLink>
     </div>
   );
@@ -427,6 +443,7 @@ function ReportScreen({ s, report, onPlan, onRestart }: { s: S; report: ReportVi
   const [days, setDays] = useState<"7" | "14">(dayOptions.includes("14") ? "14" : "7");
   const [busy, setBusy] = useState(false);
   const [needsPlus, setNeedsPlus] = useState(false);
+  const [noDiagnostic, setNoDiagnostic] = useState(false);
 
   const build = async () => {
     setBusy(true);
@@ -436,6 +453,7 @@ function ReportScreen({ s, report, onPlan, onRestart }: { s: S; report: ReportVi
     } catch (e) {
       setBusy(false);
       if (e instanceof PlusRequiredError) setNeedsPlus(true);
+      else if (e instanceof DiagnosticMissingError) setNoDiagnostic(true);
       else toast("Couldn't build the plan. Please try again.", { icon: "alert", tone: "warn" });
     }
   };
@@ -449,16 +467,26 @@ function ReportScreen({ s, report, onPlan, onRestart }: { s: S; report: ReportVi
 
       <section aria-labelledby="build-h" className="mt-12">
         <h2 id="build-h" className="flex items-center gap-2 text-2xl font-semibold">
-          Build your plan {!report.plus && <span className="text-sm font-normal text-fg-muted">· free basic plan</span>}
+          Build your study plan {!report.plus && <span className="text-sm font-normal text-fg-muted">· free basic plan</span>}
         </h2>
         {!report.plus && !needsPlus && (
           <p className="mt-2 max-w-2xl text-sm text-fg-muted">
-            Free plans run up to {maxDays === 7 ? "1 week" : "2 weeks"} at up to {maxMinutes} minutes a day, using the problems on the free tier. Longer plans,
+            Free study plans run up to {maxDays === 7 ? "1 week" : "2 weeks"} at up to {maxMinutes} minutes a day, using the problems on the free tier. Longer plans,
             longer days and every problem are part of Tabby Plus <PlusTag />.
           </p>
         )}
-        {needsPlus ? (
-          <LockedCard title="Day-by-day plans are part of Tabby Plus" body="Your plan picks practice sessions, specific problems and mistakes to redo, and adjusts after every session." />
+        {noDiagnostic ? (
+          <div role="alert" className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-line-strong p-5">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">We can&rsquo;t find your diagnostic on this device</p>
+              <p className="text-sm text-fg-muted">It was probably taken on another device or browser. A plan is built from a diagnostic, so take a short new one.</p>
+            </div>
+            <Button size="sm" onClick={onRestart}>
+              Take a new diagnostic
+            </Button>
+          </div>
+        ) : needsPlus ? (
+          <LockedCard title="Day-by-day study plans are part of Tabby Plus" body="Your study plan picks practice sessions, specific problems and mistakes to redo, and adjusts after every session." />
         ) : (
           <Card className="mt-4 flex flex-wrap items-end gap-8 p-6">
             <div>
@@ -551,10 +579,7 @@ function PlanScreen({ s, plan, report, onChanged, onRestart }: { s: S; plan: Pla
   const past = plan.plan.filter((d) => d.index < plan.todayIndex);
 
   const start = async (it: ItemView) => {
-    if (plan.locked) {
-      router.push("/pricing/");
-      return;
-    }
+    if (plan.locked) return; // lapsed Plus: the API refuses plan sessions; each task offers its free alternative instead
     setBusy(it.key);
     try {
       const href = await startItem(plan, it, s);
@@ -565,7 +590,7 @@ function PlanScreen({ s, plan, report, onChanged, onRestart }: { s: S; plan: Pla
       }
     } catch (e) {
       setBusy(null);
-      if (e instanceof PlusRequiredError) router.push("/pricing/");
+      if (e instanceof PlusRequiredError) router.push(routes.pricing(routes.studyPlan));
       else toast(e instanceof Error ? e.message : "Couldn't start that.", { icon: "alert", tone: "warn" });
     }
   };
@@ -575,9 +600,9 @@ function PlanScreen({ s, plan, report, onChanged, onRestart }: { s: S; plan: Pla
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <Eyebrow className="flex items-center gap-2">
-            Your plan <PlusTag />
+            Study plan <PlusTag />
           </Eyebrow>
-          <h1 className="mt-3 text-4xl font-semibold">{finished ? "Plan complete" : `Day ${plan.todayIndex + 1} of ${plan.days}`}</h1>
+          <h1 className="mt-3 text-4xl font-semibold">{finished ? "Study plan complete" : `Day ${plan.todayIndex + 1} of ${plan.days}`}</h1>
           <p className="mt-2 text-fg-muted">
             {plan.dailyMinutes} minutes a day · started {formatDate(plan.startsOn)}
           </p>
@@ -590,7 +615,20 @@ function PlanScreen({ s, plan, report, onChanged, onRestart }: { s: S; plan: Pla
         </div>
       </div>
 
-      {plan.locked && <LockedCard title="Your Plus access has ended" body="Your plan is kept exactly as it was. Renew to continue it; practice stays free." />}
+      {plan.locked && (
+        <div role="note" className="mt-6 flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-line-strong p-5">
+          <PixelIcon name="lock" className="size-6 text-fg-muted" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Your Plus access has ended</p>
+            <p className="text-sm text-fg-muted">
+              Your study plan and its progress are kept exactly as they were. Plan sessions (checkpoints, plan-tracked practice and the diagnostic review) are part of Plus. Chapter practice stays free, so each task below links to it where it can.
+            </p>
+          </div>
+          <ButtonLink href={routes.pricing(routes.studyPlan)} size="sm">
+            Renew Plus
+          </ButtonLink>
+        </div>
+      )}
 
       {finished ? (
         <div className="mt-10 flex flex-col items-center rounded-2xl border border-dashed border-line-strong px-6 py-14 text-center">
@@ -612,7 +650,7 @@ function PlanScreen({ s, plan, report, onChanged, onRestart }: { s: S; plan: Pla
             ) : (
               <ul className="mt-4 space-y-3">
                 {today.items.map((it) => (
-                  <ItemCard key={it.key} it={it} s={s} busy={busy === it.key} onStart={() => start(it)} locked={plan.locked} prominent />
+                  <ItemCard key={it.key} it={it} s={s} busy={busy === it.key} onStart={() => start(it)} locked={plan.locked} alt={plan.locked ? freeAlternative(it, plan) : null} prominent />
                 ))}
               </ul>
             )}
@@ -698,7 +736,26 @@ function formatDate(d: string, short = false) {
   return new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", short ? { day: "numeric", month: "short" } : { weekday: "short", day: "numeric", month: "short" });
 }
 
-function ItemCard({ it, s, busy, onStart, locked, prominent }: { it: ItemView; s: S; busy: boolean; onStart: () => void; locked: boolean; prominent?: boolean }) {
+/** What a lapsed-Plus student can still do for a task. Chapter practice, the problem library, their mistakes and their own results are free. */
+function freeAlternative(it: ItemView, plan: PlanView): { href: string; label: string } | null {
+  const track = trackOf(plan.exam);
+  switch (it.kind) {
+    case "PRACTICE":
+      return it.subject && it.chapter ? { href: routes.chapterPractise(track, it.subject, it.chapter), label: "Practise this chapter" } : null;
+    case "TIMED":
+      return it.subject && it.chapter ? { href: routes.chapterPractise(track, it.subject, it.chapter, { timed: true }), label: "Timed practice for this chapter" } : null;
+    case "MISTAKES":
+      return { href: routes.mistakes, label: "Open your mistakes" };
+    case "PROBLEMS":
+      return { href: `${routes.allQuestions}#library`, label: "Open the problem library" };
+    case "REVIEW_DIAGNOSTIC":
+      return { href: routes.results(plan.diagnosticAttemptId), label: "Review your diagnostic" };
+    default:
+      return null;
+  }
+}
+
+function ItemCard({ it, s, busy, onStart, locked, alt = null, prominent }: { it: ItemView; s: S; busy: boolean; onStart: () => void; locked: boolean; alt?: { href: string; label: string } | null; prominent?: boolean }) {
   const router = useRouter();
   const [opening, setOpening] = useState<number | null>(null);
   const status = it.completedAt ? "done" : it.startedAt ? "started" : "todo";
@@ -731,8 +788,16 @@ function ItemCard({ it, s, busy, onStart, locked, prominent }: { it: ItemView; s
           <span className="inline-flex items-center gap-1.5 text-sm text-ok">
             <PixelIcon name="check" className="size-4" /> Done
           </span>
+        ) : locked ? (
+          alt ? (
+            <ButtonLink href={alt.href} size="sm" variant="secondary">
+              {alt.label}
+            </ButtonLink>
+          ) : (
+            <span className="text-sm text-fg-muted">Part of Plus</span>
+          )
         ) : it.kind === "PROBLEMS" && status === "started" ? null : (
-          <Button size="sm" variant={status === "started" ? "secondary" : "primary"} onClick={onStart} disabled={busy || locked}>
+          <Button size="sm" variant={status === "started" ? "secondary" : "primary"} onClick={onStart} disabled={busy}>
             {busy ? "Opening…" : status === "started" ? "Continue" : "Start"}
           </Button>
         )}
@@ -741,7 +806,7 @@ function ItemCard({ it, s, busy, onStart, locked, prominent }: { it: ItemView; s
         <ul className="mt-4 flex flex-wrap gap-2 pl-14">
           {it.problems.map((n) => (
             <li key={n}>
-              <Button size="sm" variant="secondary" onClick={() => openOne(n)} disabled={opening !== null || locked}>
+              <Button size="sm" variant="secondary" onClick={() => openOne(n)} disabled={opening !== null}>
                 {opening === n ? "Opening…" : formatNumber(n)}
               </Button>
             </li>

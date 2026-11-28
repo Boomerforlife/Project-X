@@ -45,7 +45,21 @@ export interface AdsApi {
   session(): AdSessionState;
   noteDisplay(): void;
   noteRewardedStart(): void;
-  refresh(): void;
+  /**
+   * Re-read entitlements now (after a payment, a granted reward…). Safe to call repeatedly: calls that overlap share one
+   * request. Resolves to the fresh entitlements, or the previous ones when the request failed (never flips to "no data").
+   */
+  refresh(): Promise<Entitlements | null>;
+}
+
+/** The shared plan/entitlement state (one fetch for the whole app). Use this instead of calling GET /entitlements again. */
+export interface EntitlementsState {
+  ready: boolean;
+  entitlements: Entitlements | null;
+  tier: Entitlements["tier"] | null;
+  plusUntil: string | null;
+  paymentsEnabled: boolean;
+  refresh: AdsApi["refresh"];
 }
 
 const noop = () => undefined;
@@ -60,31 +74,50 @@ const AdsContext = createContext<AdsApi>({
   session: () => EMPTY_SESSION,
   noteDisplay: noop,
   noteRewardedStart: noop,
-  refresh: noop,
+  refresh: () => Promise.resolve(null),
 });
 
 export function useAds(): AdsApi {
   return useContext(AdsContext);
 }
 
+/** Plan status for badges, locks and upgrade prompts: tier, expiry and whether payments are on, from the one shared fetch. */
+export function useEntitlements(): EntitlementsState {
+  const { ready, entitlements, refresh } = useContext(AdsContext);
+  return useMemo(
+    () => ({
+      ready,
+      entitlements,
+      tier: entitlements?.tier ?? null,
+      plusUntil: entitlements?.plus_until ?? null,
+      paymentsEnabled: entitlements?.payments_enabled !== false,
+      refresh,
+    }),
+    [ready, entitlements, refresh],
+  );
+}
+
 export function AdsProvider({ children }: { children: React.ReactNode }) {
   const { status } = useAuthStatus();
   const [ent, setEnt] = useState<Entitlements | null | undefined>(undefined);
   const [device, setDevice] = useState<Device>("desktop");
-  const [tick, setTick] = useState(0);
+  const gen = useRef(0);
+  const inflight = useRef<Promise<Entitlements | null> | null>(null);
+  const latest = useRef<Entitlements | null>(null);
   const policy = useMemo(() => resolvePolicy(ADS_CONFIG.policyJson), []);
   const budget = useRef<{ path: string; used: number }>({ path: "", used: 0 });
 
   useEffect(() => {
     if (status === "loading") return;
-    let live = true;
+    // A new auth state invalidates any refresh still in flight for the previous one.
+    const mine = ++gen.current;
+    inflight.current = null;
     void fetchEntitlements().then((e) => {
-      if (live) setEnt(e);
+      if (gen.current !== mine) return;
+      latest.current = e;
+      setEnt(e);
     });
-    return () => {
-      live = false;
-    };
-  }, [status, tick]);
+  }, [status]);
 
   useEffect(() => {
     const update = () => setDevice(deviceFor(window.innerWidth));
@@ -111,7 +144,25 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     const s = readSession();
     writeSession({ ...s, rewardedStarted: s.rewardedStarted + 1, lastRewardedAt: Date.now() });
   }, []);
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const refresh = useCallback((): Promise<Entitlements | null> => {
+    if (inflight.current) return inflight.current;
+    const mine = gen.current;
+    const p = fetchEntitlements()
+      .then((e) => {
+        // A failed refresh keeps what we knew; a stale one (auth changed meanwhile) is dropped.
+        if (gen.current !== mine) return latest.current;
+        if (e) {
+          latest.current = e;
+          setEnt(e);
+        }
+        return latest.current;
+      })
+      .finally(() => {
+        if (inflight.current === p) inflight.current = null;
+      });
+    inflight.current = p;
+    return p;
+  }, []);
 
   const api = useMemo<AdsApi>(
     () => ({

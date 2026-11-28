@@ -28,6 +28,8 @@ import { EXAMS } from "@/lib/exams";
 import type { Attempt, AttemptSection, DemoState, DemoUser, MistakeCategory, MistakeRecord } from "@/lib/demo/types";
 import * as api from "@/lib/api/student";
 import { practiceQuestions, publicQuestion } from "@/lib/api/public";
+import { apiFetch } from "@/lib/api/http";
+import { PracticeQuestionSchema } from "@projectx/contracts";
 import type { AttemptResult, MistakeItem, PatchMeInput, PublicSolution, SessionDetail, SessionListItem } from "@/lib/api/schemas";
 import { toQuestion as publicToQuestion, solutionFromApi } from "@/lib/api/adapters/content";
 import { fromAnswerResponse, toAnswerResponse, toPracticeQuestion } from "@/lib/api/adapters/practice";
@@ -37,6 +39,9 @@ import { DEFAULT_PREFS, readPrefs, writePrefs, type Prefs } from "./prefs";
 import { registry } from "./registry";
 
 /* ------------------------------------------------------------------ state */
+
+/** Client-only list sessions (see "list sessions" below). */
+const LIST_PREFIX = "list_";
 
 const EMPTY: DemoState = { v: 2, user: null, attempts: {}, bookmarks: {}, review: {}, mistakes: {}, activity: {} };
 
@@ -406,6 +411,7 @@ async function hydrateSessions(list: SessionListItem[]) {
 /** On-demand load used by the session and results screens (deep link / reload / second device). */
 export async function ensureAttempt(id: string): Promise<Attempt | null> {
   if (state.attempts[id]) return state.attempts[id]!;
+  if (id.startsWith(LIST_PREFIX)) return restoreList(id);
   if (id.startsWith("single_") || id.startsWith("att_")) return null;
   return loadSession(id);
 }
@@ -429,6 +435,9 @@ export type StartOpts = {
   difficulty?: "easy" | "medium" | "hard";
   /** API mode: include questions already solved (default false). */
   includeSolved?: boolean;
+  /** API mode: previous-year questions from these years only (inclusive). */
+  yearFrom?: number;
+  yearTo?: number;
 };
 
 export async function startPractice(opts: StartOpts): Promise<string> {
@@ -443,6 +452,8 @@ export async function startPractice(opts: StartOpts): Promise<string> {
     size: Math.max(1, Math.min(opts.mode === "test" ? 20 : 50, opts.count ?? (opts.questionIds.length || 10))),
     filters: {
       ...(opts.difficulty ? { difficulty: [opts.difficulty.toUpperCase() as "EASY" | "MEDIUM" | "HARD"] } : {}),
+      ...(opts.yearFrom ? { year_from: opts.yearFrom } : {}),
+      ...(opts.yearTo ? { year_to: opts.yearTo } : {}),
       exclude_correct: src === "bookmarks" || src === "mistakes" ? false : !opts.includeSolved,
     },
     ui_mode: opts.mode,
@@ -572,6 +583,186 @@ async function findPracticeQuestion(slug: string, exam: ExamId, hint: { subject?
   return null;
 }
 
+/* ------------------------------------------------------- list sessions (client) */
+
+/**
+ * A practice session over an ordered list the student was looking at (a page of the problem library, a chapter list):
+ * Previous/Next walk the list, starting at the item they opened. Nothing is created on the server up front; each Check
+ * posts a standalone attempt (POST /practice/attempts without session_id), so progress, streaks and the mistake
+ * notebook update exactly as for any other answer. Items resolve lazily: a library problem becomes a concrete question
+ * (GET /problems/{n}/next) only when the student reaches it, with the neighbours prefetched. The list itself is kept in
+ * sessionStorage, so a reload in the same tab rebuilds it (answers already checked stay on the server).
+ */
+export type ListItem = { questionId: string } | { problem: number };
+export type StartListOpts = { exam: ExamId; title: string; items: ListItem[]; startIndex?: number; scope?: Attempt["scope"] };
+
+const PROBLEM_REF = "problem:";
+const QUESTION_REF = "question:";
+const listKey = (id: string) => `projectx-list-v1:${id}`;
+const isPlaceholder = (qid: string) => qid.startsWith(PROBLEM_REF) || qid.startsWith(QUESTION_REF);
+const resolving = new Map<string, Promise<void>>();
+
+const refOf = (it: ListItem) => ("questionId" in it ? (registry.getQuestion(it.questionId) ? it.questionId : `${QUESTION_REF}${it.questionId}`) : `${PROBLEM_REF}${it.problem}`);
+
+export async function startList(opts: StartListOpts): Promise<string> {
+  const ids = [...new Set(opts.items.map(refOf))];
+  if (!ids.length) throw new NoQuestionsError();
+  const id = `${LIST_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const start = Math.max(0, Math.min(ids.length - 1, opts.startIndex ?? 0));
+  const t = nowIso();
+  const a: Attempt = {
+    id,
+    exam: opts.exam,
+    mode: "learning",
+    kind: "practice",
+    title: opts.title,
+    scope: opts.scope ?? { source: "quick" },
+    questionIds: ids,
+    sections: sectionsFor(opts.exam, ids.filter((q) => !isPlaceholder(q))),
+    durationSec: null,
+    startedAt: t,
+    updatedAt: t,
+    submittedAt: null,
+    status: "in_progress",
+    current: start,
+    elapsedSec: 0,
+    responses: Object.fromEntries(ids.map((q, i) => [q, { ...blank(q), visited: i === start }])),
+  };
+  patchState((s) => ({ ...s, attempts: { ...s.attempts, [id]: a } }));
+  saveList(a);
+  await resolveItem(id, start);
+  const now = state.attempts[id];
+  if (!now || isPlaceholder(now.questionIds[now.current] ?? "")) {
+    discardList(id);
+    throw new Error("Couldn't open that question");
+  }
+  void resolveAround(id, now.current);
+  track("session_started", { mode: "learning" });
+  return id;
+}
+
+/** Fetch the concrete question behind a placeholder and swap it into the list in place. */
+function resolveItem(attemptId: string, index: number): Promise<void> {
+  const a = state.attempts[attemptId];
+  const ref = a?.questionIds[index];
+  if (!a || !ref || !isPlaceholder(ref)) return Promise.resolve();
+  const key = `${attemptId}:${ref}`;
+  const running = resolving.get(key);
+  if (running) return running;
+  const p = (async () => {
+    try {
+      const q = ref.startsWith(PROBLEM_REF) ? await problemQuestion(Number(ref.slice(PROBLEM_REF.length))) : await questionById(ref.slice(QUESTION_REF.length), a.exam);
+      if (!q) return;
+      registry.putQuestions([q]); // never a solution: the answer is revealed only through an attempt
+      patchState((s) => {
+        const cur = s.attempts[attemptId];
+        const i = cur ? cur.questionIds.indexOf(ref) : -1;
+        if (!cur || i < 0) return s;
+        const dup = cur.questionIds.includes(q.id);
+        const questionIds = dup ? cur.questionIds.filter((x) => x !== ref) : cur.questionIds.map((x) => (x === ref ? q.id : x));
+        const responses = { ...cur.responses };
+        const r = responses[ref];
+        delete responses[ref];
+        if (!dup) responses[q.id] = { ...(r ?? blank(q.id)), questionId: q.id };
+        const next: Attempt = {
+          ...cur,
+          questionIds,
+          responses,
+          current: Math.min(cur.current, questionIds.length - 1),
+          sections: sectionsFor(cur.exam, questionIds.filter((x) => !isPlaceholder(x))),
+        };
+        saveList(next);
+        return { ...s, attempts: { ...s.attempts, [attemptId]: next } };
+      });
+    } catch (e) {
+      handleError(e, "load", true);
+    } finally {
+      resolving.delete(key);
+    }
+  })();
+  resolving.set(key, p);
+  return p;
+}
+
+/** The current item now, its neighbours in the background. */
+async function resolveAround(attemptId: string, index: number) {
+  await resolveItem(attemptId, index);
+  const cur = state.attempts[attemptId]?.current ?? index;
+  void resolveItem(attemptId, cur + 1);
+  void resolveItem(attemptId, cur - 1);
+}
+
+async function problemQuestion(n: number): Promise<Question> {
+  const token = await getAccessToken();
+  const r = await apiFetch(`/problems/${n}/next`, { schema: PracticeQuestionSchema, token, base: "browser" });
+  return toPracticeQuestion(r.data);
+}
+
+async function questionById(id: string, exam: ExamId): Promise<Question | null> {
+  const r = await practiceQuestions({ exam: examToApi(exam), id, limit: 1 });
+  return r.data[0] ? toPracticeQuestion(r.data[0]) : null;
+}
+
+type StoredList = { exam: ExamId; title: string; scope: Attempt["scope"]; ids: string[]; current: number; startedAt: string };
+
+function saveList(a: Attempt) {
+  try {
+    const v: StoredList = { exam: a.exam, title: a.title, scope: a.scope, ids: a.questionIds, current: a.current, startedAt: a.startedAt };
+    sessionStorage.setItem(listKey(a.id), JSON.stringify(v));
+  } catch {
+    /* private mode / full storage: the list still works until the tab closes */
+  }
+}
+function clearList(id: string) {
+  try {
+    sessionStorage.removeItem(listKey(id));
+  } catch {
+    /* ignore */
+  }
+}
+function discardList(id: string) {
+  clearList(id);
+  patchState((s) => {
+    const attempts = { ...s.attempts };
+    delete attempts[id];
+    return { ...s, attempts };
+  });
+}
+
+/** Rebuild a list after a reload: every question becomes a placeholder again and resolves as the student moves. */
+async function restoreList(id: string): Promise<Attempt | null> {
+  let v: StoredList | null = null;
+  try {
+    v = JSON.parse(sessionStorage.getItem(listKey(id)) ?? "null") as StoredList | null;
+  } catch {
+    v = null;
+  }
+  if (!v || !v.ids?.length) return null;
+  const ids = v.ids.map((q) => (isPlaceholder(q) || registry.getQuestion(q) ? q : `${QUESTION_REF}${q}`));
+  const current = Math.max(0, Math.min(ids.length - 1, v.current));
+  const a: Attempt = {
+    id,
+    exam: v.exam,
+    mode: "learning",
+    kind: "practice",
+    title: v.title,
+    scope: v.scope,
+    questionIds: ids,
+    sections: sectionsFor(v.exam, ids.filter((q) => !isPlaceholder(q))),
+    durationSec: null,
+    startedAt: v.startedAt,
+    updatedAt: nowIso(),
+    submittedAt: null,
+    status: "in_progress",
+    current,
+    elapsedSec: 0,
+    responses: Object.fromEntries(ids.map((q, i) => [q, { ...blank(q), visited: i === current }])),
+  };
+  patchState((s) => ({ ...s, attempts: { ...s.attempts, [id]: a } }));
+  await resolveAround(id, current);
+  return state.attempts[id] ?? null;
+}
+
 /* ------------------------------------------------------- demo papers (flagged) */
 
 const papersKey = (uid: string) => `projectx-demo-papers-v1:${uid}`;
@@ -674,11 +865,14 @@ export async function startPaper(paperId: string, mode: "cbt" | "test" | "learni
 
 /* --------------------------------------------------------------- local edits */
 
-const isLocal = (a: Attempt) => Boolean(a.local) || a.id.startsWith("single_");
+/** Sessions that live only in this browser: one question (`single_`) or a list (`list_`). Answers post as standalone attempts. */
+export const isClientSession = (id: string) => id.startsWith("single_") || id.startsWith(LIST_PREFIX);
+const isLocal = (a: Attempt) => Boolean(a.local) || isClientSession(a.id);
 const nowIso = () => new Date().toISOString();
 
 function persistDraft(a: Attempt) {
   if (a.local) return saveLocalPapers();
+  if (a.id.startsWith(LIST_PREFIX)) return saveList(a);
   if (!userId || a.id.startsWith("single_")) return;
   const prev = readDraft(userId, a.id);
   const responses: Draft["responses"] = {};
@@ -719,6 +913,7 @@ export function setCurrent(attemptId: string, index: number) {
     const r = a.responses[qid] ?? blank(qid);
     return { ...a, current: i, responses: { ...a.responses, [qid]: { ...r, visited: true } } };
   });
+  if (attemptId.startsWith(LIST_PREFIX)) void resolveAround(attemptId, state.attempts[attemptId]?.current ?? index);
 }
 
 export function tick(attemptId: string, qid: string, seconds: number) {
@@ -779,7 +974,7 @@ export async function postOne(a: Attempt, qid: string): Promise<AttemptResult | 
     return await api.submitAttempt({
       client_attempt_id: clientAttemptId,
       question_id: qid,
-      ...(a.id.startsWith("single_") ? {} : { session_id: a.id }),
+      ...(isClientSession(a.id) ? {} : { session_id: a.id }),
       response,
       time_spent_ms: Math.max(0, Math.min(10_800_000, Math.round(r.timeSpentSec * 1000))),
     });
@@ -789,6 +984,30 @@ export async function postOne(a: Attempt, qid: string): Promise<AttemptResult | 
     throw e;
   }
 }
+
+/**
+ * A signed-in student answered on a public question page: record it as a standalone attempt (POST /practice/attempts,
+ * no session) so it counts for progress, streaks and the mistake notebook like any other answer. The page grades in
+ * the browser against the same official key; the server stays the authority. Resolves to the server's verdict, or null
+ * when nothing was recorded (signed out, invalid answer, network error).
+ */
+export async function recordStandaloneAttempt(input: { questionId: string; response: AnswerResponseInput; timeSpentSec: number }): Promise<{ isCorrect: boolean } | null> {
+  if (!userId) return null;
+  try {
+    const res = await api.submitAttempt({
+      client_attempt_id: newClientId(),
+      question_id: input.questionId,
+      response: input.response,
+      time_spent_ms: Math.max(0, Math.min(10_800_000, Math.round(input.timeSpentSec * 1000))),
+    });
+    refreshDerivedSoon();
+    return { isCorrect: res.is_correct };
+  } catch (e) {
+    handleError(e, "check", true);
+    return null;
+  }
+}
+export type AnswerResponseInput = Parameters<typeof api.submitAttempt>[0]["response"];
 
 /** Learning mode "Check": store the attempt on the server, then show what it returns. */
 export async function checkAnswer(attemptId: string, qid: string): Promise<void> {
@@ -806,7 +1025,7 @@ export async function checkAnswer(attemptId: string, qid: string): Promise<void>
   try {
     const res = await postOne(a, qid);
     if (res === "already") {
-      if (!a.id.startsWith("single_")) await loadSession(a.id);
+      if (!isClientSession(a.id)) await loadSession(a.id);
       toast("This question was already answered", { icon: "info" });
     } else applyResult(a, qid, res);
   } catch (e) {
@@ -828,7 +1047,11 @@ export async function submitAttempt(attemptId: string): Promise<boolean> {
   const a0 = state.attempts[attemptId];
   if (!a0 || a0.status === "submitted") return true;
   if (isLocal(a0)) {
-    patchState((s) => ({ ...s, attempts: { ...s.attempts, [attemptId]: { ...a0, status: "submitted", submittedAt: nowIso(), updatedAt: nowIso() } } }));
+    // A list may hold items the student never reached (still placeholders): results show only real questions.
+    const kept = a0.questionIds.filter((q) => !isPlaceholder(q));
+    const done: Attempt = { ...a0, questionIds: kept, sections: sectionsFor(a0.exam, kept), current: Math.min(a0.current, Math.max(0, kept.length - 1)), status: "submitted", submittedAt: nowIso(), updatedAt: nowIso() };
+    patchState((s) => ({ ...s, attempts: { ...s.attempts, [attemptId]: done } }));
+    if (attemptId.startsWith(LIST_PREFIX)) clearList(attemptId);
     saveLocalPapers();
     return true;
   }
@@ -871,7 +1094,7 @@ export async function submitAttempt(attemptId: string): Promise<boolean> {
     setSubmit({ phase: "running", done, total });
   }
   try {
-    if (!attemptId.startsWith("single_")) {
+    if (!isClientSession(attemptId)) {
       await api.completeSession(attemptId);
       track("session_completed");
     }
@@ -881,7 +1104,7 @@ export async function submitAttempt(attemptId: string): Promise<boolean> {
       return false;
     }
   }
-  if (needReload && !attemptId.startsWith("single_")) await loadSession(attemptId);
+  if (needReload && !isClientSession(attemptId)) await loadSession(attemptId);
   patchState((s) => {
     const a = s.attempts[attemptId];
     return a ? { ...s, attempts: { ...s.attempts, [attemptId]: { ...a, status: "submitted", submittedAt: nowIso(), updatedAt: nowIso() } } } : s;
@@ -1005,10 +1228,12 @@ export async function updateUser(patch: Partial<DemoUser>): Promise<void> {
 export async function completeOnboarding(patch: Partial<DemoUser>): Promise<void> {
   if (!state.user) return;
   const user = { ...state.user, ...patch };
+  // Only what the student chose is saved. "Skip for now" passes no class or goal, so the account keeps its own values
+  // instead of the screen's defaults. The exam is always sent: progress and exam preferences are keyed by it.
   const body: PatchMeInput = {
     target_exam: examToApi(user.exam),
-    daily_goal_attempts: Math.max(1, Math.min(500, Math.round(user.dailyGoal))),
-    class_level: user.classLevel,
+    ...(patch.dailyGoal !== undefined ? { daily_goal_attempts: Math.max(1, Math.min(500, Math.round(patch.dailyGoal))) } : {}),
+    ...(patch.classLevel !== undefined ? { class_level: patch.classLevel } : {}),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
     onboarding_completed: true,
   };

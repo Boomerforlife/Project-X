@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useEntitlements } from "@/components/ads/AdsProvider";
 import { ButtonLink } from "@/components/ui/Button";
-import { billingMe } from "@/lib/api/billing";
 import { apiEnabled } from "@/lib/api/env";
 import { track } from "@/lib/analytics";
 import { PAPERS_ENABLED } from "@/lib/demo/progress";
 import { useAuthStatus } from "@/lib/session/store";
 import { PlusBadge } from "./PlusBadge";
+import { pricingHref, useCurrentUrl } from "./pricingNext";
 
 const KEY = "tabby.upgradePrompt.lastShown";
 const WEEK_MS = 7 * 86_400_000;
@@ -26,9 +27,9 @@ export type UpgradeContext = "dashboard" | "results" | "progress";
  */
 const COPY: Record<UpgradeContext, string> = PAPERS_ENABLED
   ? {
-      dashboard: "Plus adds unlimited full papers and CBT mocks, longer study plans and the full diagnostic report. Practice stays free either way.",
-      results: "Want to retry papers in the CBT as often as you like? Plus removes the monthly full-paper limit.",
-      progress: "Full mocks are the best check of exam readiness. Plus makes them unlimited.",
+      dashboard: "Plus adds unlimited papers (timed or in CBT), longer study plans and the full diagnostic report. Practice stays free either way.",
+      results: "Want to retry papers in the CBT as often as you like? Plus removes the monthly paper limit.",
+      progress: "Full papers are the best check of exam readiness. Plus makes them unlimited.",
     }
   : {
       dashboard: "Plus adds study plans up to 14 days, the full chapter-by-chapter diagnostic report and every version of each library problem. Practice stays free either way.",
@@ -51,31 +52,34 @@ function lastShown(): number {
 export function PremiumUpgradePrompt({ context }: { context: UpgradeContext }) {
   const path = usePathname() ?? "";
   const { status } = useAuthStatus();
+  const here = useCurrentUrl();
+  const { tier, paymentsEnabled } = useEntitlements();
   const [show, setShow] = useState(false);
+  // Plan status comes from the shared entitlements (no separate /billing/me call).
+  const eligible = tier === "FREE" && paymentsEnabled;
 
   useEffect(() => {
-    if (!apiEnabled() || status !== "ready") return;
+    if (!apiEnabled() || status !== "ready" || !eligible) return;
     if (BLOCKED.some((p) => path.startsWith(p))) return;
     if (Date.now() - lastShown() < WEEK_MS) return;
+    // Async on purpose: the effect only schedules the card, the render follows on the next tick.
     let live = true;
-    billingMe()
-      .then((me) => {
-        if (!live || me.tier !== "FREE" || !me.payments_enabled) return;
-        setShow(true);
-        try {
-          localStorage.setItem(KEY, String(Date.now()));
-        } catch {
-          /* convenience only */
-        }
-        track("upgrade_prompt_shown", { context });
-      })
-      .catch(() => undefined);
+    void Promise.resolve().then(() => {
+      if (!live) return;
+      setShow(true);
+      try {
+        localStorage.setItem(KEY, String(Date.now()));
+      } catch {
+        /* convenience only */
+      }
+      track("upgrade_prompt_shown", { context });
+    });
     return () => {
       live = false;
     };
-  }, [status, path, context]);
+  }, [status, eligible, path, context]);
 
-  if (!show) return null;
+  if (!show || !eligible) return null;
   return (
     <aside aria-label="Tabby Plus" className="flex flex-col gap-3 rounded-lg border border-plus/30 bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="flex items-start gap-2.5 text-sm text-fg-soft">
@@ -83,7 +87,7 @@ export function PremiumUpgradePrompt({ context }: { context: UpgradeContext }) {
         <span>{COPY[context]}</span>
       </p>
       <div className="flex shrink-0 gap-2">
-        <ButtonLink href="/pricing/" size="sm" variant="plus" onClick={() => track("upgrade_prompt_clicked", { context })}>
+        <ButtonLink href={pricingHref(here)} size="sm" variant="plus" onClick={() => track("upgrade_prompt_clicked", { context })}>
           See Plus
         </ButtonLink>
         <button type="button" className="h-9 px-3 text-sm text-fg-muted hover:text-fg" onClick={() => setShow(false)}>

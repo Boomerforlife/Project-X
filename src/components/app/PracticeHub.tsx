@@ -13,6 +13,7 @@ import { ProblemLibrary } from "./ProblemLibrary";
 import { DemoBadge } from "@/components/app/ModeBadge";
 import { toast } from "@/components/ui/Toast";
 import { cn } from "@/lib/cn";
+import { routes } from "@/lib/routes";
 import { catalog } from "@/lib/data/catalog";
 import { relativeDay } from "@/lib/demo/dates";
 import { quickPractice } from "@/lib/demo/launch";
@@ -122,8 +123,14 @@ function Hub({ s }: { s: S }) {
           <Eyebrow className="flex items-center gap-2">
             Practice <DemoBadge />
           </Eyebrow>
-          <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">What shall we practise?</h1>
-          <p className="mt-3 max-w-xl text-lg text-fg-muted">Start in one click, pick up a recommendation, or choose a problem from the library.</p>
+          <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">All questions</h1>
+          <p className="mt-3 max-w-xl text-lg text-fg-muted">
+            Every problem across your chapters, with filters. Start a quick mixed session, or practise one chapter at a time from{" "}
+            <Link href={routes.practice(cfg.track)} className="text-fg underline underline-offset-4">
+              its page
+            </Link>
+            .
+          </p>
         </div>
         <Segmented label="Exam" value={exam} onChange={switchExam} options={availableExams().map((e) => ({ id: e.id, label: e.name }))} />
       </div>
@@ -147,8 +154,8 @@ function Hub({ s }: { s: S }) {
                   value={mode}
                   onChange={setMode}
                   options={[
-                    { id: "learning", label: "Learning" },
-                    { id: "test", label: "Test" },
+                    { id: "learning", label: "Learn" },
+                    { id: "test", label: "Timed test" },
                   ]}
                 />
               </div>
@@ -171,8 +178,8 @@ function Hub({ s }: { s: S }) {
             size="lg"
             pixel
             disabled={busy}
-            className="h-14 px-8 text-base"
             onClick={() => go(quickPractice(exam, { count: Number(count), mode, subject: quickSubject === "mixed" ? undefined : quickSubject }))}
+            className="h-14 px-8 text-base max-sm:w-full"
           >
             {busy ? "Starting…" : "Start"} <Icon name="arrowRight" className="size-4" />
           </Button>
@@ -189,19 +196,19 @@ function Hub({ s }: { s: S }) {
                 <Ring value={done / a.questionIds.length} size={40} stroke={4} label={`${done} of ${a.questionIds.length}`}>
                   <Icon name="play" className="size-3.5" />
                 </Ring>
-                <button type="button" onClick={() => router.push(a.mode === "cbt" ? `/cbt/?id=${a.id}` : `/practice/session/?id=${a.id}`)} className="min-w-0 flex-1 text-left">
+                <Link href={a.mode === "cbt" ? routes.cbt(a.id) : routes.session(a.id)} className="min-w-0 flex-1 text-left">
                   <span className="block truncate font-medium hover:underline">Continue {a.title}</span>
                   <span className="block text-sm text-fg-muted">
                     {done}/{a.questionIds.length} · {relativeDay(a.updatedAt)}
                   </span>
-                </button>
+                </Link>
                 <button
                   type="button"
                   onClick={async () => {
                     await discardAttempt(a.id);
                     toast("Session discarded", { icon: "trash" });
                   }}
-                  className="grid size-9 place-items-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg"
+                  className="grid size-11 place-items-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg sm:size-9"
                   aria-label={`Discard ${a.title}`}
                   title="Discard"
                 >
@@ -217,7 +224,9 @@ function Hub({ s }: { s: S }) {
         </div>
       )}
 
-      {/* Recommended */}
+      <ProblemLibrary s={s} />
+
+      {/* Recommended (Home shows the single best next step; these are more options) */}
       {picks.length > 0 && (
         <section aria-labelledby="rec-h" className="mt-14">
           <h2 id="rec-h" className="text-2xl font-semibold">
@@ -250,10 +259,7 @@ function Hub({ s }: { s: S }) {
       )}
 
       {/* Study plan entry: the diagnostic and a basic plan are free; longer plans and the full report are Tabby Plus. */}
-      <Link
-        href="/study-plans/"
-        className="surface-flat group mt-14 flex items-center gap-4 p-4 transition-colors hover:border-line-strong sm:p-5"
-      >
+      <Link href={routes.studyPlan} className="surface-flat group mt-14 flex items-center gap-4 p-4 transition-colors hover:border-line-strong sm:p-5">
         <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-surface-2">
           <PixelIcon name="target" className="size-5" />
         </span>
@@ -263,8 +269,6 @@ function Hub({ s }: { s: S }) {
         </span>
         <Icon name="arrowRight" className="size-4 text-fg-subtle transition-transform group-hover:translate-x-0.5" />
       </Link>
-
-      <ProblemLibrary s={s} />
     </div>
   );
 }
@@ -329,6 +333,13 @@ function Launcher({ s }: { s: DemoState & { user: NonNullable<DemoState["user"]>
       };
     }
   }, [qParam, slugParam, router, userExam, exam, subject, chapterSlug]);
+
+  // Chapter practice lives on the chapter page now (its Practise sheet): old links land there with the sheet open.
+  const toChapter = !qParam && !slugParam && subject && chapterSlug ? routes.chapterPractise(EXAMS[exam].track, subject, chapterSlug, { timed: p.get("mode") === "test" }) : null;
+  useEffect(() => {
+    if (toChapter) router.replace(toChapter);
+  }, [toChapter, router]);
+  if (toChapter) return <PageSkeleton />;
 
   if (qParam || slugParam) {
     return error ? (

@@ -1,22 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
-import { QuestionList } from "@/components/content/QuestionList";
+import { ChapterQuestions, type ChapterRow } from "@/components/chapter/ChapterQuestions";
+import { PractiseSheet } from "@/components/chapter/PractiseSheet";
 import { EmptyState, PageHeader } from "@/components/layout/PageHeader";
+import { DifficultyChip, TypeChip } from "@/components/ui/Badges";
 import { ButtonLink } from "@/components/ui/Button";
-import { PracticeLink } from "@/components/practice/PublicTry";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import { PAPERS_VISIBLE, getChapter, getChapters, getQuestionCounts, getQuestions, getSubjects } from "@/lib/data";
-import { richTextToPlain } from "@/components/content/RichText";
+import { FULL_PAPERS, getChapter, getChapters, getQuestionCounts, getQuestions, getSubjects } from "@/lib/data";
+import { RichText, richTextToPlain } from "@/components/content/RichText";
+import { routes } from "@/lib/routes";
 import type { QuestionCard } from "@/contracts";
 import { EXAMS, TRACKS, TRACK_INFO, isTrack, type Track } from "@/lib/exams";
 import { pct, questionStats, yearSpan, type QuestionStats } from "@/lib/chapter-stats";
 import { isChapterIndexable } from "@/lib/indexing";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
 import { SUBJECT_STYLE } from "@/lib/subjects";
-
-const PREVIEW = 12;
 
 export async function generateStaticParams() {
   const out: { track: string; subject: string; chapter: string }[] = [];
@@ -73,12 +73,15 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
   const idx = siblings.findIndex((x) => x.slug === c.slug);
   const prev = siblings[idx - 1];
   const next = siblings[idx + 1];
-  const base = `/practice/new/?exam=${info.primaryExam}&subject=${s.id}&chapter=${c.slug}`;
-  // Public pages first (crawlable), then the rest as previews.
-  const shown = [...qs.filter((q) => q.publicPage), ...qs.filter((q) => !q.publicPage)].slice(0, PREVIEW);
+  // Newest paper first; questions without a year (written for TabbyPrep) last, in the API's order.
+  const ordered = [...qs].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  const rows: ChapterRow[] = ordered.map((q) => ({ id: q.id, slug: q.slug, year: q.year ?? null, type: q.type, difficulty: q.difficulty ?? null, topic: q.topic ?? null, publicPage: Boolean(q.publicPage) }));
+  const bodies = Object.fromEntries(ordered.map((q) => [q.id, <RowBody key={q.id} q={q} />]));
+  const topicNames = Object.fromEntries(c.topics.map((t) => [t.slug, t.name]));
+  const years = [...new Set(ordered.map((q) => q.year).filter((y): y is number => typeof y === "number"))].sort((a, b) => b - a);
   // Signed-out visitors practise right on the public question pages (no login); the first one starts the chapter.
-  const firstPublic = qs.find((q) => q.publicPage);
-  const startPublic = firstPublic ? `/${track}/questions/${firstPublic.slug}/` : null;
+  const firstPublic = ordered.find((q) => q.publicPage);
+  const startPublic = firstPublic ? routes.question(track, firstPublic.slug) : null;
 
   return (
     <>
@@ -104,42 +107,23 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
         }
         lede={c.summary}
       >
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <PracticeLink signedInHref={`${base}&mode=learning`} publicHref={startPublic ?? `${base}&mode=learning`} pixel>
-            <Icon name="play" className="size-3.5" /> Practise this chapter
-          </PracticeLink>
-          <ButtonLink href={`${base}&mode=test`} variant="secondary">
-            <Icon name="clock" className="size-4" /> Timed test
-          </ButtonLink>
-          {total > 0 && (
-            <span className="text-sm tabular-nums text-fg-muted">
-              {total} question{total === 1 ? "" : "s"} available · free, no sign-up needed to start
-            </span>
-          )}
-        </div>
+        {total > 0 && (
+          <div className="mt-8">
+            <PractiseSheet exam={info.primaryExam} subject={s.id} chapter={c.slug} chapterName={c.name} total={total} years={years} firstPublicHref={startPublic} />
+          </div>
+        )}
       </PageHeader>
 
       <div className="mx-auto grid max-w-6xl gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_17rem]">
         <section aria-labelledby="qs-h" className="min-w-0">
-          <div className="mb-5 flex items-baseline justify-between gap-4">
-            <h2 id="qs-h" className="text-xl font-semibold">
-              Questions
-            </h2>
-            {total > PREVIEW && <p className="text-sm text-fg-muted">Showing {Math.min(PREVIEW, shown.length)} of {total}</p>}
-          </div>
+          <h2 id="qs-h" className="mb-4 text-xl font-semibold">
+            Questions
+          </h2>
           {qs.length ? (
             <>
-              <QuestionList questions={shown} track={track} />
-              {total > PREVIEW && (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-line-strong p-4 text-sm">
-                  <span className="text-fg-muted">{total - PREVIEW} more questions are available in practice.</span>
-                  <PracticeLink signedInHref={`${base}&mode=learning`} publicHref={startPublic ?? `${base}&mode=learning`} size="sm" variant="secondary">
-                    Practise all {total}
-                  </PracticeLink>
-                </div>
-              )}
+              <ChapterQuestions rows={rows} bodies={bodies} track={track} exam={info.primaryExam} subject={s.id} chapter={c.slug} chapterName={c.name} topicNames={topicNames} />
               <ChapterAnalysis stats={stats} chapter={c.name} exam={exam} track={track} />
-              <AllQuestions questions={qs} shown={shown} track={track} chapter={c.name} />
+              <AllQuestions questions={ordered} track={track} chapter={c.name} />
             </>
           ) : (
             <EmptyState
@@ -168,12 +152,12 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
               ))}
             </ul>
           </section>
-          {PAPERS_VISIBLE && (
+          {FULL_PAPERS && (
             <section className="rounded-xl border border-line p-4">
               <h2 className="font-medium">Exam-style practice</h2>
-              <p className="mt-1 text-fg-muted">Sit a full paper in the CBT interface when you are ready.</p>
-              <Link href={`/tests/?exam=${info.primaryExam}`} className="mt-3 inline-flex items-center gap-1 text-fg underline-offset-4 hover:underline">
-                Papers & mocks <Icon name="arrowRight" className="size-3.5" />
+              <p className="mt-1 text-fg-muted">Sit a full previous-year paper in the CBT interface when you are ready.</p>
+              <Link href={routes.pyq(track)} className="mt-3 inline-flex min-h-11 items-center gap-1 text-fg underline-offset-4 hover:underline">
+                Full papers in PYQs <Icon name="arrowRight" className="size-3.5" />
               </Link>
             </section>
           )}
@@ -197,13 +181,29 @@ export default async function ChapterPage({ params }: PageProps<"/[track]/[subje
   );
 }
 
+/** A question row's content, rendered on the server (maths included) and handed to the filterable list. */
+function RowBody({ q }: { q: QuestionCard }) {
+  return (
+    <>
+      <p className="line-clamp-3 leading-relaxed text-fg-soft group-hover:text-fg">
+        <RichText value={q.stem} inline />
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {/* Only previous-year questions carry a year. */}
+        {q.year ? <span className="rounded-sm border border-line px-1.5 py-0.5 text-[11px] text-fg-muted">PYQ {q.year}</span> : null}
+        <TypeChip type={q.type} />
+        {q.difficulty && <DifficultyChip difficulty={q.difficulty} />}
+      </div>
+    </>
+  );
+}
+
 /**
- * Every remaining public question of the chapter as a plain link, newest paper first. Gives students (and crawlers)
- * a path to each question page beyond the 12 cards shown above.
+ * An index of every public question of the chapter as plain links, newest paper first, folded away under the list. Gives
+ * students (and crawlers) a path to each question page whatever the list's filters and paging show.
  */
-function AllQuestions({ questions, shown, track, chapter }: { questions: QuestionCard[]; shown: QuestionCard[]; track: Track; chapter: string }) {
-  const seen = new Set(shown.map((q) => q.id));
-  const rest = questions.filter((q) => q.publicPage && !seen.has(q.id));
+function AllQuestions({ questions, track, chapter }: { questions: QuestionCard[]; track: Track; chapter: string }) {
+  const rest = questions.filter((q) => q.publicPage);
   if (rest.length === 0) return null;
   const byYear = new Map<string, QuestionCard[]>();
   for (const q of [...rest].sort((a, b) => (b.year ?? 0) - (a.year ?? 0))) {
@@ -211,11 +211,12 @@ function AllQuestions({ questions, shown, track, chapter }: { questions: Questio
     byYear.set(key, [...(byYear.get(key) ?? []), q]);
   }
   return (
-    <section aria-labelledby="all-h" className="mt-12">
-      <h2 id="all-h" className="mb-4 text-lg font-semibold">
-        More {chapter} questions
-      </h2>
-      <div className="space-y-6">
+    <details className="group mt-12 rounded-xl border border-line">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 [&::-webkit-details-marker]:hidden">
+        <h2 className="text-lg font-semibold">Index of all {rest.length} {chapter} questions</h2>
+        <Icon name="chevronDown" className="size-4 shrink-0 text-fg-muted transition-transform group-open:rotate-180 motion-reduce:transition-none" />
+      </summary>
+      <div className="space-y-6 border-t border-line px-5 py-5">
         {[...byYear].map(([year, list]) => (
           <div key={year}>
             <h3 className="mb-2 font-pixel text-xs uppercase tracking-[0.2em] text-fg-muted">
@@ -224,7 +225,7 @@ function AllQuestions({ questions, shown, track, chapter }: { questions: Questio
             <ul className="space-y-1.5 text-sm">
               {list.map((q) => (
                 <li key={q.id}>
-                  <Link href={`/${track}/questions/${q.slug}/`} className="line-clamp-1 text-fg-soft underline-offset-4 hover:text-fg hover:underline">
+                  <Link href={routes.question(track, q.slug)} className="line-clamp-1 text-fg-soft underline-offset-4 hover:text-fg hover:underline">
                     {linkText(q)}
                   </Link>
                 </li>
@@ -233,7 +234,7 @@ function AllQuestions({ questions, shown, track, chapter }: { questions: Questio
           </div>
         ))}
       </div>
-    </section>
+    </details>
   );
 }
 

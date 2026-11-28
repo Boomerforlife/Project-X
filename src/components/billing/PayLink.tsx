@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { PublicPaymentLink } from "@projectx/contracts";
+import { useEntitlements } from "@/components/ads/AdsProvider";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Primitives";
 import { createLinkOrder, formatInr, publicPaymentLink } from "@/lib/api/billing";
@@ -11,6 +12,7 @@ import { openCheckout } from "@/lib/billing/checkout";
 
 /** Parent payment page: no sign-in. The payer sees only the plan, price and the student's first name. */
 export function PayLink({ token }: { token: string }) {
+  const { refresh } = useEntitlements();
   const [link, setLink] = useState<PublicPaymentLink | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "missing" | "paying" | "waiting" | "done" | "error">(() => (apiEnabled() ? "loading" : "missing"));
   const [message, setMessage] = useState<string | null>(null);
@@ -36,6 +38,8 @@ export function PayLink({ token }: { token: string }) {
           if (l.status === "PAID") {
             setLink(l);
             setState("done");
+            // If the payer is also the signed-in student, their badge and ads update now (a no-op for anyone else).
+            void refresh();
           }
         })
         .catch(() => undefined);
@@ -45,7 +49,7 @@ export function PayLink({ token }: { token: string }) {
       }
     }, 2500);
     return () => clearInterval(id);
-  }, [state, token]);
+  }, [state, token, refresh]);
 
   if (state === "loading") return <Frame title="Loading…" />;
   if (state === "missing" || !link) return <Frame title="This link doesn't work" body="It may have been typed incorrectly. Ask for a new link." />;

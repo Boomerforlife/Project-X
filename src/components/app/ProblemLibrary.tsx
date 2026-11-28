@@ -28,12 +28,14 @@ import {
   formatNumber,
   listProblems,
   openProblem,
+  openProblemList,
   problemSummary,
   todaysProblem,
   type LibFilters,
   type LibProblem,
   type LibSummary,
 } from "@/lib/problems";
+import { routes } from "@/lib/routes";
 import { SUBJECT_STYLE } from "@/lib/subjects";
 
 type View = "chapters" | "all";
@@ -71,12 +73,15 @@ export function ProblemLibrary({ s }: { s: DemoState & { user: NonNullable<DemoS
   const exam = s.user.exam;
   const f = useFilters(exam);
   const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const [summary, setSummary] = useState<LibSummary | null>(null);
   const [daily, setDaily] = useState<{ date: string; problem: LibProblem } | null>(null);
   const [opening, setOpening] = useState<number | null>(null);
   const [search, setSearch] = useState(f.q);
 
-  // Status changes after every attempt, so re-read when the local state object changes.
+  // Status changes after an answer is checked: re-read then, not on every store update (bookmark, palette move…).
+  const sKey = statusKey(s);
   useEffect(() => {
     let live = true;
     problemSummary(exam, s).then((x) => live && setSummary(x), () => live && setSummary(null));
@@ -84,7 +89,9 @@ export function ProblemLibrary({ s }: { s: DemoState & { user: NonNullable<DemoS
     return () => {
       live = false;
     };
-  }, [exam, s]);
+    // s is read at run time; sKey decides when to run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exam, sKey]);
 
   // Debounce search into the URL.
   useEffect(() => {
@@ -104,18 +111,22 @@ export function ProblemLibrary({ s }: { s: DemoState & { user: NonNullable<DemoS
     [exam, f.subject, f.difficulty, f.status, f.q],
   );
 
-  const open = async (p: LibProblem) => {
+  // Opening a problem starts a session over the list it was opened from (that chapter, or the visible list), positioned at
+  // it, so Previous/Next keep working; Back returns here with the same filters.
+  const here = `${pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+  const open = async (p: LibProblem, list: LibProblem[] = [p]) => {
     if (p.locked) {
-      router.push("/pricing/");
+      router.push(routes.pricing(here));
       return;
     }
     setOpening(p.number);
     try {
-      const id = await openProblem(p.number, exam, s);
-      router.push(`/practice/session/?id=${id}`);
+      const pool = list.filter((x) => !x.locked);
+      const id = pool.length > 1 ? await openProblemList(pool.map((x) => x.number), p.number, exam, s, listTitle(p, pool)) : await openProblem(p.number, exam, s);
+      router.push(`${routes.session(id)}&from=${encodeURIComponent(here)}`);
     } catch (e) {
       setOpening(null);
-      if (isApiError(e) && (e.details as { reason?: string } | undefined)?.reason === "PREMIUM_REQUIRED") router.push("/pricing/");
+      if (isApiError(e) && (e.details as { reason?: string } | undefined)?.reason === "PREMIUM_REQUIRED") router.push(routes.pricing(here));
       else toast("Couldn't open that problem. Please try again.", { icon: "alert", tone: "warn" });
     }
   };
@@ -312,17 +323,30 @@ function DiffBars({ d }: { d: Difficulty }) {
 
 /* ------------------------------------------------------------------- lists */
 
-type ListProps = { filters: Omit<LibFilters, "offset" | "limit">; s: DemoState; opening: number | null; onOpen: (p: LibProblem) => void };
+type ListProps = { filters: Omit<LibFilters, "offset" | "limit">; s: DemoState; opening: number | null; onOpen: (p: LibProblem, list?: LibProblem[]) => void };
+
+/** Session title for a list opened from the library: the chapter when every problem shares one, else "Problem library". */
+function listTitle(p: LibProblem, list: LibProblem[]): string {
+  return list.every((x) => x.chapter === p.chapter) ? `${p.chapterName} · problems` : "Problem library";
+}
 
 /** First page on mount / filter change / state change (status is fresh after every answer); more pages on demand. */
 /** Upper bound for "load everything" (chapter view): 30 pages of 100. */
 const MAX_ALL_PAGES = 30;
+
+/** Changes only when solved/attempted status can have changed (an answer was checked), not on every store update. */
+function statusKey(s: DemoState): string {
+  let checked = 0;
+  for (const a of Object.values(s.attempts)) for (const r of Object.values(a.responses)) if (r.checked) checked++;
+  return `${checked}:${s.server?.streak?.todayAttempts ?? 0}:${Object.keys(s.mistakes).length}`;
+}
 
 function usePaged(filters: Omit<LibFilters, "offset" | "limit">, s: DemoState, limit = 50, all = false) {
   const key = JSON.stringify(filters);
   const [page, setPage] = useState<{ items: LibProblem[] | null; total: number; error: boolean }>({ items: null, total: 0, error: false });
   const [more, setMore] = useState(false);
   const [nonce, setNonce] = useState(0);
+  const sKey = statusKey(s);
   useEffect(() => {
     let live = true;
     (async () => {
@@ -342,7 +366,9 @@ function usePaged(filters: Omit<LibFilters, "offset" | "limit">, s: DemoState, l
     return () => {
       live = false;
     };
-  }, [key, s, limit, all, nonce]);
+    // s is read at run time; sKey decides when to re-read (after an answer is checked).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, sKey, limit, all, nonce]);
   const loadMore = () => {
     const offset = page.items?.length ?? 0;
     setMore(true);
@@ -377,7 +403,7 @@ function FlatList({ filters, s, opening, onOpen, filtered, onClear }: ListProps 
           {ci > 0 && <AdSlot placement="library-infeed" />}
           <ul className="surface divide-y divide-line overflow-hidden p-0">
             {chunk.map((p) => (
-              <ProblemRow key={p.number} p={p} showChapter opening={opening === p.number} onOpen={() => onOpen(p)} />
+              <ProblemRow key={p.number} p={p} showChapter opening={opening === p.number} onOpen={() => onOpen(p, items)} />
             ))}
           </ul>
         </div>
@@ -431,7 +457,7 @@ function ChapterGroups({ exam, filters, s, opening, onOpen, filtered, onClear }:
           {!filters.subject && <h3 className={cn("mb-3 font-display text-lg font-semibold", SUBJECT_STYLE[g.sub].text)}>{catalog.subject(g.sub)?.name ?? g.sub}</h3>}
           <ul className="surface divide-y divide-line overflow-hidden p-0">
             {g.chapters.map((c, i) => (
-              <ChapterGroup key={c.slug} subject={g.sub} chapter={c.slug} name={c.name} problems={c.problems} defaultOpen={i === 0 || filtered} opening={opening} onOpen={onOpen} />
+              <ChapterGroup key={c.slug} examOf={exam} subject={g.sub} chapter={c.slug} name={c.name} problems={c.problems} defaultOpen={i === 0 || filtered} opening={opening} onOpen={onOpen} />
             ))}
           </ul>
         </div>
@@ -450,6 +476,7 @@ function ChapterGroups({ exam, filters, s, opening, onOpen, filtered, onClear }:
 }
 
 function ChapterGroup({
+  examOf,
   subject,
   chapter,
   name,
@@ -458,13 +485,14 @@ function ChapterGroup({
   opening,
   onOpen,
 }: {
+  examOf: ExamId;
   subject: SubjectId;
   chapter: string;
   name: string;
   problems: LibProblem[];
   defaultOpen: boolean;
   opening: number | null;
-  onOpen: (p: LibProblem) => void;
+  onOpen: (p: LibProblem, list?: LibProblem[]) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const id = `ch-${subject}-${chapter}`;
@@ -492,8 +520,15 @@ function ChapterGroup({
       {open && (
         <ul id={id} className="divide-y divide-line border-t border-line bg-bg/40">
           {problems.map((p) => (
-            <ProblemRow key={p.number} p={p} opening={opening === p.number} onOpen={() => onOpen(p)} />
+            <ProblemRow key={p.number} p={p} opening={opening === p.number} onOpen={() => onOpen(p, problems)} />
           ))}
+          {chapter !== "_other" && (
+            <li className="flex justify-end px-4 py-2 sm:px-5">
+              <Link href={routes.chapterPractise(EXAMS[examOf].track, subject, chapter)} className="inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-soft hover:text-fg">
+                Practise all {name} questions <Icon name="arrowRight" className="size-3.5" />
+              </Link>
+            </li>
+          )}
         </ul>
       )}
     </li>

@@ -7,5 +7,5 @@ import { RouteError } from "@/components/app/RouteError";
  * Answers are autosaved, so retrying never discards the attempt.
  */
 export default function ExamError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
-  return <RouteError error={error} retry={retry} home="/tests/" mascot={false} />;
+  return <RouteError error={error} retry={retry} home="/jee/pyq/" mascot={false} />;
 }

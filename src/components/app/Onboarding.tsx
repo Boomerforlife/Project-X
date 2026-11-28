@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { safeNext } from "@/lib/auth/next";
 import { useEffect, useState } from "react";
 import type { ExamId } from "@/contracts";
 import { Kitty } from "@/components/brand/Kitty";
@@ -30,6 +31,8 @@ export function Onboarding() {
   const s = useDemo();
   const auth = useAuthStatus();
   const router = useRouter();
+  // Where the student was going before sign-up (a question, a paper…): they land there once onboarding is done.
+  const next = safeNext(useSearchParams().get("next"));
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -42,31 +45,39 @@ export function Onboarding() {
   const signedOut = API && auth.status === "signedOut";
   useEffect(() => {
     if (s && !s.user) {
-      if (API) router.replace("/login/?next=%2Fonboarding%2F");
+      if (API) router.replace(`/login/?next=${encodeURIComponent(next !== "/dashboard/" ? `/onboarding/?next=${encodeURIComponent(next)}` : "/onboarding/")}`);
       else demoLogin();
     }
-  }, [s, router]);
+  }, [s, router, next]);
   // Already onboarded (e.g. a bookmark of this page): nothing to do here.
   const already = API && Boolean(s?.user?.onboarded) && !busy;
   useEffect(() => {
-    if (already) router.replace("/dashboard/");
-  }, [already, router]);
+    if (already) router.replace(next);
+  }, [already, router, next]);
 
   if (API && auth.status === "error") return <LoadError message={auth.message} />;
   if (!s?.user || signedOut || already) return <PageSkeleton />;
 
-  const finish = async (patch: { exam: ExamId; classLevel: ClassLevel; dailyGoal: number }) => {
+  // One live exam: nothing to choose, so that step is skipped and the exam is not asked.
+  const askExam = examList.length > 1;
+
+  const finish = async (patch: Partial<{ exam: ExamId; classLevel: ClassLevel; dailyGoal: number }>) => {
     setBusy(true);
     setFailed(false);
     try {
       await completeOnboarding(patch);
-      router.push("/dashboard/");
+      router.push(next);
     } catch {
       setBusy(false);
       setFailed(true);
     }
   };
-  const steps = ["Exam", "Class", "Daily goal"];
+  const steps = askExam ? ["Exam", "About you"] : ["About you"];
+  const last = steps.length - 1;
+  const chosenExam = askExam ? exam : (examList[0]?.id ?? exam);
+  // Skip saves nothing the student did not choose. The account keeps its current values; only if the current
+  // exam is not one that is live do we fall back to the primary live exam (shown on Home as "Using … · change").
+  const skip = () => finish(examList.some((e) => e.id === s.user!.exam) ? {} : { exam: examList[0]?.id ?? s.user!.exam });
 
   return (
     <div className="mx-auto grid w-full max-w-5xl flex-1 gap-12 px-4 py-8 sm:px-6 md:grid-cols-[1fr_15rem] md:py-14">
@@ -84,7 +95,7 @@ export function Onboarding() {
         </ol>
 
         <div key={step} className="rise mt-10">
-          {step === 0 && (
+          {askExam && step === 0 && (
             <fieldset>
               <legend className="text-3xl font-semibold">Which exam are you preparing for?</legend>
               <p className="mt-2 text-fg-muted">You can switch any time from the header.</p>
@@ -113,41 +124,41 @@ export function Onboarding() {
               </div>
             </fieldset>
           )}
-          {step === 1 && (
-            <fieldset>
-              <legend className="text-3xl font-semibold">Where are you in your preparation?</legend>
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                {(
-                  [
-                    ["11", "Class 11", "Building foundations"],
-                    ["12", "Class 12", "Board + entrance year"],
-                    ["dropper", "Repeater", "Full-time preparation"],
-                  ] as [ClassLevel, string, string][]
-                ).map(([id, l, sub]) => (
-                  <label key={id} className={cn("cursor-pointer rounded-xl border p-5 transition-colors", cls === id ? "border-fg bg-surface-2" : "border-line hover:border-line-strong")}>
-                    <input type="radio" name="cls" className="sr-only" checked={cls === id} onChange={() => setCls(id)} />
-                    <span className="block text-lg font-semibold">{l}</span>
-                    <span className="mt-1 block text-sm text-fg-muted">{sub}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          )}
-          {step === 2 && (
-            <fieldset>
-              <legend className="text-3xl font-semibold">Set a daily goal</legend>
-              <p className="mt-2 text-fg-muted">{STREAK_MIN_QUESTIONS === 1 ? "A streak day counts once you answer a question." : `A streak day counts once you answer at least ${STREAK_MIN_QUESTIONS} questions.`} Your goal is just for you.</p>
-              <div className="mt-8 grid gap-3 sm:grid-cols-4">
-                {GOALS.map((g) => (
-                  <label key={g.n} className={cn("cursor-pointer rounded-xl border p-5 text-center transition-colors", goal === g.n ? "border-fg bg-surface-2" : "border-line hover:border-line-strong")}>
-                    <input type="radio" name="goal" className="sr-only" checked={goal === g.n} onChange={() => setGoal(g.n)} />
-                    <span className="block font-display text-3xl font-semibold tabular-nums">{g.n}</span>
-                    <span className="block text-sm">{g.label}</span>
-                    <span className="mt-1 block text-xs text-fg-muted">{g.sub}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+          {step === last && (
+            <div className="space-y-10">
+              <fieldset>
+                <legend className="text-3xl font-semibold">Where are you in your preparation?</legend>
+                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                  {(
+                    [
+                      ["11", "Class 11", "Building foundations"],
+                      ["12", "Class 12", "Board + entrance year"],
+                      ["dropper", "Repeater", "Full-time preparation"],
+                    ] as [ClassLevel, string, string][]
+                  ).map(([id, l, sub]) => (
+                    <label key={id} className={cn("cursor-pointer rounded-xl border p-5 transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-2", cls === id ? "border-fg bg-surface-2" : "border-line hover:border-line-strong")}>
+                      <input type="radio" name="cls" className="sr-only" checked={cls === id} onChange={() => setCls(id)} />
+                      <span className="block text-lg font-semibold">{l}</span>
+                      <span className="mt-1 block text-sm text-fg-muted">{sub}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend className="text-xl font-semibold">Set a daily goal</legend>
+                <p className="mt-2 text-fg-muted">{STREAK_MIN_QUESTIONS === 1 ? "A streak day counts once you answer a question." : `A streak day counts once you answer at least ${STREAK_MIN_QUESTIONS} questions.`} Your goal is just for you.</p>
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {GOALS.map((g) => (
+                    <label key={g.n} className={cn("cursor-pointer rounded-xl border p-5 text-center transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-2", goal === g.n ? "border-fg bg-surface-2" : "border-line hover:border-line-strong")}>
+                      <input type="radio" name="goal" className="sr-only" checked={goal === g.n} onChange={() => setGoal(g.n)} />
+                      <span className="block font-display text-3xl font-semibold tabular-nums">{g.n}</span>
+                      <span className="block text-sm">{g.label}</span>
+                      <span className="mt-1 block text-xs text-fg-muted">{g.sub}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
           )}
         </div>
 
@@ -157,16 +168,16 @@ export function Onboarding() {
               Back
             </Button>
           )}
-          {step < 2 ? (
+          {step < last ? (
             <Button pixel onClick={() => setStep(step + 1)}>
               Continue <Icon name="arrowRight" className="size-4" />
             </Button>
           ) : (
-            <Button pixel disabled={busy} onClick={() => finish({ exam, classLevel: cls, dailyGoal: goal })}>
-              {busy ? "Saving…" : "Go to my dashboard"} <Icon name="arrowRight" className="size-4" />
+            <Button pixel disabled={busy} onClick={() => finish({ exam: chosenExam, classLevel: cls, dailyGoal: goal })}>
+              {busy ? "Saving…" : "Go to Home"} <Icon name="arrowRight" className="size-4" />
             </Button>
           )}
-          <button type="button" onClick={() => finish({ exam, classLevel: cls, dailyGoal: goal })} className="ml-auto text-sm text-fg-muted underline-offset-4 hover:text-fg hover:underline">
+          <button type="button" disabled={busy} onClick={skip} className="ml-auto inline-flex min-h-11 items-center text-sm text-fg-muted underline-offset-4 hover:text-fg hover:underline">
             Skip for now
           </button>
         </div>
@@ -177,7 +188,7 @@ export function Onboarding() {
         )}
         {!API && (
           <p className="mt-8 text-xs text-fg-muted">
-            Demo: finishing fills your account with two months of sample practice for {EXAMS[exam].name} so every screen has something to show.
+            Demo: finishing fills your account with two months of sample practice for {EXAMS[chosenExam].name} so every screen has something to show.
           </p>
         )}
       </div>

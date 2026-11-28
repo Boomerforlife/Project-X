@@ -1,20 +1,18 @@
-import { notFound } from "next/navigation";
-import { PaperDetail } from "@/components/app/Papers";
-import { getPaper, getPapers } from "@/lib/data";
+import { permanentRedirect } from "next/navigation";
+import { getPaper, getPyqPapers } from "@/lib/data";
+import { trackOf } from "@/lib/exams";
+import { routes } from "@/lib/routes";
 
+/** Old paper URLs (/tests/<slug>/) redirect to the paper's page under PYQs; the year is part of every API paper slug. */
 export async function generateStaticParams() {
-  const ids = (await getPapers()).map((p) => ({ paperId: p.id }));
-  // Cache Components needs at least one param; with papers hidden (API mode) this renders a 404.
-  return ids.length ? ids : [{ paperId: "unavailable" }];
+  const papers = await getPyqPapers("jee").catch(() => []);
+  return papers.length ? papers.map((p) => ({ paperId: p.slug })) : [{ paperId: "unavailable" }];
 }
 
-export async function generateMetadata({ params }: PageProps<"/tests/[paperId]">) {
-  const p = await getPaper((await params).paperId);
-  return p ? { title: p.title } : {};
-}
-
-export default async function PaperPage({ params }: PageProps<"/tests/[paperId]">) {
+export default async function PaperRedirect({ params }: PageProps<"/tests/[paperId]">) {
   const { paperId } = await params;
-  if (!(await getPaper(paperId))) notFound();
-  return <PaperDetail paperId={paperId} />;
+  // Demo fixtures carry their year separately; API slugs contain it.
+  const fixture = await getPaper(paperId).catch(() => null);
+  if (fixture?.year) permanentRedirect(routes.pyqPaper(trackOf(fixture.exam), fixture.year, fixture.id));
+  permanentRedirect(routes.pyqPaperFromSlug(paperId.startsWith("neet") ? "neet" : "jee", paperId));
 }

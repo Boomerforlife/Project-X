@@ -7,30 +7,45 @@ import { createPortal } from "react-dom";
 import type { ExamId } from "@/contracts";
 import { TierBadge } from "@/components/billing/TierBadge";
 import { ThemeToggle } from "@/components/theme/Theme";
-import { Icon } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
+import { COPY } from "@/lib/copy";
 import { signOut, updateUser, useDemo } from "@/lib/demo/store";
 import { EXAMS } from "@/lib/exams";
-import { LEADERBOARD_ENABLED, PAPERS_ENABLED } from "@/lib/demo/progress";
+import { LEADERBOARD_ENABLED } from "@/lib/demo/progress";
+import { routes } from "@/lib/routes";
 import { availableExams } from "@/lib/session/exams";
 import { DATA_SOURCE } from "@/lib/site";
-import { APP_NAV, PRIMARY_NAV, isActive, type NavItem } from "./nav";
+import { isActive, navItems, type AuthView, type NavItem } from "./nav";
 
-export type NavVariant = "site" | "app";
-// API mode without the papers demo flag: no Papers entry point (the backend has no papers yet).
-const APP_NAV_VISIBLE: readonly NavItem[] = PAPERS_ENABLED ? APP_NAV : APP_NAV.filter((n) => n.href !== "/tests/");
-const navFor = (v: NavVariant): readonly NavItem[] => (v === "app" ? APP_NAV_VISIBLE : PRIMARY_NAV);
 const SIGNUP_LABEL = DATA_SOURCE === "api" ? "Sign up" : "Try the demo";
+const SIGN_OUT_LABEL = DATA_SOURCE === "mock" ? "Sign out of demo" : "Sign out";
 
-export function DesktopNav({ variant = "site", hidden = [] }: { variant?: NavVariant; hidden?: readonly string[] }) {
-  const pathname = usePathname();
-  const nav = navFor(variant).filter((n) => !hidden.includes(n.href));
+/** Auth state as the header sees it: "loading" until the session is known (render only what is true for everyone). */
+export function useAuthView() {
+  const s = useDemo();
+  const view: AuthView = s === null ? "loading" : s.user ? "signedIn" : "signedOut";
+  const track = s?.user ? EXAMS[s.user.exam].track : "jee";
+  return { s, view, track } as const;
+}
+
+/** Where a sign-in should come back to: the current page, except the landing and auth pages. */
+function useReturnPath(): string | null {
+  const pathname = usePathname() ?? "/";
+  if (pathname === "/" || /^\/(login|signup|onboarding)\//.test(pathname)) return null;
+  return pathname;
+}
+
+export function DesktopNav({ hidden = [] }: { hidden?: readonly string[] }) {
+  const pathname = usePathname() ?? "/";
+  const { view, track } = useAuthView();
+  const nav = navItems(view, { track, hidden });
   return (
     <ul className="hidden items-center gap-0.5 lg:flex">
       {nav.map((item) => {
         const active = isActive(pathname, item.match, nav);
         return (
-          <li key={item.href}>
+          <li key={item.id}>
             <Link
               href={item.href}
               aria-current={active ? "page" : undefined}
@@ -93,7 +108,7 @@ export function ExamSwitcher({ compact = false }: { compact?: boolean }) {
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "flex h-9 items-center gap-1.5 rounded-md border border-line px-2.5 text-sm text-fg-soft transition-colors hover:border-line-strong hover:text-fg",
-          compact && "h-8",
+          compact && "h-11",
         )}
       >
         <span aria-hidden className="size-1.5 rounded-full bg-ok" />
@@ -135,18 +150,19 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
+/** Account links shared by the desktop avatar menu and the phone menu. */
+const ACCOUNT_LINKS: { href: string; label: string; icon: IconName }[] = [
+  { href: routes.studyPlan, label: COPY.studyPlan, icon: "list" },
+  { href: routes.account, label: COPY.account, icon: "settings" },
+  ...(LEADERBOARD_ENABLED ? [{ href: routes.leaderboard, label: "Leaderboard", icon: "trophy" as const }] : []),
+];
+
 function AccountMenu() {
   const s = useDemo();
   const router = useRouter();
   const { open, setOpen, ref, btn } = usePopover();
   const id = useId();
   if (!s?.user) return null;
-  const links = [
-    { href: "/account/", label: "Profile & settings", icon: "settings" as const },
-    { href: "/progress/", label: "Progress & achievements", icon: "chart" as const },
-    ...(LEADERBOARD_ENABLED ? [{ href: "/leaderboard/", label: "Leaderboard", icon: "trophy" as const }] : []),
-    { href: "/bookmarks/", label: "Bookmarks", icon: "bookmark" as const },
-  ];
   return (
     <div ref={ref} className="relative">
       <button ref={btn} type="button" aria-expanded={open} aria-controls={id} aria-label="Account menu" onClick={() => setOpen((o) => !o)} className="grid size-9 place-items-center rounded-md hover:bg-surface-2">
@@ -156,10 +172,13 @@ function AccountMenu() {
         <div id={id} role="menu" className="rise absolute right-0 top-11 z-50 w-64 rounded-xl border border-line-strong bg-surface p-1.5 shadow-[var(--shadow-pop)]">
           <div className="border-b border-line px-2.5 pb-2.5 pt-1.5">
             <p className="text-sm font-medium">{s.user.name}</p>
-            <p className="text-xs text-fg-muted">{DATA_SOURCE === "mock" ? "Demo account · " : ""}{EXAMS[s.user.exam].name}</p>
+            <p className="text-xs text-fg-muted">
+              {DATA_SOURCE === "mock" ? "Demo account · " : ""}
+              {EXAMS[s.user.exam].name}
+            </p>
           </div>
           <div className="py-1">
-            {links.map((l) => (
+            {ACCOUNT_LINKS.map((l) => (
               <Link key={l.href} href={l.href} role="menuitem" onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-fg-soft hover:bg-surface-2 hover:text-fg">
                 <Icon name={l.icon} className="size-4 text-fg-muted" />
                 {l.label}
@@ -176,7 +195,7 @@ function AccountMenu() {
             className="flex w-full items-center gap-2.5 rounded-lg border-t border-line px-2.5 py-2 text-sm text-fg-soft hover:bg-surface-2 hover:text-fg"
           >
             <Icon name="logout" className="size-4 text-fg-muted" />
-            Sign out of demo
+            {SIGN_OUT_LABEL}
           </button>
         </div>
       )}
@@ -184,32 +203,27 @@ function AccountMenu() {
   );
 }
 
-/** Right side of the header. Renders the signed-out state on the server, then hydrates. */
-export function HeaderActions({ variant = "site" }: { variant?: NavVariant }) {
-  const s = useDemo();
-  const signedIn = Boolean(s?.user);
+/** Right side of the desktop header. A neutral placeholder while the session loads, so nothing flashes. */
+export function HeaderActions() {
+  const { view } = useAuthView();
+  const back = useReturnPath();
   return (
     <div className="hidden items-center gap-1.5 lg:flex">
       <ThemeToggle />
-      {s === null && variant === "app" ? (
-        <span className="skeleton h-8 w-32" />
-      ) : signedIn ? (
+      {view === "loading" ? (
+        <span aria-hidden className="skeleton h-8 w-32" />
+      ) : view === "signedIn" ? (
         <>
-          {variant === "site" && (
-            <Link href="/dashboard/" className="mr-1 inline-flex h-9 items-center rounded-md px-3 text-sm text-fg-soft hover:bg-surface-2 hover:text-fg">
-              Dashboard
-            </Link>
-          )}
           <TierBadge className="mr-1" />
           <ExamSwitcher />
           <AccountMenu />
         </>
       ) : (
         <>
-          <Link href="/login/" className="inline-flex h-9 items-center rounded-md px-3 text-sm text-fg-soft hover:bg-surface-2 hover:text-fg">
+          <Link href={routes.login(back)} className="inline-flex h-9 items-center rounded-md px-3 text-sm text-fg-soft hover:bg-surface-2 hover:text-fg">
             Log in
           </Link>
-          <Link href="/signup/" className="pixel-corners inline-flex h-9 items-center bg-fg px-3 text-sm font-medium text-bg hover:bg-fg-soft">
+          <Link href={routes.signup(back)} className="pixel-corners inline-flex h-9 items-center bg-fg px-3 text-sm font-medium text-bg hover:bg-fg-soft">
             {SIGNUP_LABEL}
           </Link>
         </>
@@ -220,16 +234,23 @@ export function HeaderActions({ variant = "site" }: { variant?: NavVariant }) {
 
 const noopSubscribe = () => () => {};
 
-export function MobileNav({ variant = "site", hidden = [] }: { variant?: NavVariant; hidden?: readonly string[] }) {
-  const pathname = usePathname();
+/**
+ * Phone and tablet header controls. Visitors: a visible Sign up button and the menu. Signed-in students: the menu holds
+ * the account items (the five main destinations are in the bottom tab bar).
+ */
+export function MobileNav({ hidden = [] }: { hidden?: readonly string[] }) {
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const s = useDemo();
+  const { s, view, track } = useAuthView();
+  const back = useReturnPath();
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
   // The panel is portalled because the header's backdrop-filter would otherwise trap position:fixed inside it.
   const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
-  const nav = navFor(s?.user && variant === "site" ? "site" : variant).filter((n) => !hidden.includes(n.href));
+  const nav = navItems(view, { track, hidden });
+  // Signed in, the main destinations live in the tab bar; the menu lists only what is not there.
+  const menuNav = view === "signedIn" ? [] : nav;
 
   const [lastPath, setLastPath] = useState(pathname);
   if (pathname !== lastPath) {
@@ -254,8 +275,13 @@ export function MobileNav({ variant = "site", hidden = [] }: { variant?: NavVari
   }, [open]);
 
   return (
-    <div className="flex items-center gap-1 lg:hidden">
-      <ThemeToggle />
+    <div className="flex items-center gap-1.5 lg:hidden">
+      {view === "signedOut" && (
+        <Link href={routes.signup(back)} className="pixel-corners inline-flex h-9 items-center bg-fg px-3 text-sm font-medium text-bg hover:bg-fg-soft">
+          {SIGNUP_LABEL}
+        </Link>
+      )}
+      {view === "signedIn" && <TierBadge />}
       <button
         ref={buttonRef}
         type="button"
@@ -276,7 +302,7 @@ export function MobileNav({ variant = "site", hidden = [] }: { variant?: NavVari
       {mounted &&
         createPortal(
           <div id={panelId} hidden={!open} className="fixed inset-x-0 bottom-0 top-14 z-40 overflow-y-auto border-t border-line bg-bg">
-            <nav aria-label="Primary" className="mx-auto max-w-6xl px-4 py-4">
+            <nav aria-label="Menu" className="mx-auto max-w-6xl px-4 py-4">
               {s?.user && (
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface p-3">
                   <div className="flex items-center gap-3">
@@ -290,44 +316,33 @@ export function MobileNav({ variant = "site", hidden = [] }: { variant?: NavVari
                 </div>
               )}
               <ul className="flex flex-col">
-                {(s?.user && variant === "site" ? [...APP_NAV_VISIBLE.slice(0, 2), ...nav] : nav).map((item) => {
-                  const active = isActive(pathname, item.match, nav);
-                  return (
-                    <li key={item.href + item.label}>
-                      <Link
-                        href={item.href}
-                        aria-current={active ? "page" : undefined}
-                        className={cn("flex h-14 items-center justify-between border-b border-line font-display text-xl", active ? "text-fg" : "text-fg-soft")}
-                      >
-                        {item.label}
-                        <span aria-hidden className="font-pixel text-xs text-fg-subtle">{active ? "●" : "→"}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
+                {menuNav.map((item) => (
+                  <MenuRow key={item.id} href={item.href} label={item.label} active={isActive(pathname, item.match, nav)} />
+                ))}
+                {view === "signedIn" && ACCOUNT_LINKS.map((l) => <MenuRow key={l.href} href={l.href} label={l.label} active={pathname.startsWith(l.href)} />)}
+                <MenuRow href="/resources/" label="Resources" active={pathname.startsWith("/resources/")} subtle />
               </ul>
+              <div className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-line px-3">
+                <span className="text-sm text-fg-soft">Theme</span>
+                <ThemeToggle className="size-11" />
+              </div>
               {s?.user ? (
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <Link href="/account/" className="flex h-12 items-center justify-center rounded-md border border-line-strong">
-                    Settings
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      signOut();
-                      router.push("/");
-                    }}
-                    className="flex h-12 items-center justify-center rounded-md border border-line-strong"
-                  >
-                    Sign out
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    signOut();
+                    router.push("/");
+                  }}
+                  className="mt-4 flex h-12 w-full items-center justify-center rounded-md border border-line-strong"
+                >
+                  {SIGN_OUT_LABEL}
+                </button>
               ) : (
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <Link href="/login/" className="flex h-12 items-center justify-center rounded-md border border-line-strong">
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Link href={routes.login(back)} className="flex h-12 items-center justify-center rounded-md border border-line-strong">
                     Log in
                   </Link>
-                  <Link href="/signup/" className="flex h-12 items-center justify-center rounded-md bg-fg font-medium text-bg">
+                  <Link href={routes.signup(back)} className="flex h-12 items-center justify-center rounded-md bg-fg font-medium text-bg">
                     {SIGNUP_LABEL}
                   </Link>
                 </div>
@@ -337,5 +352,61 @@ export function MobileNav({ variant = "site", hidden = [] }: { variant?: NavVari
           document.body,
         )}
     </div>
+  );
+}
+
+function MenuRow({ href, label, active, subtle = false }: { href: string; label: string; active: boolean; subtle?: boolean }) {
+  return (
+    <li>
+      <Link
+        href={href}
+        aria-current={active ? "page" : undefined}
+        className={cn("flex h-14 items-center justify-between border-b border-line", subtle ? "text-base text-fg-muted" : "font-display text-xl", active ? "text-fg" : !subtle && "text-fg-soft")}
+      >
+        {label}
+        {active && <span aria-hidden className="font-pixel text-xs text-fg-subtle">●</span>}
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * Signed-in phones and tablets: the five main destinations as a bottom tab bar (owner decision 2026-11-28, replacing the
+ * hamburger for these items). Never rendered in the practice player or the CBT, which have no site header.
+ */
+export function BottomTabs() {
+  const pathname = usePathname() ?? "/";
+  const { view, track } = useAuthView();
+  const signedIn = view === "signedIn";
+  useEffect(() => {
+    if (!signedIn) return;
+    document.documentElement.dataset.tabbar = "1";
+    return () => {
+      delete document.documentElement.dataset.tabbar;
+    };
+  }, [signedIn]);
+  if (!signedIn) return null;
+  const nav: NavItem[] = navItems("signedIn", { track });
+  return (
+    <nav data-chrome aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md supports-[backdrop-filter]:bg-bg/85 lg:hidden">
+      <ul className="mx-auto grid max-w-xl grid-cols-5">
+        {nav.map((item) => {
+          const active = isActive(pathname, item.match, nav);
+          return (
+            <li key={item.id}>
+              <Link
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn("relative flex h-16 flex-col items-center justify-center gap-1 text-[0.7rem] transition-colors", active ? "text-fg" : "text-fg-muted hover:text-fg")}
+              >
+                {active && <span aria-hidden className="absolute inset-x-5 top-0 h-0.5 bg-fg" />}
+                <Icon name={item.icon} className="size-5" />
+                {item.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

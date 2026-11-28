@@ -16,6 +16,7 @@ import { chapters as chapterOverlay, subjects as subjectOverlay } from "@/fixtur
 import { chapterSummary, practiceToCard, toChapters, toCounts, toQuestion, toQuestionCard, toSolution } from "@/lib/api/adapters/content";
 import { examFromApi, examToApi, subjectFromApi } from "@/lib/api/adapters/ids";
 import {
+  listPapers,
   practiceQuestions,
   publicChapter,
   publicExam,
@@ -27,6 +28,7 @@ import {
   taxonomyTree,
 } from "@/lib/api/public";
 import type { PublicChapter, TaxonomyTree } from "@/lib/api/schemas";
+import type { PyqPaper } from "./pyq";
 import { EXAMS, TRACKS, TRACK_INFO, trackOf, type Track } from "@/lib/exams";
 
 /** Taxonomy changes rarely; the operator purges `tax` by hand when it does. */
@@ -259,4 +261,38 @@ export async function apiSitemapQuestions(): Promise<{ track: Track; slug: strin
     if (!cursor || r.data.length === 0) break;
   }
   return out;
+}
+
+/* ----------------------------------------------------------------------- *
+ * Previous-year papers
+ * ----------------------------------------------------------------------- */
+
+/** Complete previous-year papers of a track's active exams (GET /public/papers), newest first. */
+export async function apiPyqPapers(track: Track): Promise<PyqPaper[]> {
+  "use cache";
+  cacheLife(CONTENT);
+  const exams = await apiExams(track);
+  const lists = await Promise.all(exams.map((e) => listPapers(examToApi(e))));
+  const out: PyqPaper[] = [];
+  for (const r of lists) {
+    tagAll(r.tags);
+    for (const p of r.data) {
+      const exam = examFromApi(p.exam.slug);
+      if (!exam) continue;
+      out.push({
+        slug: p.slug,
+        title: p.title,
+        exam,
+        year: p.year,
+        examDate: p.exam_date,
+        shift: p.shift,
+        questionCount: p.question_count,
+        durationMin: p.duration_min,
+        numericalCounted: p.numerical_counted_per_subject ?? null,
+        sections: p.sections.map((s) => ({ subject: subjectFromApi(s.subject.segment, s.subject.name)?.subject ?? null, name: s.subject.name, questionCount: s.question_count })),
+        isDemo: false,
+      });
+    }
+  }
+  return out.sort((a, b) => b.year - a.year || (b.examDate ?? "").localeCompare(a.examDate ?? "") || (b.shift ?? 0) - (a.shift ?? 0));
 }

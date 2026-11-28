@@ -24,7 +24,7 @@ export default function ContactPage() {
         title="Contact"
         lede="Questions, payment issues and complaints."
       />
-      <LegalBody>
+      <LegalBody onward={["practice", "pyqs", "pricing", "resources"]}>
         <LegalSection title="Support">
           <p>
             Email: <Fact k="supportEmail" label="Support email" />

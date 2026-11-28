@@ -83,6 +83,14 @@ export class PlusRequiredError extends Error {
   }
 }
 
+/** The diagnostic this browser remembers is gone (taken on another device or browser, or site data cleared). A plan needs one. */
+export class DiagnosticMissingError extends Error {
+  constructor() {
+    super("Diagnostic not found on this device");
+    this.name = "DiagnosticMissingError";
+  }
+}
+
 const lower = (d: PlanDifficulty): Difficulty => d.toLowerCase() as Difficulty;
 const upperMix = (m: { EASY: number; MEDIUM: number; HARD: number }): Mix => ({ easy: m.EASY, medium: m.MEDIUM, hard: m.HARD });
 const chapterKey = (subject: string, chapter: string) => `${subject}/${chapter}`;
@@ -426,7 +434,7 @@ export async function getReport(s: DemoState): Promise<ReportView | null> {
 export async function createPlan(opts: { dailyMinutes: 30 | 60 | 90 | 120; days: 7 | 14 }, s: DemoState): Promise<PlanView> {
   if (API) {
     const last = lastDiagnostic();
-    if (!last) throw new Error("Take the diagnostic first");
+    if (!last) throw new DiagnosticMissingError();
     const p = await authed("/plans", StudyPlanSchema, "POST", {
       client_request_id: crypto.randomUUID(),
       diagnostic_session_id: last.attemptId,
@@ -436,7 +444,7 @@ export async function createPlan(opts: { dailyMinutes: 30 | 60 | 90 | 120; days:
     return apiPlanView(p);
   }
   const m = readMock();
-  if (!m) throw new Error("Take the diagnostic first");
+  if (!m) throw new DiagnosticMissingError();
   const createdAt = new Date().toISOString();
   const seed = `${m.diagnostic.attemptId}:${createdAt}`;
   const evidence = allEvidence(s, m);

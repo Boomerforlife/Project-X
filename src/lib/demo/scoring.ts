@@ -118,8 +118,8 @@ export function scoreAttempt(attempt: Attempt): AttemptResult {
   };
 }
 
-/** Human-readable answer text for review screens. */
-export function answerLabel(q: Question, a: ResponseValue | null | undefined) {
+/** The student's own response as text for review screens ("B", "A, C", "12.5"). Keys are labelled by keyLabel / check.answerLabel. */
+export function responseLabel(q: Question, a: ResponseValue | null | undefined) {
   if (!isAnswered(a)) return "Not answered";
   if (q.type === "numerical") return a!.value!;
   return (a!.optionIds ?? []).slice().sort().join(", ");

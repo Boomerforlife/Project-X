@@ -219,8 +219,10 @@ Mistake notebook should support reattempting questions and, later, spaced-repeti
 Navigation direction chosen:
 - Minimal top navigation; no permanent desktop sidebar.
 - Desktop: compact horizontal navbar.
-- Mobile: logo, compact kitty treatment, and hamburger navigation.
-- Initial navigation concepts: Practice, PYQs, Plans, Profile.
+- Mobile: logo, compact kitty treatment, and hamburger navigation for visitors (with Sign up always visible).
+- Signed-in phones and tablets: a five-item bottom tab bar (Home, Practice, PYQs, Notebook, Progress), hidden in the practice player and the CBT; the hamburger holds account items (owner decision 2026-11-28, UX audit section E).
+- One auth-aware header on every route with chrome (`src/components/layout/nav.ts`). Signed out: Practice, PYQs, Study plans, Pricing. Signed in: Home, Practice, PYQs, Notebook, Progress; the avatar menu holds Study plan, Account & billing and Sign out.
+- Initial navigation concepts were Practice, PYQs, Plans, Profile; Plans moved into Home as its "what next" answer and Notebook was added for the three lists in §8.
 - Practice screen should minimize distractions.
 - CBT uses its own exam-focused shell.
 

@@ -1,5 +1,6 @@
 import type { Cell, CompareGroup } from "@/lib/billing/compare";
 import { cn } from "@/lib/cn";
+import { CompareDisclosure } from "./CompareDisclosure";
 import { PlusBadge } from "./PlusBadge";
 
 /**
@@ -8,12 +9,13 @@ import { PlusBadge } from "./PlusBadge";
  */
 export function PlanCompare({ groups }: { groups: CompareGroup[] }) {
   return (
-    <section aria-labelledby="compare-h" className="mt-16">
+    <section aria-labelledby="compare-h" className="mt-12 sm:mt-16">
       <h2 id="compare-h" className="font-display text-2xl font-semibold">
         Compare Free and Plus
       </h2>
       <p className="mt-1 text-sm text-fg-muted">Only what works today. Limits come from the server and apply the same way in the app.</p>
-      <div className="mt-6 overflow-hidden rounded-xl border border-line">
+      <CompareDisclosure>
+      <div className="overflow-hidden rounded-xl border border-line">
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">Features included in Free and in Tabby Plus</caption>
           <colgroup>
@@ -61,6 +63,7 @@ export function PlanCompare({ groups }: { groups: CompareGroup[] }) {
           ))}
         </table>
       </div>
+      </CompareDisclosure>
     </section>
   );
 }

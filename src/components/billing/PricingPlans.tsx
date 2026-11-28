@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BillingMe, BillingPlan, BillingPlans } from "@projectx/contracts";
+import { useEntitlements } from "@/components/ads/AdsProvider";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { billingMe, createOrder, formatInr } from "@/lib/api/billing";
 import { apiEnabled } from "@/lib/api/env";
@@ -12,8 +13,10 @@ import { openCheckout } from "@/lib/billing/checkout";
 import { track } from "@/lib/analytics";
 import type { CompareGroup } from "@/lib/billing/compare";
 import { cn } from "@/lib/cn";
+import { routes, safeNext } from "@/lib/routes";
 import { useAuthStatus } from "@/lib/session/store";
 import { PlusBadge } from "./PlusBadge";
+import { useCurrentUrl } from "./pricingNext";
 
 const BADGE: Record<NonNullable<BillingPlan["badge"]>, string> = {
   RECOMMENDED: "Recommended",
@@ -58,15 +61,27 @@ function useBillingMe(): { me: BillingMe | null; signedIn: boolean; ready: boole
   return { me, signedIn: status === "ready", ready };
 }
 
+/** The `?next=` the pricing page was opened with (a same-site path), or null. Read from the URL; needs no Suspense. */
+function useNextParam(): string | null {
+  const url = useCurrentUrl();
+  if (!url) return null;
+  const raw = new URLSearchParams(url.split("?")[1] ?? "").get("next");
+  const next = raw ? safeNext(raw, "") : "";
+  return next || null;
+}
+
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
 export function PricingPlans({ data, groups, highlights }: { data: BillingPlans; groups: CompareGroup[]; highlights: string[] }) {
+  // /billing/me is only needed here for launch_eligible; tier and expiry come from the shared entitlements.
   const { me, signedIn, ready } = useBillingMe();
+  const { tier, plusUntil } = useEntitlements();
   const enabled = data.payments_enabled && apiEnabled();
   const paid = data.plans.filter((p) => !p.launch_only).sort((a, b) => a.duration_days - b.duration_days);
   const launch = data.plans.find((p) => p.launch_only);
-  const showLaunch = !!launch && (!signedIn || !!me?.launch_eligible) && me?.tier !== "PLUS";
-  const isPlus = me?.tier === "PLUS";
+  const showLaunch = !!launch && (!signedIn || !!me?.launch_eligible) && (tier ?? me?.tier) !== "PLUS";
+  const isPlus = (tier ?? me?.tier) === "PLUS";
+  const plusEnds = plusUntil ?? me?.plus_until ?? null;
   const [selected, setSelected] = useState<string>(() => (paid.find((p) => p.badge === "RECOMMENDED") ?? paid[0])?.code ?? "");
   const plan = paid.find((p) => p.code === selected) ?? paid[0];
   const groupId = useId();
@@ -82,11 +97,11 @@ export function PricingPlans({ data, groups, highlights }: { data: BillingPlans;
 
   return (
     <div className="space-y-6">
-      {isPlus && me?.plus_until ? (
+      {isPlus && plusEnds ? (
         <p role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-plus/40 bg-plus/5 px-4 py-3 text-sm">
           <PlusBadge />
           <span>
-            You have Plus until <strong>{fmtDate(me.plus_until)}</strong>. Another pass adds its days after that date.
+            You have Plus until <strong>{fmtDate(plusEnds)}</strong>. Another pass adds its days after that date.
           </span>
         </p>
       ) : null}
@@ -128,7 +143,7 @@ export function PricingPlans({ data, groups, highlights }: { data: BillingPlans;
         </section>
 
         {/* Plus: the featured plan. Elevated, accent border, pass picker, one clear action. */}
-        <section aria-labelledby="plus-h" className="relative flex flex-col rounded-2xl border border-plus/50 bg-surface p-6 shadow-[0_0_0_4px_color-mix(in_srgb,var(--plus)_8%,transparent)] sm:p-7">
+        <section aria-labelledby="plus-h" className="relative flex flex-col rounded-2xl border border-plus/50 bg-surface p-6 shadow-[0_0_0_4px_color-mix(in_srgb,var(--plus)_8%,transparent)] max-sm:shadow-none sm:p-7">
           <div className="flex flex-wrap items-center gap-3">
             <PlusBadge size="md" />
             <h2 id="plus-h" className="font-display text-xl font-semibold">
@@ -142,7 +157,7 @@ export function PricingPlans({ data, groups, highlights }: { data: BillingPlans;
               <fieldset className="mt-5">
                 <legend className="mb-2 text-xs font-medium uppercase tracking-wider text-fg-muted">Choose a pass</legend>
                 {/* Native radios inside a fieldset: arrow keys, focus and the group name come from the browser. */}
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid sm:grid-cols-3 sm:gap-2 max-sm:divide-y max-sm:divide-line max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:border-line">
                   {paid.map((p) => {
                     const on = p.code === plan.code;
                     const save = savingPercent(p, paid[0]);
@@ -150,8 +165,8 @@ export function PricingPlans({ data, groups, highlights }: { data: BillingPlans;
                       <label
                         key={p.code}
                         className={cn(
-                          "relative flex cursor-pointer flex-col rounded-lg border p-3 transition-colors focus-within:ring-2 focus-within:ring-plus",
-                          on ? "border-plus bg-plus/10" : "border-line hover:border-line-strong",
+                          "relative flex cursor-pointer flex-col p-3 transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-plus sm:rounded-lg sm:border",
+                          on ? "bg-plus/10 sm:border-plus" : "sm:border-line sm:hover:border-line-strong",
                         )}
                       >
                         <input type="radio" name={`${groupId}-pass`} value={p.code} checked={on} onChange={() => setSelected(p.code)} className="sr-only" />
@@ -164,7 +179,7 @@ export function PricingPlans({ data, groups, highlights }: { data: BillingPlans;
                         {p.badge || save ? (
                           <span className="mt-2 flex flex-wrap gap-1">
                             {p.badge ? <span className="rounded-sm bg-fg px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-bg">{BADGE[p.badge]}</span> : null}
-                            {save ? <span className="rounded-sm border border-plus/50 px-1.5 py-0.5 text-[10px] font-semibold text-plus">Save {save}%</span> : null}
+                            {save ? <span className="rounded-sm px-0 py-0.5 text-[10px] font-semibold text-plus sm:border sm:border-plus/50 sm:px-1.5">Save {save}%</span> : null}
                           </span>
                         ) : null}
                       </label>
@@ -242,6 +257,8 @@ export function PlanButton({
   label: string;
 }) {
   const router = useRouter();
+  const { refresh } = useEntitlements();
+  const next = useNextParam();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Created on first click (not during render: prerendering forbids random values). Reused for retries of this checkout,
@@ -250,7 +267,8 @@ export function PlanButton({
 
   if (ready && !signedIn) {
     return (
-      <ButtonLink href={`/login/?next=${encodeURIComponent("/pricing/")}`} variant={variant} size="lg" className="w-full">
+      // Back to pricing (with its own next intact) after signing in.
+      <ButtonLink href={routes.login(routes.pricing(next))} variant={variant} size="lg" className="w-full">
         Sign in to get Plus
       </ButtonLink>
     );
@@ -274,10 +292,13 @@ export function PlanButton({
       if (r === "submitted") {
         track("checkout_submitted", { plan: plan.code });
         if (verifying) await Promise.race([verifying, new Promise((res) => setTimeout(res, 8000))]);
-        router.push(`/billing/success/?order=${order.order_id}`);
+        // Payment is submitted: pick up the new plan now (the webhook may still be a moment away; the success page
+        // refreshes again once the order is PAID).
+        void refresh();
+        router.push(`/billing/success/?order=${order.order_id}${next ? `&next=${encodeURIComponent(next)}` : ""}`);
       } else {
         track("checkout_dismissed", { plan: plan.code });
-        router.push(`/billing/cancelled/?order=${order.order_id}`);
+        router.push(`/billing/cancelled/?order=${order.order_id}${next ? `&next=${encodeURIComponent(next)}` : ""}`);
       }
     } catch (e) {
       setError(

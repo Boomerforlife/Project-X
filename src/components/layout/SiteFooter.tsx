@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { PAPERS_VISIBLE, getExams, getSubjects } from "@/lib/data";
+import { getExams, getSubjects } from "@/lib/data";
+import { FooterAccountLink } from "./FooterAccountLink";
 import { TRACK_INFO, examLabel } from "@/lib/exams";
 import { liveTracks } from "@/lib/live-tracks";
 import { SITE } from "@/lib/site";
@@ -23,7 +24,7 @@ export async function SiteFooter() {
         // Name only the exams that have questions ("JEE Main" today), never an exam we do not cover yet.
         { href: "/jee/", label: examLabel("jee", jeeExams) },
         ...jee.map((s) => ({ href: `/jee/${s.id}/`, label: s.name })),
-        { href: "/jee/pyq/", label: "JEE papers" },
+        { href: "/jee/pyq/", label: "JEE PYQs" },
       ],
     },
     ...(neet.length
@@ -33,7 +34,7 @@ export async function SiteFooter() {
             links: [
               { href: "/neet/", label: "NEET UG" },
               ...neet.map((s) => ({ href: `/neet/${s.id}/`, label: s.name })),
-              { href: "/neet/pyq/", label: "NEET papers" },
+              { href: "/neet/pyq/", label: "NEET PYQs" },
             ],
           },
         ]
@@ -41,11 +42,9 @@ export async function SiteFooter() {
     {
       title: "Study",
       links: [
-        ...(PAPERS_VISIBLE ? [{ href: "/tests/", label: "Mock tests" }] : []),
         { href: "/study-plans/", label: "Study plans" },
         { href: "/resources/", label: "Resources" },
         { href: "/pricing/", label: "Pricing" },
-        { href: "/login/", label: "Log in" },
       ],
     },
     {
@@ -78,6 +77,11 @@ export async function SiteFooter() {
                   </Link>
                 </li>
               ))}
+              {col.title === "Study" && (
+                <li>
+                  <FooterAccountLink />
+                </li>
+              )}
             </ul>
           </nav>
         ))}
