@@ -1213,6 +1213,9 @@
                 ]
               }
             ]
+          },
+          "public_page": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1226,6 +1229,76 @@
           "origin",
           "chapter",
           "topic"
+        ]
+      },
+      "PaperSummary": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          },
+          "exam_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shift": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "exam": {
+            "$ref": "#/components/schemas/ExamRef"
+          },
+          "question_count": {
+            "type": "integer"
+          },
+          "duration_min": {
+            "type": "integer"
+          },
+          "numerical_counted_per_subject": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "$ref": "#/components/schemas/SubjectRef"
+                },
+                "question_count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "subject",
+                "question_count"
+              ]
+            }
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "year",
+          "exam_date",
+          "shift",
+          "exam",
+          "question_count",
+          "duration_min",
+          "sections"
         ]
       },
       "PublicExam": {
@@ -1580,6 +1653,9 @@
                   "integer",
                   "null"
                 ]
+              },
+              "paper": {
+                "$ref": "#/components/schemas/PaperRef"
               }
             },
             "required": [
@@ -1609,6 +1685,43 @@
           "PYQ_PAPER",
           "MISTAKES",
           "BOOKMARKS"
+        ]
+      },
+      "PaperRef": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "title": {
+            "type": "string"
+          },
+          "numerical_counted_per_subject": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "numerical_negative_marks": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Dec"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "slug",
+          "title"
         ]
       },
       "SessionProgress": {
@@ -1900,6 +2013,190 @@
               "value"
             ]
           }
+        ]
+      },
+      "PaperAnalysis": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paper": {
+            "$ref": "#/components/schemas/PaperRef"
+          },
+          "chapters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "$ref": "#/components/schemas/SubjectRef"
+                },
+                "chapter": {
+                  "$ref": "#/components/schemas/ChapterRef"
+                },
+                "questions": {
+                  "type": "integer"
+                },
+                "attempted": {
+                  "type": "integer"
+                },
+                "correct": {
+                  "type": "integer"
+                },
+                "incorrect": {
+                  "type": "integer"
+                },
+                "score": {
+                  "$ref": "#/components/schemas/Dec"
+                },
+                "max": {
+                  "$ref": "#/components/schemas/Dec"
+                }
+              },
+              "required": [
+                "subject",
+                "chapter",
+                "questions",
+                "attempted",
+                "correct",
+                "incorrect",
+                "score",
+                "max"
+              ]
+            }
+          },
+          "time": {
+            "type": "object",
+            "properties": {
+              "total_ms": {
+                "type": "integer"
+              },
+              "answered": {
+                "type": "integer"
+              },
+              "avg_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "correct_avg_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "incorrect_avg_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "slowest": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "question_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "number": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "time_ms": {
+                      "type": "integer"
+                    },
+                    "is_correct": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "question_id",
+                    "number",
+                    "time_ms",
+                    "is_correct"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "total_ms",
+              "answered",
+              "avg_ms",
+              "correct_avg_ms",
+              "incorrect_avg_ms",
+              "slowest"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "$ref": "#/components/schemas/SubjectRef"
+                },
+                "score": {
+                  "$ref": "#/components/schemas/Dec"
+                },
+                "previous_score": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Dec"
+                    },
+                    {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "subject",
+                "score",
+                "previous_score"
+              ]
+            }
+          },
+          "previous": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "session_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "completed_at": {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              "score": {
+                "$ref": "#/components/schemas/Dec"
+              }
+            },
+            "required": [
+              "session_id",
+              "completed_at",
+              "score"
+            ]
+          }
+        },
+        "required": [
+          "session_id",
+          "paper",
+          "chapters",
+          "time",
+          "sections",
+          "previous"
         ]
       },
       "SessionListItem": {
@@ -5287,6 +5584,573 @@
           "active"
         ]
       },
+      "AdminMetrics": {
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string"
+          },
+          "window_days": {
+            "type": "integer"
+          },
+          "users": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "new_7d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "new_30d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "active_1d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "active_7d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "active_30d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "onboarded": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "email_unconfirmed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "with_password": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "with_google": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "admins": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "total",
+              "new_7d",
+              "new_30d",
+              "active_1d",
+              "active_7d",
+              "active_30d",
+              "onboarded",
+              "email_unconfirmed",
+              "with_password",
+              "with_google",
+              "admins"
+            ]
+          },
+          "activity": {
+            "type": "object",
+            "properties": {
+              "attempts_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attempts_7d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attempts_30d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "correct_rate_30d": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "sessions_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sessions_7d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sessions_completed_30d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sessions_by_mode_30d": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count"
+                  ]
+                }
+              },
+              "paper_sessions_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "paper_sessions_completed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bookmarks": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mistakes_open": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "study_plans": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "attempts_total",
+              "attempts_7d",
+              "attempts_30d",
+              "correct_rate_30d",
+              "sessions_total",
+              "sessions_7d",
+              "sessions_completed_30d",
+              "sessions_by_mode_30d",
+              "paper_sessions_total",
+              "paper_sessions_completed",
+              "bookmarks",
+              "mistakes_open",
+              "study_plans"
+            ]
+          },
+          "daily": {
+            "type": "object",
+            "properties": {
+              "signups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "day": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "day",
+                    "count"
+                  ]
+                }
+              },
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "day": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "day",
+                    "count"
+                  ]
+                }
+              },
+              "active_users": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "day": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "day",
+                    "count"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "signups",
+              "attempts",
+              "active_users"
+            ]
+          },
+          "content": {
+            "type": "object",
+            "properties": {
+              "published": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "drafts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "archived": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "in_sitemap": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "papers": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "by_exam_subject": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "exam": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "published": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "draft": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "exam",
+                    "subject",
+                    "published",
+                    "draft"
+                  ]
+                }
+              },
+              "by_verification": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count"
+                  ]
+                }
+              },
+              "by_difficulty_published": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count"
+                  ]
+                }
+              },
+              "published_without_text": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "paper_only_published": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "published",
+              "drafts",
+              "archived",
+              "in_sitemap",
+              "papers",
+              "by_exam_subject",
+              "by_verification",
+              "by_difficulty_published",
+              "published_without_text",
+              "paper_only_published"
+            ]
+          },
+          "billing": {
+            "type": "object",
+            "properties": {
+              "orders_by_status": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count"
+                  ]
+                }
+              },
+              "revenue_paise_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "revenue_paise_30d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "refunded_paise_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "plus_active": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "last_paid_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_webhook_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "webhooks_unprocessed": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "orders_by_status",
+              "revenue_paise_total",
+              "revenue_paise_30d",
+              "refunded_paise_total",
+              "plus_active",
+              "last_paid_at",
+              "last_webhook_at",
+              "webhooks_unprocessed"
+            ]
+          },
+          "support": {
+            "type": "object",
+            "properties": {
+              "reports_open": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "doubts_open": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "recent_reports": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "question_slug": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "excerpt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "created_at",
+                    "question_slug",
+                    "reason",
+                    "excerpt"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "reports_open",
+              "doubts_open",
+              "recent_reports"
+            ]
+          },
+          "pipeline": {
+            "type": "object",
+            "properties": {
+              "jobs_by_status": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count"
+                  ]
+                }
+              },
+              "last_job_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ai_runs_30d": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ai_cost_usd_30d": {
+                "type": "number"
+              },
+              "difficulty_by_source": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "count"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "jobs_by_status",
+              "last_job_at",
+              "ai_runs_30d",
+              "ai_cost_usd_30d",
+              "difficulty_by_source"
+            ]
+          },
+          "analytics_30d": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "event": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "event",
+                "count"
+              ]
+            }
+          },
+          "database": {
+            "type": "object",
+            "properties": {
+              "size_bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "last_migration": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "size_bytes",
+              "last_migration"
+            ]
+          }
+        },
+        "required": [
+          "generated_at",
+          "window_days",
+          "users",
+          "activity",
+          "daily",
+          "content",
+          "billing",
+          "support",
+          "pipeline",
+          "analytics_30d",
+          "database"
+        ]
+      },
       "ProblemList": {
         "type": "object",
         "properties": {
@@ -7573,6 +8437,100 @@
         }
       }
     },
+    "/public/papers": {
+      "get": {
+        "summary": "Complete previous-year papers of an exam (full-paper practice)",
+        "tags": [
+          "public"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Slug"
+            },
+            "required": true,
+            "name": "exam",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PUBLIC_LIST)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PaperSummary"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/public/exams/{slug}": {
       "get": {
         "summary": "Exam landing data",
@@ -8291,6 +9249,15 @@
           {
             "schema": {
               "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "maxLength": 1000,
               "description": "Opaque cursor from meta.page.next_cursor"
             },
@@ -8704,6 +9671,124 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/SessionDetail"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/practice/sessions/{id}/analysis": {
+      "get": {
+        "summary": "Plus: chapter, time and attempt-vs-attempt analysis of a session",
+        "description": "Tabby Plus only (owner decision 2026-11-20). Free accounts get 403 with details.reason PREMIUM_REQUIRED.",
+        "tags": [
+          "practice"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PaperAnalysis"
                     },
                     "meta": {
                       "$ref": "#/components/schemas/Meta"
@@ -16449,6 +17534,112 @@
                         "revenue",
                         "signups"
                       ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN / ACCOUNT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / IDEMPOTENCY_CONFLICT / VERSION_CONFLICT / ALREADY_ATTEMPTED / INVALID_STATE_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/metrics": {
+      "get": {
+        "summary": "System overview for the admin dashboard (aggregates only)",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (cache: PRIVATE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AdminMetrics"
                     },
                     "meta": {
                       "$ref": "#/components/schemas/Meta"

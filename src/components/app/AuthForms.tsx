@@ -15,6 +15,7 @@ import { devSignIn, emailSignIn, emailSignUp, googleSignIn, providerDisplayName 
 import * as studentApi from "@/lib/api/student";
 import { DATA_SOURCE } from "@/lib/site";
 import { safeNext, signInReason } from "@/lib/auth/next";
+import { PASSWORD_HINT, passwordProblem } from "@/lib/auth/password";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -162,6 +163,10 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            if (mode === "signup") {
+              const problem = passwordProblem(password, email.trim());
+              if (problem) return setError(problem);
+            }
             setBusy(true);
             setError("");
             done(mode === "login" ? await emailSignIn(email.trim(), password) : await emailSignUp(email.trim(), password, name.trim() || email.split("@")[0]!));
@@ -180,7 +185,12 @@ function ApiAuthForm({ mode }: { mode: "login" | "signup" }) {
           </label>
           <label className="block text-sm">
             <span className="text-fg-muted">Password</span>
-            <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} className={inputCls} />
+            <input type="password" required minLength={8} maxLength={72} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} aria-describedby={mode === "signup" ? "password-hint" : undefined} className={inputCls} />
+            {mode === "signup" && (
+              <span id="password-hint" className="mt-1 block text-xs text-fg-muted">
+                {PASSWORD_HINT}
+              </span>
+            )}
           </label>
           <Button type="submit" size="lg" pixel className="w-full" disabled={busy}>
             {busy ? "One moment…" : mode === "login" ? "Log in" : "Create account"}
