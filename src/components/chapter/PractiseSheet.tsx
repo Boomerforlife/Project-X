@@ -111,7 +111,10 @@ export function PractiseSheet({
         ...(year !== "any" ? { year: Number(year) } : {}),
         title: year !== "any" ? `${chapterName} · ${year}` : chapterName,
       });
-      if (id) router.push(`${routes.session(id)}&from=${encodeURIComponent(window.location.pathname)}`);
+      if (id) {
+        setOpen(false);
+        router.push(`${routes.session(id)}&from=${encodeURIComponent(window.location.pathname)}`);
+      }
       else {
         setBusy(false);
         setError(API && !includeSolved ? "You've solved every question that matches. Tick “Include questions I've already solved” to practise them again." : "No questions match that yet. Try fewer filters.");

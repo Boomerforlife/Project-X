@@ -103,6 +103,11 @@ export function Dialog({
     if (!d) return;
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
+    // Unmounted, or hidden when the router keeps the previous page alive after a navigation: never leave a modal open in
+    // the browser's top layer, where it would block every click on the new page.
+    return () => {
+      if (d.open) d.close();
+    };
   }, [open]);
   return (
     <dialog

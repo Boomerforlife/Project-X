@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { SiteHeader } from "@/components/layout/Header";
 import { TabbyMascot } from "@/components/mascot/TabbyMascot";
 import type { MascotState } from "@/components/mascot/mascot-types";
@@ -69,7 +70,14 @@ export function ErrorScreen({
   const copy = ERROR_COPY[kind];
   return (
     <div data-error-screen={kind} className="flex min-h-dvh flex-col bg-bg text-fg">
-      {mascot ? <SiteHeader chrome={false} tabs={false} /> : <div aria-hidden className="h-14 shrink-0" />}
+      {/* The header reads the pathname, which is runtime data on a 404 at an arbitrary URL: keep it in a boundary. */}
+      {mascot ? (
+        <Suspense fallback={<div aria-hidden className="h-14 shrink-0 border-b border-line" />}>
+          <SiteHeader chrome={false} tabs={false} />
+        </Suspense>
+      ) : (
+        <div aria-hidden className="h-14 shrink-0" />
+      )}
       <section aria-labelledby="error-title" className="flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-4 text-center sm:px-6">
         {mascot && <TabbyMascot state={copy.mascot} className="h-28 text-fg sm:h-36" />}
         <p className="mt-10 font-pixel text-xs uppercase tracking-[0.25em] text-fg-muted">{code ?? copy.code}</p>

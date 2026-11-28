@@ -81,7 +81,7 @@ function Home({ s, user }: { s: DemoState; user: DemoUser }) {
         <div className="relative grid gap-10 lg:grid-cols-[1.45fr_1fr] lg:gap-14">
           <div className="min-w-0">
             <p className="eyebrow flex flex-wrap items-center gap-2">
-              {dateLabel} <span aria-hidden>·</span> Using {exam.name}{" "}
+              {dateLabel} <span aria-hidden>·</span> Preparing for {exam.name}{" "}
               <Link href={routes.account} className="normal-case underline underline-offset-4 hover:text-fg">
                 change
               </Link>
@@ -91,7 +91,7 @@ function Home({ s, user }: { s: DemoState; user: DemoUser }) {
               {greeting()}, {user.name}.
             </h1>
             <p className="mt-4 text-xl font-medium tabular-nums">
-              {td.answered} of {goal} questions today <span aria-hidden>·</span> {st.current > 0 ? `${st.current}-day streak` : "no streak yet"}
+              {td.answered} of {goal} questions today <span aria-hidden>·</span> <span className="whitespace-nowrap">{st.current > 0 ? `${st.current}-day streak` : "no streak yet"}</span>
             </p>
             <p className="mt-2 max-w-xl text-lg leading-relaxed text-fg-muted">{summary}</p>
 

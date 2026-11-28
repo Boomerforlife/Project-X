@@ -225,6 +225,7 @@
 
 /* The CBT and focus shells carry their own demo label and must stay uncluttered. */
 [data-shell] .mock-ribbon { display: none; }
+html[data-tabbar] .mock-ribbon { bottom: calc(4.75rem + env(safe-area-inset-bottom)); }
 
 /* ---------- Product surfaces (one treatment everywhere) ---------- */
 /* A panel: quiet top-lit gradient, hairline border, inner highlight. Use for

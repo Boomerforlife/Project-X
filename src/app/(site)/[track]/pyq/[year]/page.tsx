@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PaperTile } from "@/components/pyq/PaperTile";
 import { getPyqPapers } from "@/lib/data";
-import { sittingLabel } from "@/lib/data/pyq";
+import { sittingLabel, type PyqPaper } from "@/lib/data/pyq";
 import { EXAMS, TRACKS, TRACK_INFO, isTrack } from "@/lib/exams";
 import { routes } from "@/lib/routes";
 import { pageMetadata, safeMetadata, NOT_FOUND_METADATA } from "@/lib/seo";
@@ -16,6 +16,11 @@ export async function generateStaticParams() {
     out.push(...[...new Set(papers.map((p) => String(p.year)))].map((year) => ({ track, year })));
   }
   return out.length ? out : [{ track: "jee", year: "none" }];
+}
+
+/** "JEE Main", or "JEE Main and JEE Advanced" when a year has both. */
+function examNames(papers: PyqPaper[]): string {
+  return [...new Set(papers.map((p) => p.exam))].map((e) => EXAMS[e].name).join(" and ");
 }
 
 async function load(track: string, year: string) {
@@ -31,7 +36,7 @@ export async function generateMetadata({ params }: PageProps<"/[track]/pyq/[year
     const { track, year } = await params;
     const d = await load(track, year);
     if (!d) return NOT_FOUND_METADATA;
-    const exam = EXAMS[d.papers[0]!.exam].name;
+    const exam = examNames(d.papers);
     return pageMetadata({
       title: `${exam} ${year} papers with official answer key`,
       description: `All ${d.papers.length} ${exam} ${year} papers (${d.papers.length === 1 ? "one sitting" : "every shift"}) with NTA's official final answer key. Attempt each in an exam-style CBT, as a timed test or untimed.`,
@@ -47,7 +52,8 @@ export default async function PyqYearPage({ params }: PageProps<"/[track]/pyq/[y
   if (!d) notFound();
   const { track, papers } = d;
   const name = TRACK_INFO[track].name;
-  const exam = EXAMS[papers[0]!.exam].name;
+  const exam = examNames(papers);
+  const byExam = TRACK_INFO[track].exams.map((e) => ({ exam: e, list: papers.filter((p) => p.exam === e) })).filter((g) => g.list.length > 0);
   const questions = papers.reduce((n, p) => n + p.questionCount, 0);
   const first = sittingLabel({ examDate: papers[0]!.examDate, shift: null });
   const last = sittingLabel({ examDate: papers[papers.length - 1]!.examDate, shift: null });
@@ -70,11 +76,20 @@ export default async function PyqYearPage({ params }: PageProps<"/[track]/pyq/[y
         }
       />
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {papers.map((p) => (
-            <PaperTile key={p.slug} paper={p} track={track} />
-          ))}
-        </ul>
+        {byExam.map((g) => (
+          <section key={g.exam} aria-labelledby={`${g.exam}-h`} className="mb-10">
+            {byExam.length > 1 && (
+              <h2 id={`${g.exam}-h`} className="mb-3 text-xl font-semibold">
+                {EXAMS[g.exam].name} {year}
+              </h2>
+            )}
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {g.list.map((p) => (
+                <PaperTile key={p.slug} paper={p} track={track} />
+              ))}
+            </ul>
+          </section>
+        ))}
         <p className="mt-10 text-sm text-fg-muted">
           <Link href={routes.pyq(track)} className="text-fg underline underline-offset-4">
             All {name} PYQs

@@ -148,11 +148,11 @@ export function PaperQuickStart({ paper }: { paper: PaperRef }) {
   const open = atts.find((a) => a.status === "in_progress");
   const latest = atts.find((a) => a.status === "submitted");
   return open ? (
-    <Link href={resumeHref(open)} className="inline-flex h-9 items-center rounded-md bg-fg px-3 text-sm font-medium text-bg hover:bg-fg-soft">
+    <Link href={resumeHref(open)} className="inline-flex h-9 items-center rounded-md bg-fg px-3 text-sm font-medium text-bg hover:bg-fg-soft max-sm:h-11">
       Resume
     </Link>
   ) : (
-    <Button size="sm" pixel disabled={busy !== null} onClick={() => void start("cbt", latest?.id)}>
+    <Button size="sm" pixel disabled={busy !== null} onClick={() => void start("cbt", latest?.id)} className="max-sm:h-11">
       <Icon name="monitor" className="size-4" /> {latest ? "Retry in CBT" : "Start in CBT"}
     </Button>
   );
